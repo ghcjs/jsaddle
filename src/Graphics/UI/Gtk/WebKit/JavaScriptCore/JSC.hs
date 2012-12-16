@@ -19,7 +19,6 @@ module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC (
   , module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Value
   , module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Object
 
-  , global
   , evaluateScript
   , eval
 ) where
@@ -35,9 +34,6 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSContextRef
 import Foreign (nullPtr)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
        (jsevaluatescript, JSValueRefRef)
-
-global :: JSC JSObjectRef
-global = ask >>= (liftIO . jscontextgetglobalobject)
 
 evaluateScript :: MakeStringRef script
                => MakeStringRef url

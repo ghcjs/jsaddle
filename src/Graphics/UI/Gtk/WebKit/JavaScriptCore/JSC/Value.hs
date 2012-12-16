@@ -34,9 +34,13 @@ module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Value (
   , strToText
   , textToStr
 
+  , valToText
+
   , MakeValueRef(..)
   , MakeStringRef(..)
+  , MakeArgRefs(..)
 
+  , val
   , valMakeNull
   , valMakeUndefined
   , valMakeBool
@@ -111,14 +115,69 @@ textToStr text = do
     liftIO $ useAsPtr text $ \p l -> do
         jsstringcreatewithcharacters (castPtr p) (fromIntegral l)
 
+valToText :: JSValueRef -> JSC Text
+valToText jsvar = valToStr jsvar >>= strToText
+
 class MakeValueRef a where
     makeValueRef :: a -> JSC JSValueRef
+
+class MakeStringRef a where
+    makeStringRef :: MonadIO m => a -> m JSStringRef
+
+---- Arguments ----
+class MakeArgRefs this where
+    makeArgRefs :: this -> JSC [JSValueRef]
+
+instance MakeArgRefs arg => MakeArgRefs (JSC arg) where
+    makeArgRefs arg =  arg >>= makeArgRefs
+
+instance MakeValueRef arg => MakeArgRefs [arg] where
+    makeArgRefs = mapM makeValueRef
+
+instance MakeArgRefs () where
+    makeArgRefs _ = return []
+
+instance (MakeValueRef arg1, MakeValueRef arg2) => MakeArgRefs (arg1, arg2) where
+    makeArgRefs (arg1, arg2) = do
+        rarg1 <- makeValueRef arg1
+        rarg2 <- makeValueRef arg2
+        return [rarg1, rarg2]
+
+instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3) => MakeArgRefs (arg1, arg2, arg3) where
+    makeArgRefs (arg1, arg2, arg3) = do
+        rarg1 <- makeValueRef arg1
+        rarg2 <- makeValueRef arg2
+        rarg3 <- makeValueRef arg3
+        return [rarg1, rarg2, rarg3]
+
+instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4) => MakeArgRefs (arg1, arg2, arg3, arg4) where
+    makeArgRefs (arg1, arg2, arg3, arg4) = do
+        rarg1 <- makeValueRef arg1
+        rarg2 <- makeValueRef arg2
+        rarg3 <- makeValueRef arg3
+        rarg4 <- makeValueRef arg4
+        return [rarg1, rarg2, rarg3, rarg3]
+
+instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4, MakeValueRef arg5) => MakeArgRefs (arg1, arg2, arg3, arg4, arg5) where
+    makeArgRefs (arg1, arg2, arg3, arg4, arg5) = do
+        rarg1 <- makeValueRef arg1
+        rarg2 <- makeValueRef arg2
+        rarg3 <- makeValueRef arg3
+        rarg4 <- makeValueRef arg4
+        rarg5 <- makeValueRef arg5
+        return [rarg1, rarg2, rarg3, rarg3, rarg5]
+
+val :: MakeValueRef v => v -> JSC JSValueRef
+val = makeValueRef
 
 instance MakeValueRef JSValueRef where
     makeValueRef = return
 
-class MakeStringRef a where
-    makeStringRef :: MonadIO m => a -> m JSStringRef
+instance MakeArgRefs JSValueRef where
+    makeArgRefs arg = return [arg]
+
+instance MakeValueRef v => MakeValueRef (JSC v) where
+    makeValueRef prop =  prop >>= makeValueRef
 
 instance MakeStringRef JSStringRef where
     makeStringRef = return
@@ -135,11 +194,18 @@ valMakeNull = ask >>= (liftIO . jsvaluemakenull)
 instance MakeValueRef JSNull where
     makeValueRef = const valMakeNull
 
+instance MakeArgRefs JSNull where
+    makeArgRefs _ = valMakeNull >>= (\ref -> return [ref])
+
 valMakeUndefined :: JSC JSValueRef
 valMakeUndefined = ask >>= (liftIO . jsvaluemakeundefined)
 
 instance MakeValueRef JSUndefined where
     makeValueRef = const valMakeUndefined
+
+--We can't allow this if JSUndefined is () as () is now args not "(null)"
+--instance MakeArgRefs JSUndefined where
+--    makeArgRefs _ = valMakeUndefined >>= (\ref -> return [ref])
 
 valMakeBool :: JSBool -> JSC JSValueRef
 valMakeBool b = do
@@ -149,6 +215,9 @@ valMakeBool b = do
 instance MakeValueRef Bool where
     makeValueRef = valMakeBool
 
+instance MakeArgRefs Bool where
+    makeArgRefs b = valMakeBool b >>= (\ref -> return [ref])
+
 valMakeNumber :: JSNumber -> JSC JSValueRef
 valMakeNumber n = do
     gctxt <- ask
@@ -156,6 +225,9 @@ valMakeNumber n = do
 
 instance MakeValueRef Double where
     makeValueRef = valMakeNumber
+
+instance MakeArgRefs Double where
+    makeArgRefs n = valMakeNumber n >>= (\ref -> return [ref])
 
 valMakeString :: Text -> JSC JSValueRef
 valMakeString text = do
@@ -165,6 +237,9 @@ valMakeString text = do
 
 instance MakeValueRef Text where
     makeValueRef = valMakeString
+
+instance MakeArgRefs Text where
+    makeArgRefs t = valMakeString t >>= (\ref -> return [ref])
 
 instance MakeValueRef String where
     makeValueRef = valMakeString . T.pack
@@ -193,3 +268,7 @@ valMakeRef val = do
 
 instance MakeValueRef JSValue where
     makeValueRef = valMakeRef
+
+instance MakeArgRefs JSValue where
+    makeArgRefs v = valMakeRef v >>= (\ref -> return [ref])
+
