@@ -14,18 +14,18 @@
 --
 -----------------------------------------------------------------------------
 
-module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC (
-    module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Monad
-  , module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Value
-  , module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Object
+module Language.Javascript.JSC (
+    module Language.Javascript.JSC.Monad
+  , module Language.Javascript.JSC.Value
+  , module Language.Javascript.JSC.Object
 
   , evaluateScript
   , eval
 ) where
 
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Monad
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Value
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Object
+import Language.Javascript.JSC.Monad
+import Language.Javascript.JSC.Value
+import Language.Javascript.JSC.Object
 
 import Control.Monad.Trans.Reader (ask)
 import Control.Monad.IO.Class (MonadIO(..))

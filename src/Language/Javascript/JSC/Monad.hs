@@ -14,7 +14,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Monad (
+module Language.Javascript.JSC.Monad (
     JSC(..)
   , JSException(..)
   , catch

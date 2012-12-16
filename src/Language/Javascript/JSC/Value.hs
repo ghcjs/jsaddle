@@ -14,7 +14,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Value (
+module Language.Javascript.JSC.Value (
     JSNull(..)
   , JSUndefined
   , JSBool
@@ -53,7 +53,7 @@ module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Value (
 
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
        (JSObjectRef, JSStringRef, JSValueRef)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Monad (rethrow, JSC)
+import Language.Javascript.JSC.Monad (rethrow, JSC)
 import Control.Monad.Trans.Reader (ask)
 import Control.Monad.IO.Class (MonadIO, MonadIO(..))
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef

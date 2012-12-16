@@ -15,7 +15,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Object (
+module Language.Javascript.JSC.Object (
     objSetProperty
   , objGetProperty
   , objCallAsFunction
@@ -37,10 +37,10 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
         jsobjectcallasfunction, jsobjectgetproperty, jsobjectsetproperty,
         JSPropertyAttributes, JSObjectCallAsFunctionCallback,
         jsobjectmakefunctionwithcallback)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Value
+import Language.Javascript.JSC.Value
        (valMakeUndefined, valToObject, MakeValueRef(..),
         MakeStringRef(..), MakeArgRefs(..))
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Monad
+import Language.Javascript.JSC.Monad
        (rethrow, JSC)
 import Control.Monad.Trans.Reader (runReaderT, ask)
 import Control.Monad.IO.Class (MonadIO(..))
