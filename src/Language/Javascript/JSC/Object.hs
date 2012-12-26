@@ -5,7 +5,7 @@
            , ScopedTypeVariables #-}
 -----------------------------------------------------------------------------
 --
--- Module      :  Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Object
+-- Module      :  Language.Javascript.JSC.Object
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
@@ -20,28 +20,32 @@ module Language.Javascript.JSC.Object (
   , objGetProperty
   , objCallAsFunction
   , (!)
+  , (!!)
   , (#)
   , (<#)
   , new
+  , call
   , function
   , fun
   , array
   , global
 ) where
 
+import Prelude hiding ((!!))
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
        (JSStringRef, JSObjectRef, JSValueRefRef, JSValueRef, JSContextRef)
-import Foreign.C (CULong(..))
+import Foreign.C (CUInt, CULong(..))
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
-       (jsobjectcallasconstructor, jsobjectmakearray,
+       (jsobjectsetpropertyatindex, jsobjectgetpropertyatindex,
+        jsobjectcallasconstructor, jsobjectmakearray,
         jsobjectcallasfunction, jsobjectgetproperty, jsobjectsetproperty,
         JSPropertyAttributes, JSObjectCallAsFunctionCallback,
         jsobjectmakefunctionwithcallback)
 import Language.Javascript.JSC.Value
        (valMakeUndefined, valToObject, MakeValueRef(..),
-        MakeStringRef(..), MakeArgRefs(..))
+        MakeStringRef(..), MakeArgRefs(..), rethrow)
 import Language.Javascript.JSC.Monad
-       (rethrow, JSC)
+       (JSC)
 import Control.Monad.Trans.Reader (runReaderT, ask)
 import Control.Monad.IO.Class (MonadIO(..))
 import Foreign (peekArray, nullPtr, withArrayLen)
@@ -66,28 +70,26 @@ instance MakeObjectRef v => MakeObjectRef (JSC v) where
 
 ---- Property References ----
 data JSPropRef = JSPropRef JSObjectRef JSStringRef
+               | JSPropIndexRef JSObjectRef CUInt
 
 class MakePropRef this where
     makePropRef :: this -> JSC JSPropRef
 
 instance MakePropRef JSPropRef where
-    makePropRef (JSPropRef this name) = do
-        rthis <- makeObjectRef this
-        rname <- makeStringRef name
-        return (JSPropRef rthis rname)
+    makePropRef = return
 
 instance MakePropRef prop => MakePropRef (JSC prop) where
-    makePropRef prop =  prop >>= makePropRef
+    makePropRef prop = prop >>= makePropRef
 
 instance MakeObjectRef JSPropRef where
-    makeObjectRef (JSPropRef this name) = rethrow $ objGetProperty this name
+    makeObjectRef = objGetProperty
 
 instance MakeValueRef JSPropRef where
-    makeValueRef (JSPropRef this name) = rethrow $ objGetProperty this name
+    makeValueRef = objGetProperty
 
 instance MakeArgRefs JSPropRef where
-    makeArgRefs (JSPropRef this name) = do
-        rarg <- rethrow $ objGetProperty this name
+    makeArgRefs p = do
+        rarg <- objGetProperty p
         return [rarg]
 
 ---- String global scope ----
@@ -101,33 +103,73 @@ instance MakeObjectRef String where
     makeObjectRef name = do
         this <- global
         rname <- makeStringRef name
-        (rethrow $ objGetProperty this rname) >>= valToObject
+        (rethrow $ objGetPropertyByName this rname) >>= valToObject
 
 global :: JSC JSObjectRef
 global = ask >>= (liftIO . jscontextgetglobalobject)
 
-objSetProperty :: (MakeStringRef name, MakeValueRef val)
-               => JSObjectRef
-               -> name
-               -> val
-               -> JSPropertyAttributes
-               -> JSValueRefRef
-               -> JSC ()
-objSetProperty this name val attributes exceptions = do
+objSetPropertyByName :: (MakeStringRef name, MakeValueRef val)
+                     => JSObjectRef
+                     -> name
+                     -> val
+                     -> JSPropertyAttributes
+                     -> JSValueRefRef
+                     -> JSC ()
+objSetPropertyByName this name val attributes exceptions = do
     gctxt <- ask
     sName <- makeStringRef name
     vref <- makeValueRef val
     liftIO $ jsobjectsetproperty gctxt this sName vref attributes exceptions
 
-objGetProperty :: MakeStringRef name
-               => JSObjectRef
-               -> name
-               -> JSValueRefRef
-               -> JSC JSValueRef
-objGetProperty this name exceptions = do
+objSetPropertyAtIndex :: (MakeValueRef val)
+                      => JSObjectRef
+                      -> CUInt
+                      -> val
+                      -> JSValueRefRef
+                      -> JSC ()
+objSetPropertyAtIndex this index val exceptions = do
+    gctxt <- ask
+    vref <- makeValueRef val
+    liftIO $ jsobjectsetpropertyatindex gctxt this index vref exceptions
+
+objSetProperty :: (MakeValueRef val)
+               => JSPropRef
+               -> val
+               -> JSC ()
+objSetProperty (JSPropRef      this name ) val = rethrow $ objSetPropertyByName  this name  val 0
+objSetProperty (JSPropIndexRef this index) val = rethrow $ objSetPropertyAtIndex this index val
+
+objGetPropertyByName :: MakeStringRef name
+                     => JSObjectRef
+                     -> name
+                     -> JSValueRefRef
+                     -> JSC JSValueRef
+objGetPropertyByName this name exceptions = do
     gctxt <- ask
     sName <- makeStringRef name
     liftIO $ jsobjectgetproperty gctxt this sName exceptions
+
+objGetPropertyAtIndex :: JSObjectRef
+                      -> CUInt
+                      -> JSValueRefRef
+                      -> JSC JSValueRef
+objGetPropertyAtIndex this index exceptions = do
+    gctxt <- ask
+    liftIO $ jsobjectgetpropertyatindex gctxt this index exceptions
+
+objGetProperty :: JSPropRef
+               -> JSC JSValueRef
+objGetProperty (JSPropRef      this name ) = rethrow $ objGetPropertyByName  this name
+objGetProperty (JSPropIndexRef this index) = rethrow $ objGetPropertyAtIndex this index
+
+objGetProperty' :: JSPropRef
+                -> JSC (JSObjectRef, JSValueRef)
+objGetProperty' (JSPropRef this name) = do
+    p <- rethrow $ objGetPropertyByName this name
+    return (this, p)
+objGetProperty' (JSPropIndexRef this index) = do
+    p <- rethrow $ objGetPropertyAtIndex this index
+    return (this, p)
 
 objCallAsFunction :: MakeArgRefs args
                   => JSObjectRef
@@ -158,24 +200,37 @@ this ! name = do
     rname <- makeStringRef name
     return (JSPropRef rthis rname)
 
+(!!) :: (MakeObjectRef this) => this -> CUInt -> JSC JSPropRef
+this !! index = do
+    rthis <- makeObjectRef this
+    return (JSPropIndexRef rthis index)
+
 (#) :: (MakePropRef prop, MakeArgRefs args)
     => prop -> args -> JSC JSValueRef
 prop # args = do
-    (JSPropRef this name) <- makePropRef prop
-    f <- (rethrow $ objGetProperty this name) >>= valToObject
+    rprop <- makePropRef prop
+    (this, f) <- objGetProperty' rprop
     rethrow $ objCallAsFunction f this args
 
 (<#) :: (MakePropRef prop, MakeValueRef val)
-     => prop -> val -> JSC ()
+     => prop -> val -> JSC JSPropRef
 prop <# val = do
-    (JSPropRef this name) <- makePropRef prop
-    rethrow $ objSetProperty this name val 0
+    p <- makePropRef prop
+    objSetProperty p val
+    return p
 
 new :: (MakeObjectRef constructor, MakeArgRefs args)
     => constructor -> args -> JSC JSValueRef
 new constructor args = do
     f <- makeObjectRef constructor
     rethrow $ objCallAsConstructor f args
+
+call :: (MakeObjectRef function, MakeObjectRef this, MakeArgRefs args)
+    => function -> this -> args -> JSC JSValueRef
+call function this args = do
+    rfunction <- makeObjectRef function
+    rthis     <- makeObjectRef this
+    rethrow $ objCallAsFunction rfunction rthis args
 
 type JSObjectCallAsFunctionCallback' =
        JSContextRef
@@ -228,9 +283,8 @@ makeArray args exceptions = do
     liftIO $ withArrayLen rargs $ \ len ptr ->
         jsobjectmakearray gctxt (fromIntegral len) ptr exceptions
 
-array :: MakeArgRefs args => args -> JSC JSValueRef
+array :: MakeArgRefs args => args -> JSC JSObjectRef
 array = rethrow . makeArray
-
 
 
 

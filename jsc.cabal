@@ -3,19 +3,19 @@ Version: 0.0.1
 Synopsis: High level interface for webkit-javascriptcore
 Description: High level interface for JavaScriptCore module from webkitgtk
 License: MIT
-License-file:	LICENSE
-Author:	Hamish Mackenzie
+License-file: LICENSE
+Author: Hamish Mackenzie
 Maintainer: Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
 Build-Type: Custom
 Cabal-Version:  >= 1.8
 
 Library
+    build-depends: template-haskell -any, base -any,
+                   text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4,
+                   webkit-javascriptcore >=0.0.0.999 && <0.1, jmacro >=0.6.3 && <0.7
+    exposed-modules: Language.Javascript.JSC.JMacro
+                     Language.Javascript.JSC.Object Language.Javascript.JSC
+                     Language.Javascript.JSC.Value Language.Javascript.JSC.Monad
+    exposed: True
+    buildable: True
     hs-source-dirs: src
-    build-depends: base -any, text >=0.11.2.3 && <0.12,
-                   transformers >=0.3.0.0 && <0.4,
-                   webkit-javascriptcore >=0.0.0.999 && <0.1
-    exposed-modules:
-        Language.Javascript.JSC.Object
-        Language.Javascript.JSC
-        Language.Javascript.JSC.Value
-        Language.Javascript.JSC.Monad

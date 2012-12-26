@@ -4,7 +4,7 @@
            , DeriveDataTypeable #-}
 -----------------------------------------------------------------------------
 --
--- Module      :  Graphics.UI.Gtk.WebKit.JavaScriptCore.JSC.Value
+-- Module      :  Language.Javascript.JSC.Value
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
@@ -36,6 +36,8 @@ module Language.Javascript.JSC.Value (
 
   , valToText
 
+  , rethrow
+
   , MakeValueRef(..)
   , MakeStringRef(..)
   , MakeArgRefs(..)
@@ -52,8 +54,8 @@ module Language.Javascript.JSC.Value (
 ) where
 
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
-       (JSObjectRef, JSStringRef, JSValueRef)
-import Language.Javascript.JSC.Monad (rethrow, JSC)
+       (JSValueRefRef, JSObjectRef, JSStringRef, JSValueRef)
+import Language.Javascript.JSC.Monad (JSC, catch)
 import Control.Monad.Trans.Reader (ask)
 import Control.Monad.IO.Class (MonadIO, MonadIO(..))
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
@@ -70,6 +72,8 @@ import Data.Text.Foreign (useAsPtr)
 import Control.Applicative ((<$>))
 import Data.Text (Text)
 import qualified Data.Text as T (pack)
+import qualified Control.Exception as E (throwIO, Exception)
+import Data.Typeable (Typeable)
 
 data JSNull      = JSNull
 type JSUndefined = ()
@@ -118,6 +122,15 @@ textToStr text = do
 valToText :: JSValueRef -> JSC Text
 valToText jsvar = valToStr jsvar >>= strToText
 
+data JSException = JSException String JSValueRef deriving (Show, Typeable)
+
+instance E.Exception JSException
+
+rethrow :: (JSValueRefRef -> JSC a) -> JSC a
+rethrow f = f `catch` \e -> do
+    s <- deRefVal e
+    liftIO . E.throwIO $ JSException (show s) e
+
 class MakeValueRef a where
     makeValueRef :: a -> JSC JSValueRef
 
@@ -129,7 +142,7 @@ class MakeArgRefs this where
     makeArgRefs :: this -> JSC [JSValueRef]
 
 instance MakeArgRefs arg => MakeArgRefs (JSC arg) where
-    makeArgRefs arg =  arg >>= makeArgRefs
+    makeArgRefs arg = arg >>= makeArgRefs
 
 instance MakeValueRef arg => MakeArgRefs [arg] where
     makeArgRefs = mapM makeValueRef
@@ -156,7 +169,7 @@ instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef 
         rarg2 <- makeValueRef arg2
         rarg3 <- makeValueRef arg3
         rarg4 <- makeValueRef arg4
-        return [rarg1, rarg2, rarg3, rarg3]
+        return [rarg1, rarg2, rarg3, rarg4]
 
 instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4, MakeValueRef arg5) => MakeArgRefs (arg1, arg2, arg3, arg4, arg5) where
     makeArgRefs (arg1, arg2, arg3, arg4, arg5) = do
@@ -165,7 +178,7 @@ instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef 
         rarg3 <- makeValueRef arg3
         rarg4 <- makeValueRef arg4
         rarg5 <- makeValueRef arg5
-        return [rarg1, rarg2, rarg3, rarg3, rarg5]
+        return [rarg1, rarg2, rarg3, rarg4, rarg5]
 
 val :: MakeValueRef v => v -> JSC JSValueRef
 val = makeValueRef
@@ -177,7 +190,7 @@ instance MakeArgRefs JSValueRef where
     makeArgRefs arg = return [arg]
 
 instance MakeValueRef v => MakeValueRef (JSC v) where
-    makeValueRef prop =  prop >>= makeValueRef
+    makeValueRef v = v >>= makeValueRef
 
 instance MakeStringRef JSStringRef where
     makeStringRef = return
@@ -244,9 +257,10 @@ instance MakeArgRefs Text where
 instance MakeValueRef String where
     makeValueRef = valMakeString . T.pack
 
-deRefVal :: JSValueRef -> JSC JSValue
-deRefVal valref = do
+deRefVal :: MakeValueRef val => val -> JSC JSValue
+deRefVal val = do
     gctxt <- ask
+    valref <- makeValueRef val
     t <- liftIO $ jsvaluegettype gctxt valref
     case t of
         Kjstypenull      -> return ValNull
