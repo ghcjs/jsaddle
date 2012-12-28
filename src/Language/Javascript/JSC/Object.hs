@@ -212,6 +212,7 @@ prop # args = do
     (this, f) <- objGetProperty' rprop
     rethrow $ objCallAsFunction f this args
 
+infixr 0 <#
 (<#) :: (MakePropRef prop, MakeValueRef val)
      => prop -> val -> JSC JSPropRef
 prop <# val = do

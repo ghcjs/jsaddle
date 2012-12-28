@@ -86,7 +86,7 @@ data JSValue = ValNull
              | ValBool      JSBool
              | ValNumber    JSNumber
              | ValString    JSString
-             | ValObject    JSObjectRef deriving(Show)
+             | ValObject    JSObjectRef deriving(Show, Eq)
 
 valToBool :: JSValueRef -> JSC JSBool
 valToBool jsvar = do
