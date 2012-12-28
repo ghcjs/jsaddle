@@ -20,6 +20,7 @@ module Language.Javascript.JSC.Monad (
   , catch
 ) where
 
+import Prelude hiding (catch)
 import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
        (JSValueRefRef, JSValueRef, JSContextRef)

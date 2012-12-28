@@ -53,6 +53,7 @@ module Language.Javascript.JSC.Value (
   , valMakeRef
 ) where
 
+import Prelude hiding (catch)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
        (JSValueRefRef, JSObjectRef, JSStringRef, JSValueRef)
 import Language.Javascript.JSC.Monad (JSC, catch)
