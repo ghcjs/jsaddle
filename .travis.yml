@@ -1,0 +1,18 @@
+language: haskell
+before_install:
+  - sudo apt-get update -qq
+  - sudo apt-get --no-install-recommends install darcs libwebkitgtk-3.0-dev
+  - mkdir vendor
+  - cd vendor
+  - darcs get --lazy http://patch-tag.com/r/hamish/gtk2hs
+  - cabal install ./gtk2hs/tools
+  - cd ..
+install:
+  - cabal install cabal-meta cabal-src
+  - cabal-meta install -fwebkit1-8 --force-reinstalls || cabal-meta install -fwebkit1-8 --force-reinstalls
+script:
+  - cabal test
+notifications:
+  irc:
+    channels: "irc.freenode.net#ghcjs"
+  email: true

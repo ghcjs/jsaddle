@@ -1,0 +1,5 @@
+darcs:http://patch-tag.com/r/hamish/gtk2hs
+darcs:http://patch-tag.com/r/hamish/webkit
+git://github.com/ghcjs/webkit-javascriptcore.git
+./
+
