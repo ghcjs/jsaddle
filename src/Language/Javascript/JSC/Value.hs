@@ -1,7 +1,5 @@
-{-# LANGUAGE ForeignFunctionInterface
-           , TypeSynonymInstances
-           , FlexibleInstances
-           , DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSC.Value
@@ -10,38 +8,43 @@
 --
 -- Maintainer  :  Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
 --
--- |
+-- | Deals with JavaScript values.  These can be
+--
+--   * null
+--
+--   * undefined
+--
+--   * true | false
+--
+--   * a double precision floating point number
+--
+--   * a string
+--
+--   * an object
 --
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSC.Value (
-    JSNull(..)
-  , JSUndefined
-  , JSBool
-  , JSNumber
-  , JSString
+  -- * JavaScript value references
+    JSValueRef
+  , MakeValueRef(..)
+
+  -- * Haskell types for JavaScript values
+  , JSNull(..)
+  , JSUndefined(..)
+  , JSBool(..)
+  , JSNumber(..)
+  , JSString(..)
   , JSValue(..)
 
-  , JSStringRef
-  , JSObjectRef
-  , JSValueRef
-
+  -- * Converting JavaScript values
   , valToBool
   , valToNumber
   , valToStr
   , valToObject
-
-  , strToText
-  , textToStr
-
   , valToText
 
-  , rethrow
-
-  , MakeValueRef(..)
-  , MakeStringRef(..)
-  , MakeArgRefs(..)
-
+  -- * Make JavaScript values from Haskell ones
   , val
   , valMakeNull
   , valMakeUndefined
@@ -49,6 +52,7 @@ module Language.Javascript.JSC.Value (
   , valMakeNumber
   , valMakeString
 
+  -- * Conver to and from JSValue
   , deRefVal
   , valMakeRef
 ) where
@@ -56,7 +60,8 @@ module Language.Javascript.JSC.Value (
 import Prelude hiding (catch)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
        (JSValueRefRef, JSObjectRef, JSStringRef, JSValueRef)
-import Language.Javascript.JSC.Monad (JSC, catch)
+import Language.Javascript.JSC.Monad (JSC, catchval)
+import Language.Javascript.JSC.Exception (rethrow)
 import Control.Monad.Trans.Reader (ask)
 import Control.Monad.IO.Class (MonadIO, MonadIO(..))
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
@@ -73,191 +78,273 @@ import Data.Text.Foreign (useAsPtr)
 import Control.Applicative ((<$>))
 import Data.Text (Text)
 import qualified Data.Text as T (pack)
-import qualified Control.Exception as E (throwIO, Exception)
-import Data.Typeable (Typeable)
+import Language.Javascript.JSC.Classes
+       (MakeObjectRef(..), MakeStringRef(..), MakeValueRef(..),
+        MakeArgRefs(..))
+import Language.Javascript.JSC.String (strToText, textToStr)
+import Language.Javascript.JSC.Arguments ()
 
-data JSNull      = JSNull
-type JSUndefined = ()
-type JSBool      = Bool
-type JSNumber    = Double
-type JSString    = Text
+data JSNull      = JSNull -- ^ Type that represents a value that can only be null.
+                          --   Haskell of course has no null so we are adding this type.
+type JSUndefined = ()     -- ^ A type that can only be undefined in JavaScript.  Using ()
+                          --   because functions in JavaScript that have no return, impicitly
+                          --   return undefined.
+type JSBool      = Bool   -- ^ JavaScript boolean values map the 'Bool' haskell type.
+type JSNumber    = Double -- ^ A number in JavaScript maps nicely to 'Double'.
+type JSString    = Text   -- ^ JavaScript strings can be represented with the Haskell 'Text' type.
 
-data JSValue = ValNull
-             | ValUndefined
-             | ValBool      JSBool
-             | ValNumber    JSNumber
-             | ValString    JSString
-             | ValObject    JSObjectRef deriving(Show, Eq)
+-- | An algebraic data type that can represent a JavaScript value.  Any JavaScriptCore
+--   'JSValueRef' can be converted into this type.
+data JSValue = ValNull                   -- ^ null
+             | ValUndefined              -- ^ undefined
+             | ValBool      JSBool       -- ^ true or false
+             | ValNumber    JSNumber     -- ^ a number
+             | ValString    JSString     -- ^ a string
+             | ValObject    JSObjectRef  -- ^ an object
+             deriving(Show, Eq)
 
-valToBool :: JSValueRef -> JSC JSBool
-valToBool jsvar = do
+-- | Given a JavaScript value get its boolean value.
+--   All values in JavaScript convert to bool.
+--
+-- >>> runjs $ valToBool JSNull
+-- False
+-- >>> runjs $ valToBool ()
+-- False
+-- >>> runjs $ valToBool True
+-- True
+-- >>> runjs $ valToBool False
+-- False
+-- >>> runjs $ valToBool (1.0 :: Double)
+-- True
+-- >>> runjs $ valToBool (0.0 :: Double)
+-- False
+-- >>> runjs $ valToBool ""
+-- False
+-- >>> runjs $ valToBool "1"
+-- True
+valToBool :: MakeValueRef val => val -> JSC JSBool
+valToBool val = do
     gctxt <- ask
-    liftIO $ jsvaluetoboolean gctxt jsvar
+    rval <- makeValueRef val
+    liftIO $ jsvaluetoboolean gctxt rval
 
-valToNumber :: JSValueRef -> JSC JSNumber
-valToNumber jsvar = do
+-- | Given a JavaScript value get its numeric value.
+--   May throw JSException.
+--
+-- >>> runjs $ valToNumber JSNull
+-- 0.0
+-- >>> runjs $ valToNumber ()
+-- NaN
+-- >>> runjs $ valToNumber True
+-- 1.0
+-- >>> runjs $ valToNumber False
+-- 0.0
+-- >>> runjs $ valToNumber (1.0 :: Double)
+-- 0.0
+-- >>> runjs $ valToNumber (0.0 :: Double)
+-- 0.0
+-- >>> runjs $ valToNumber ""
+-- 0.0
+-- >>> runjs $ valToNumber "1"
+-- 1.0
+valToNumber :: MakeValueRef val => val -> JSC JSNumber
+valToNumber val = do
     gctxt <- ask
-    rethrow $ liftIO . jsvaluetonumber gctxt jsvar
+    rval <- makeValueRef val
+    rethrow $ liftIO . jsvaluetonumber gctxt rval
 
-valToStr :: JSValueRef -> JSC JSStringRef
-valToStr jsvar = do
+-- | Given a JavaScript value get its string value (as a JavaScript string).
+--   May throw JSException.
+--
+-- >>> runjs $ valToStr JSNull >>= strToText
+-- "null"
+-- >>> runjs $ valToStr () >>= strToText
+-- "undefined"
+-- >>> runjs $ valToStr True >>= strToText
+-- "true"
+-- >>> runjs $ valToStr False >>= strToText
+-- "false"
+-- >>> runjs $ valToStr (1.0 :: Double) >>= strToText
+-- "1"
+-- >>> runjs $ valToStr (0.0 :: Double) >>= strToText
+-- "0"
+-- >>> runjs $ valToStr "" >>= strToText
+-- ""
+-- >>> runjs $ valToStr "1" >>= strToText
+-- "1"
+valToStr :: MakeValueRef val => val -> JSC JSStringRef
+valToStr val = do
     gctxt <- ask
-    rethrow $ liftIO . jsvaluetostringcopy gctxt jsvar
+    rval <- makeValueRef val
+    rethrow $ liftIO . jsvaluetostringcopy gctxt rval
 
-valToObject :: JSValueRef -> JSC JSObjectRef
-valToObject jsvar = do
-    gctxt <- ask
-    rethrow $ liftIO . jsvaluetoobject gctxt jsvar
-
-strToText :: MonadIO m => JSStringRef -> m Text
-strToText jsstring = liftIO $ do
-    l <- jsstringgetlength jsstring
-    p <- jsstringgetcharactersptr jsstring
-    T.fromPtr (castPtr p) (fromIntegral l)
-
-textToStr :: MonadIO m => Text -> m JSStringRef
-textToStr text = do
-    liftIO $ useAsPtr text $ \p l -> do
-        jsstringcreatewithcharacters (castPtr p) (fromIntegral l)
-
-valToText :: JSValueRef -> JSC Text
+-- | Given a JavaScript value get its string value (as a Haskell 'Text').
+--   May throw JSException.
+--
+-- >>> runjs $ valToText JSNull
+-- "null"
+-- >>> runjs $ valToText ()
+-- "undefined"
+-- >>> runjs $ valToText True
+-- "true"
+-- >>> runjs $ valToText False
+-- "false"
+-- >>> runjs $ valToText (1.0 :: Double)
+-- "1"
+-- >>> runjs $ valToText (0.0 :: Double)
+-- "0"
+-- >>> runjs $ valToText ""
+-- ""
+-- >>> runjs $ valToText "1"
+-- "1"
+valToText :: MakeValueRef val => val -> JSC Text
 valToText jsvar = valToStr jsvar >>= strToText
 
-data JSException = JSException String JSValueRef deriving (Show, Typeable)
+-- | Given a JavaScript value get its object value.
+--   May throw JSException.
+--
+-- >>> runjs $ (valToObject JSNull >>= valToText) `catch` \ (JSException e) -> valToText e
+-- "TypeError: 'null' is not an object"
+-- >>> runjs $ (valToObject () >>= valToText) `catch` \ (JSException e) -> valToText e
+-- "TypeError: 'undefined' is not an object"
+-- >>> runjs $ valToObject True
+-- "true"
+-- >>> runjs $ valToObject False
+-- "false"
+-- >>> runjs $ valToObject (1.0 :: Double)
+-- "1"
+-- >>> runjs $ valToObject (0.0 :: Double)
+-- "0"
+-- >>> runjs $ valToObject ""
+-- ""
+-- >>> runjs $ valToObject "1"
+-- "1"
+valToObject :: MakeValueRef val => val -> JSC JSObjectRef
+valToObject val = do
+    gctxt <- ask
+    rval <- makeValueRef val
+    rethrow $ liftIO . jsvaluetoobject gctxt rval
 
-instance E.Exception JSException
-
-rethrow :: (JSValueRefRef -> JSC a) -> JSC a
-rethrow f = f `catch` \e -> do
-    s <- deRefVal e
-    liftIO . E.throwIO $ JSException (show s) e
-
-class MakeValueRef a where
-    makeValueRef :: a -> JSC JSValueRef
-
-class MakeStringRef a where
-    makeStringRef :: MonadIO m => a -> m JSStringRef
-
----- Arguments ----
-class MakeArgRefs this where
-    makeArgRefs :: this -> JSC [JSValueRef]
-
-instance MakeArgRefs arg => MakeArgRefs (JSC arg) where
-    makeArgRefs arg = arg >>= makeArgRefs
-
-instance MakeValueRef arg => MakeArgRefs [arg] where
-    makeArgRefs = mapM makeValueRef
-
-instance MakeArgRefs () where
-    makeArgRefs _ = return []
-
-instance (MakeValueRef arg1, MakeValueRef arg2) => MakeArgRefs (arg1, arg2) where
-    makeArgRefs (arg1, arg2) = do
-        rarg1 <- makeValueRef arg1
-        rarg2 <- makeValueRef arg2
-        return [rarg1, rarg2]
-
-instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3) => MakeArgRefs (arg1, arg2, arg3) where
-    makeArgRefs (arg1, arg2, arg3) = do
-        rarg1 <- makeValueRef arg1
-        rarg2 <- makeValueRef arg2
-        rarg3 <- makeValueRef arg3
-        return [rarg1, rarg2, rarg3]
-
-instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4) => MakeArgRefs (arg1, arg2, arg3, arg4) where
-    makeArgRefs (arg1, arg2, arg3, arg4) = do
-        rarg1 <- makeValueRef arg1
-        rarg2 <- makeValueRef arg2
-        rarg3 <- makeValueRef arg3
-        rarg4 <- makeValueRef arg4
-        return [rarg1, rarg2, rarg3, rarg4]
-
-instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4, MakeValueRef arg5) => MakeArgRefs (arg1, arg2, arg3, arg4, arg5) where
-    makeArgRefs (arg1, arg2, arg3, arg4, arg5) = do
-        rarg1 <- makeValueRef arg1
-        rarg2 <- makeValueRef arg2
-        rarg3 <- makeValueRef arg3
-        rarg4 <- makeValueRef arg4
-        rarg5 <- makeValueRef arg5
-        return [rarg1, rarg2, rarg3, rarg4, rarg5]
-
-val :: MakeValueRef v => v -> JSC JSValueRef
+-- | Convert to a JavaScript value (just an alias for 'makeValueRef')
+val :: MakeValueRef value
+    => value          -- ^ value to convert to a JavaScript value
+    -> JSC JSValueRef
 val = makeValueRef
 
+-- | If we already have a JSValueRef we are fine
 instance MakeValueRef JSValueRef where
     makeValueRef = return
 
+-- | A single JSValueRef can be used as the argument list
 instance MakeArgRefs JSValueRef where
     makeArgRefs arg = return [arg]
 
+-- | JSValueRef can be made by evaluating a function in 'JSC' as long
+--   as it returns something we can make into a JSValueRef.
 instance MakeValueRef v => MakeValueRef (JSC v) where
     makeValueRef v = v >>= makeValueRef
 
-instance MakeStringRef JSStringRef where
-    makeStringRef = return
-
-instance MakeStringRef Text where
-    makeStringRef = textToStr
-
-instance MakeStringRef String where
-    makeStringRef = textToStr . T.pack
-
+----------- null ---------------
+-- | Make a @null@ JavaScript value
 valMakeNull :: JSC JSValueRef
 valMakeNull = ask >>= (liftIO . jsvaluemakenull)
 
+-- | Makes a @null@ JavaScript value
 instance MakeValueRef JSNull where
     makeValueRef = const valMakeNull
 
+-- | Makes an argument list with just a single @null@ JavaScript value
 instance MakeArgRefs JSNull where
     makeArgRefs _ = valMakeNull >>= (\ref -> return [ref])
 
+----------- undefined ---------------
+-- | Make an @undefined@ JavaScript value
 valMakeUndefined :: JSC JSValueRef
 valMakeUndefined = ask >>= (liftIO . jsvaluemakeundefined)
 
+-- | Makes an @undefined@ JavaScript value
 instance MakeValueRef JSUndefined where
     makeValueRef = const valMakeUndefined
 
---We can't allow this if JSUndefined is () as () is now args not "(null)"
+--We can't allow this if JSUndefined is () as () is no args not "(null)".
+--Use [()] instead.
 --instance MakeArgRefs JSUndefined where
 --    makeArgRefs _ = valMakeUndefined >>= (\ref -> return [ref])
 
+-- | This allows us to pass no arguments easily (altenative would be to use @[]::[JSValueRef]@).
+instance MakeArgRefs () where
+    makeArgRefs _ = return []
+
+----------- booleans ---------------
+-- | Make a JavaScript boolean value
 valMakeBool :: JSBool -> JSC JSValueRef
 valMakeBool b = do
     gctxt <- ask
     liftIO $ jsvaluemakeboolean gctxt b
 
+-- | Make a JavaScript boolean value
 instance MakeValueRef Bool where
     makeValueRef = valMakeBool
 
+-- | Makes an argument list with just a single JavaScript boolean value
 instance MakeArgRefs Bool where
     makeArgRefs b = valMakeBool b >>= (\ref -> return [ref])
 
+----------- numbers ---------------
+-- | Make a JavaScript number
 valMakeNumber :: JSNumber -> JSC JSValueRef
 valMakeNumber n = do
     gctxt <- ask
     liftIO $ jsvaluemakenumber gctxt n
 
+-- | Makes a JavaScript number
 instance MakeValueRef Double where
     makeValueRef = valMakeNumber
 
+-- | Makes an argument list with just a single JavaScript number
 instance MakeArgRefs Double where
     makeArgRefs n = valMakeNumber n >>= (\ref -> return [ref])
 
+----------- numbers ---------------
+-- | Make a JavaScript string
 valMakeString :: Text -> JSC JSValueRef
 valMakeString text = do
     gctxt <- ask
     s <- textToStr text
     liftIO $ jsvaluemakestring gctxt s
 
+-- | Makes a JavaScript string
 instance MakeValueRef Text where
     makeValueRef = valMakeString
 
+-- | Makes an argument list with just a single JavaScript string
 instance MakeArgRefs Text where
     makeArgRefs t = valMakeString t >>= (\ref -> return [ref])
 
+-- | Makes a JavaScript string
 instance MakeValueRef String where
     makeValueRef = valMakeString . T.pack
 
+-- | Derefernce a value reference.
+--
+-- >>> runjs $ deRefVal JSNull
+-- ValNull
+-- >>> runjs $ deRefVal ()
+-- ValUndefined
+-- >>> runjs $ deRefVal True
+-- ValBool True
+-- >>> runjs $ deRefVal False
+-- ValBool False
+-- >>> runjs $ deRefVal (1.0 :: Double)
+-- ValNumber 1.0
+-- >>> runjs $ deRefVal (0.0 :: Double)
+-- ValNumber 0.0
+-- >>> runjs $ deRefVal ""
+-- ValString ""
+-- >>> runjs $ deRefVal "1"
+-- ValString "1"
+-- >>> runjs $ valToObject True >>= deRefVal
+-- ValObject 0x...
 deRefVal :: MakeValueRef val => val -> JSC JSValue
 deRefVal val = do
     gctxt <- ask
@@ -271,8 +358,20 @@ deRefVal val = do
         Kjstypestring    -> ValString <$> (valToStr valref >>= strToText)
         Kjstypeobject    -> ValObject <$> valToObject valref
 
+-- | Make a JavaScript value out of a 'JSValue' ADT.
+--
+-- >>> runjs $ valMakeRef ValNull
+-- "null"
+-- >>> runjs $ valMakeRef ValUndefined
+-- "undefined"
+-- >>> runjs $ valMakeRef (ValBool True)
+-- "true"
+-- >>> runjs $ valMakeRef (ValNumber 1)
+-- "1"
+-- >>> runjs $ valMakeRef (ValString $ pack "Hello")
+-- "Hello"
 valMakeRef :: JSValue -> JSC JSValueRef
-valMakeRef val = do
+valMakeRef val =
     case val of
         ValNull      -> valMakeNull
         ValUndefined -> valMakeUndefined
@@ -281,9 +380,14 @@ valMakeRef val = do
         ValString s  -> valMakeString s
         ValObject o  -> return o
 
+-- | Makes a JavaScript value from a 'JSValue' ADT.
 instance MakeValueRef JSValue where
     makeValueRef = valMakeRef
 
+-- | Makes an argument list with just a single JavaScript value from a 'JSValue' ADT.
 instance MakeArgRefs JSValue where
     makeArgRefs v = valMakeRef v >>= (\ref -> return [ref])
+
+instance MakeObjectRef JSNull where
+    makeObjectRef = const valMakeNull
 

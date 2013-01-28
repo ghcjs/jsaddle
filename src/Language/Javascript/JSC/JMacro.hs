@@ -7,7 +7,8 @@
 --
 -- Maintainer  :  Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
 --
--- |
+-- | Helper function to make it easy to embed JMacro in your code and
+--   use it from JSC
 --
 -----------------------------------------------------------------------------
 
@@ -21,9 +22,9 @@ import Language.Haskell.TH
 import Language.Javascript.JMacro (jmacroE, renderJs)
 
 evalJM :: QuasiQuoter
-evalJM = QuasiQuoter {quoteExp = quoteEvalJM}
+evalJM = jmacroE {quoteExp = quoteEvalJM}
 
 quoteEvalJM :: String -> ExpQ
-quoteEvalJM s = do
+quoteEvalJM s =
     appE (varE 'return) [|AppE (VarE $ mkName "Language.Javascript.JSC.eval")
         (LitE . StringL . show $ renderJs $(quoteExp jmacroE s))|]

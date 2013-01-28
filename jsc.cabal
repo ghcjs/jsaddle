@@ -1,21 +1,39 @@
-Name: jsc
-Version: 0.0.1
-Synopsis: High level interface for webkit-javascriptcore
-Description: High level interface for JavaScriptCore module from webkitgtk
-License: MIT
-License-file: LICENSE
-Author: Hamish Mackenzie
-Maintainer: Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
-Build-Type: Custom
-Cabal-Version:  >= 1.8
+name: jsc
+version: 0.0.1
+cabal-version: >=1.10
+license: MIT
+license-file: LICENSE
+maintainer: Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
+synopsis: High level interface for webkit-javascriptcore
+description: This package provides an EDSL for calling JavaScript code using
+             the JavaScriptCore engine and low level Haskell bindings
+             in the webkit-javascriptcore library <https://github.com/ghcjs/webkit-javascriptcore>.
+author: Hamish Mackenzie
+data-dir: ""
 
-Library
+library
     build-depends: template-haskell -any, base -any,
                    text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4,
                    webkit-javascriptcore >=0.0.0.999 && <0.1, jmacro >=0.6.3 && <0.7
-    exposed-modules: Language.Javascript.JSC.JMacro
+    exposed-modules: Language.Javascript.JSC.String
+                     Language.Javascript.JSC.Arguments Language.Javascript.JSC.Classes
+                     Language.Javascript.JSC.Properties Language.Javascript.JSC.JMacro
                      Language.Javascript.JSC.Object Language.Javascript.JSC
                      Language.Javascript.JSC.Value Language.Javascript.JSC.Monad
+                     Language.Javascript.JSC.Exception Language.Javascript.JSC.Evaluate
     exposed: True
     buildable: True
+    default-language: Haskell2010
     hs-source-dirs: src
+    other-modules: Language.Javascript.JSC.PropRef
+
+test-suite test-tool
+    build-depends: template-haskell -any, base -any,
+                   text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4,
+                   webkit-javascriptcore >=0.0.0.999 && <0.1, jmacro >=0.6.3 && <0.7,
+                   webkit -any, gtk -any, glib -any, jsc ==0.0.1
+    type: exitcode-stdio-1.0
+    main-is: TestJSC.hs
+    buildable: True
+    default-language: Haskell2010
+    hs-source-dirs: tests
