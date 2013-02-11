@@ -33,7 +33,7 @@ import Language.Javascript.JSC.Monad (JSC)
 -- | Evaluates a script (like eval in java script).  Unlike 'eval' this function lets you
 --   specify a source URL and starting line number for beter error information.
 --
--- >>> runjs $ (evaluateScript "\n\n{" global "FileName" 53 >>= valToText) `catch` \(JSException e) -> array (e,e!"sourceURL", e!"line") >>= valToText
+-- >>> testJSC $ (evaluateScript "\n\n{" global "FileName" 53 >>= valToText) `catch` \(JSException e) -> array (e,e!"sourceURL", e!"line") >>= valToText
 -- "SyntaxError: Expected token '}',FileName,55"
 evaluateScript :: (MakeStringRef script, MakeObjectRef this, MakeStringRef url)
                => script         -- ^ JavaScript to evaluate
@@ -43,10 +43,8 @@ evaluateScript :: (MakeStringRef script, MakeObjectRef this, MakeStringRef url)
                -> JSC JSValueRef
 evaluateScript script this url line = do
     gctxt <- ask
-    sScript <- makeStringRef script
     thisr <- makeObjectRef this
-    sUrl <- makeStringRef url
-    rethrow $ liftIO . jsevaluatescript gctxt sScript thisr sUrl line
+    rethrow $ liftIO . jsevaluatescript gctxt (makeStringRef script) thisr (makeStringRef url) line
 
 -- | Evaluates a script (like eval in java script)
 --

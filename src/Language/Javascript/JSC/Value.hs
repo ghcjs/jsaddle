@@ -106,21 +106,21 @@ data JSValue = ValNull                   -- ^ null
 -- | Given a JavaScript value get its boolean value.
 --   All values in JavaScript convert to bool.
 --
--- >>> runjs $ valToBool JSNull
+-- >>> testJSC $ valToBool JSNull
 -- False
--- >>> runjs $ valToBool ()
+-- >>> testJSC $ valToBool ()
 -- False
--- >>> runjs $ valToBool True
+-- >>> testJSC $ valToBool True
 -- True
--- >>> runjs $ valToBool False
+-- >>> testJSC $ valToBool False
 -- False
--- >>> runjs $ valToBool (1.0 :: Double)
+-- >>> testJSC $ valToBool (1.0 :: Double)
 -- True
--- >>> runjs $ valToBool (0.0 :: Double)
+-- >>> testJSC $ valToBool (0.0 :: Double)
 -- False
--- >>> runjs $ valToBool ""
+-- >>> testJSC $ valToBool ""
 -- False
--- >>> runjs $ valToBool "1"
+-- >>> testJSC $ valToBool "1"
 -- True
 valToBool :: MakeValueRef val => val -> JSC JSBool
 valToBool val = do
@@ -131,21 +131,21 @@ valToBool val = do
 -- | Given a JavaScript value get its numeric value.
 --   May throw JSException.
 --
--- >>> runjs $ valToNumber JSNull
+-- >>> testJSC $ valToNumber JSNull
 -- 0.0
--- >>> runjs $ valToNumber ()
+-- >>> testJSC $ valToNumber ()
 -- NaN
--- >>> runjs $ valToNumber True
+-- >>> testJSC $ valToNumber True
 -- 1.0
--- >>> runjs $ valToNumber False
+-- >>> testJSC $ valToNumber False
 -- 0.0
--- >>> runjs $ valToNumber (1.0 :: Double)
+-- >>> testJSC $ valToNumber (1.0 :: Double)
 -- 0.0
--- >>> runjs $ valToNumber (0.0 :: Double)
+-- >>> testJSC $ valToNumber (0.0 :: Double)
 -- 0.0
--- >>> runjs $ valToNumber ""
+-- >>> testJSC $ valToNumber ""
 -- 0.0
--- >>> runjs $ valToNumber "1"
+-- >>> testJSC $ valToNumber "1"
 -- 1.0
 valToNumber :: MakeValueRef val => val -> JSC JSNumber
 valToNumber val = do
@@ -156,21 +156,21 @@ valToNumber val = do
 -- | Given a JavaScript value get its string value (as a JavaScript string).
 --   May throw JSException.
 --
--- >>> runjs $ valToStr JSNull >>= strToText
+-- >>> testJSC $ valToStr JSNull >>= strToText
 -- "null"
--- >>> runjs $ valToStr () >>= strToText
+-- >>> testJSC $ valToStr () >>= strToText
 -- "undefined"
--- >>> runjs $ valToStr True >>= strToText
+-- >>> testJSC $ valToStr True >>= strToText
 -- "true"
--- >>> runjs $ valToStr False >>= strToText
+-- >>> testJSC $ valToStr False >>= strToText
 -- "false"
--- >>> runjs $ valToStr (1.0 :: Double) >>= strToText
+-- >>> testJSC $ valToStr (1.0 :: Double) >>= strToText
 -- "1"
--- >>> runjs $ valToStr (0.0 :: Double) >>= strToText
+-- >>> testJSC $ valToStr (0.0 :: Double) >>= strToText
 -- "0"
--- >>> runjs $ valToStr "" >>= strToText
+-- >>> testJSC $ valToStr "" >>= strToText
 -- ""
--- >>> runjs $ valToStr "1" >>= strToText
+-- >>> testJSC $ valToStr "1" >>= strToText
 -- "1"
 valToStr :: MakeValueRef val => val -> JSC JSStringRef
 valToStr val = do
@@ -181,21 +181,21 @@ valToStr val = do
 -- | Given a JavaScript value get its string value (as a Haskell 'Text').
 --   May throw JSException.
 --
--- >>> runjs $ valToText JSNull
+-- >>> testJSC $ valToText JSNull
 -- "null"
--- >>> runjs $ valToText ()
+-- >>> testJSC $ valToText ()
 -- "undefined"
--- >>> runjs $ valToText True
+-- >>> testJSC $ valToText True
 -- "true"
--- >>> runjs $ valToText False
+-- >>> testJSC $ valToText False
 -- "false"
--- >>> runjs $ valToText (1.0 :: Double)
+-- >>> testJSC $ valToText (1.0 :: Double)
 -- "1"
--- >>> runjs $ valToText (0.0 :: Double)
+-- >>> testJSC $ valToText (0.0 :: Double)
 -- "0"
--- >>> runjs $ valToText ""
+-- >>> testJSC $ valToText ""
 -- ""
--- >>> runjs $ valToText "1"
+-- >>> testJSC $ valToText "1"
 -- "1"
 valToText :: MakeValueRef val => val -> JSC Text
 valToText jsvar = valToStr jsvar >>= strToText
@@ -203,21 +203,21 @@ valToText jsvar = valToStr jsvar >>= strToText
 -- | Given a JavaScript value get its object value.
 --   May throw JSException.
 --
--- >>> runjs $ (valToObject JSNull >>= valToText) `catch` \ (JSException e) -> valToText e
+-- >>> testJSC $ (valToObject JSNull >>= valToText) `catch` \ (JSException e) -> valToText e
 -- "TypeError: 'null' is not an object"
--- >>> runjs $ (valToObject () >>= valToText) `catch` \ (JSException e) -> valToText e
+-- >>> testJSC $ (valToObject () >>= valToText) `catch` \ (JSException e) -> valToText e
 -- "TypeError: 'undefined' is not an object"
--- >>> runjs $ valToObject True
+-- >>> testJSC $ $ valToObject True
 -- "true"
--- >>> runjs $ valToObject False
+-- >>> testJSC $ valToObject False
 -- "false"
--- >>> runjs $ valToObject (1.0 :: Double)
+-- >>> testJSC $ valToObject (1.0 :: Double)
 -- "1"
--- >>> runjs $ valToObject (0.0 :: Double)
+-- >>> testJSC $ valToObject (0.0 :: Double)
 -- "0"
--- >>> runjs $ valToObject ""
+-- >>> testJSC $ valToObject ""
 -- ""
--- >>> runjs $ valToObject "1"
+-- >>> testJSC $ valToObject "1"
 -- "1"
 valToObject :: MakeValueRef val => val -> JSC JSObjectRef
 valToObject val = do
@@ -310,8 +310,7 @@ instance MakeArgRefs Double where
 valMakeString :: Text -> JSC JSValueRef
 valMakeString text = do
     gctxt <- ask
-    s <- textToStr text
-    liftIO $ jsvaluemakestring gctxt s
+    liftIO $ jsvaluemakestring gctxt (textToStr text)
 
 -- | Makes a JavaScript string
 instance MakeValueRef Text where
@@ -327,23 +326,23 @@ instance MakeValueRef String where
 
 -- | Derefernce a value reference.
 --
--- >>> runjs $ deRefVal JSNull
+-- >>> testJSC $ deRefVal JSNull
 -- ValNull
--- >>> runjs $ deRefVal ()
+-- >>> testJSC $ deRefVal ()
 -- ValUndefined
--- >>> runjs $ deRefVal True
+-- >>> testJSC $ deRefVal True
 -- ValBool True
--- >>> runjs $ deRefVal False
+-- >>> testJSC $ deRefVal False
 -- ValBool False
--- >>> runjs $ deRefVal (1.0 :: Double)
+-- >>> testJSC $ deRefVal (1.0 :: Double)
 -- ValNumber 1.0
--- >>> runjs $ deRefVal (0.0 :: Double)
+-- >>> testJSC $ deRefVal (0.0 :: Double)
 -- ValNumber 0.0
--- >>> runjs $ deRefVal ""
+-- >>> testJSC $ deRefVal ""
 -- ValString ""
--- >>> runjs $ deRefVal "1"
+-- >>> testJSC $ deRefVal "1"
 -- ValString "1"
--- >>> runjs $ valToObject True >>= deRefVal
+-- >>> testJSC $ valToObject True >>= deRefVal
 -- ValObject 0x...
 deRefVal :: MakeValueRef val => val -> JSC JSValue
 deRefVal val = do
@@ -360,15 +359,15 @@ deRefVal val = do
 
 -- | Make a JavaScript value out of a 'JSValue' ADT.
 --
--- >>> runjs $ valMakeRef ValNull
+-- >>> testJSC $ valMakeRef ValNull
 -- "null"
--- >>> runjs $ valMakeRef ValUndefined
+-- >>> testJSC $ valMakeRef ValUndefined
 -- "undefined"
--- >>> runjs $ valMakeRef (ValBool True)
+-- >>> testJSC $ valMakeRef (ValBool True)
 -- "true"
--- >>> runjs $ valMakeRef (ValNumber 1)
+-- >>> testJSC $ valMakeRef (ValNumber 1)
 -- "1"
--- >>> runjs $ valMakeRef (ValString $ pack "Hello")
+-- >>> testJSC $ valMakeRef (ValString $ pack "Hello")
 -- "Hello"
 valMakeRef :: JSValue -> JSC JSValueRef
 valMakeRef val =

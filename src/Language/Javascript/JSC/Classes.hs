@@ -33,7 +33,7 @@ class MakeValueRef a where
 
 -- | Anything that can be used to make a JavaScript string reference
 class MakeStringRef a where
-    makeStringRef :: MonadIO m => a -> m JSStringRef
+    makeStringRef :: a -> JSStringRef
 
 -- | Anything that can be used to make a list of JavaScript value
 --   references for use as function arguments

@@ -82,8 +82,7 @@ objGetPropertyByName :: MakeStringRef name
                      -> JSC JSValueRef -- ^ returns the property value.
 objGetPropertyByName this name exceptions = do
     gctxt <- ask
-    sName <- makeStringRef name
-    liftIO $ jsobjectgetproperty gctxt this sName exceptions
+    liftIO $ jsobjectgetproperty gctxt this (makeStringRef name) exceptions
 
 -- | Get a property value given the object and the index of the property.
 objGetPropertyAtIndex :: JSObjectRef    -- ^ object to find the property on.
@@ -124,9 +123,8 @@ objSetPropertyByName :: (MakeStringRef name, MakeValueRef val)
                      -> JSC ()
 objSetPropertyByName this name val attributes exceptions = do
     gctxt <- ask
-    sName <- makeStringRef name
     vref <- makeValueRef val
-    liftIO $ jsobjectsetproperty gctxt this sName vref attributes exceptions
+    liftIO $ jsobjectsetproperty gctxt this (makeStringRef name) vref attributes exceptions
 
 -- | Set a property value given the object and the index of the property.
 objSetPropertyAtIndex :: (MakeValueRef val)

@@ -32,10 +32,11 @@ import Foreign (castPtr)
 import Data.Text.Foreign (useAsPtr)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase (JSStringRef)
 import Language.Javascript.JSC.Classes (MakeStringRef(..))
+import System.IO.Unsafe (unsafePerformIO)
 
 -- | If we already have a JSStringRef we are fine
 instance MakeStringRef JSStringRef where
-    makeStringRef = return
+    makeStringRef = id
 
 instance MakeStringRef Text where
     makeStringRef = textToStr
@@ -51,9 +52,9 @@ strToText jsstring = liftIO $ do
     T.fromPtr (castPtr p) (fromIntegral l)
 
 -- | Convert a Haskell 'Text' to a JavaScript string
-textToStr :: MonadIO m => Text -> m JSStringRef
+textToStr :: Text -> JSStringRef
 textToStr text =
-    liftIO $ useAsPtr text $ \p l ->
+    unsafePerformIO $ useAsPtr text $ \p l ->
         jsstringcreatewithcharacters (castPtr p) (fromIntegral l)
 
 

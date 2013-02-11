@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  TestJSC
@@ -38,49 +39,90 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Control.Applicative
 import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad (when)
+import System.Log.Logger (debugM)
+import Control.Lens.Getter ((^.))
 
 data TestState = TestState { jsContext :: JSContextRef, window :: Window }
 
 state = unsafePerformIO $ newMVar Nothing
 done = unsafePerformIO $ newEmptyMVar
 
-runjs f = do
+-- >>> testJSC $ ((global ^. js "console" . js "log") # ["Hello"])
+testJSC :: MakeValueRef val => JSC val -> IO Text
+testJSC = testJSC' False
+
+-- >>> showJSC $ eval "document.body.innerHTML = 'Test'"
+showJSC :: MakeValueRef val => JSC val -> IO Text
+showJSC = testJSC' True
+
+debugLog = debugM "jsc"
+
+testJSC' :: MakeValueRef val => Bool -> JSC val -> IO Text
+testJSC' show f = do
+    debugLog "taking done"
     tryTakeMVar done
+    debugLog "taking state"
     mbState <- takeMVar state
     TestState {..} <- case mbState of
         Nothing -> do
+            debugLog "newState"
             newState <- newEmptyMVar
+            debugLog "fork"
             forkIO $ do
+                debugLog "initGUI"
                 initGUI
+                debugLog "windowNew"
                 window <- windowNew
+                debugLog "timeoutAdd"
                 timeoutAddFull (yield >> return True) priorityHigh 10
---                windowSetDefaultSize window 900 600
---                windowSetPosition window WinPosCenter
+                windowSetDefaultSize window 900 600
+                windowSetPosition window WinPosCenter
                 scrollWin <- scrolledWindowNew Nothing Nothing
                 webView <- webViewNew
                 window `containerAdd` scrollWin
                 scrollWin `containerAdd` webView
                 window `onDestroy` do
+                    debugLog "onDestroy"
                     tryTakeMVar state
+                    debugLog "put state"
                     putMVar state Nothing
+                    debugLog "mainQuit"
                     mainQuit
+                    debugLog "put done"
                     putMVar done ()
+                debugLog "get context"
                 jsContext <- webViewGetMainFrame webView >>= webFrameGetGlobalContext
+                debugLog "put initial state"
                 putMVar newState TestState {..}
---                widgetShowAll window
+                debugLog "maybe show"
+                when show $ widgetShowAll window
+                debugLog "mainGUI"
                 mainGUI
+                debugLog "mainGUI exited"
             takeMVar newState
-        Just s -> return s
-    x <- postGUISync $ runReaderT ((f >>= valToText) `catch` \ (JSException e) -> valToText e) jsContext
+        Just s@TestState {..} -> do
+            debugLog "maybe show (2)"
+            when show . postGUISync $ widgetShowAll window
+            return s
+    x <- postGUISync $ runReaderT ((f >>= valToText)
+            `catch` \ (JSException e) -> valToText e) jsContext
+    debugLog "put state"
     putMVar state $ Just TestState {..}
     return x
 
 main = do
-    runjs $ return ()
+    testJSC $ return ()
     Just TestState{..} <- takeMVar state
     postGUIAsync $ widgetDestroy window
     takeMVar done
 
-test = runjs $ global ! "console" ! "log" # ["Hello"]
 
-test2 = runjs $ eval "'Test'" >>= valToText
+
+
+
+
+
+
+
+
