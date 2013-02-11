@@ -115,7 +115,7 @@ instance MakeObjectRef v => MakeObjectRef (JSC v) where
 --
 -- >>> testJSC $ eval "'Hello World'.length"
 -- >>> testJSC $ val "Hello World" ! "length"
--- "11"
+-- 11
 (!) :: (MakeObjectRef this, MakeStringRef name)
     => this          -- ^ Object to look on
     -> name          -- ^ Name of the property to find
@@ -132,7 +132,7 @@ this ! name = do
 --
 -- >>> testJSC $ eval "'Hello World'[6]"
 -- >>> testJSC $ val "Hello World" !! 6
--- "W"
+-- W
 (!!) :: (MakeObjectRef this)
      => this          -- ^ Object to look on
      -> CUInt         -- ^ Index of the property to lookup
@@ -147,7 +147,7 @@ this !! index = do
 --
 -- >>> testJSC $ eval "'Hello World'.length"
 -- >>> testJSC $ val "Hello World" ^. js "length"
--- "11"
+-- 11
 js :: (MakeObjectRef s, MakeStringRef name)
    => name          -- ^ Name of the property to find
    -> IndexPreservingGetter s (JSC JSPropRef)
@@ -157,7 +157,7 @@ js name = to (!name)
 --
 -- >>> testJSC $ eval "w = console; w.log('Hello World')"
 -- >>> testJSC $ do w <- jsg "console"; w ^. js "log" # ["Hello World"]
--- "11"
+-- 11
 jsg :: MakeStringRef a => a -> JSC JSPropRef
 jsg name = global ! name
 
@@ -165,7 +165,7 @@ jsg name = global ! name
 --
 -- >>> testJSC $ eval "'Hello World'.indexOf('World')"
 -- >>> testJSC $ val "Hello World" ! "indexOf" # ["World"]
--- "6"
+-- 6
 infixr 2 #
 (#) :: (MakePropRef prop, MakeArgRefs args)
     => prop -> args -> JSC JSValueRef
@@ -178,7 +178,7 @@ prop # args = do
 --
 -- >>> testJSC $ eval "var j = {}; j.x = 1; j.x"
 -- >>> testJSC $ do {j <- eval "({})"; j!"x" <# 1; j!"x"}
--- "1"
+-- 1
 infixr 0 <#
 (<#) :: (MakePropRef prop, MakeValueRef val)
      => prop          -- ^ Property to set
@@ -192,7 +192,7 @@ prop <# val = do
 -- | Use this to create a new JavaScript object
 --
 -- >>> testJSC $ new "Date" (2013, 1, 1)
--- "Fri Feb 01 2013 00:00:00 GMT+1300 (NZDT)"
+-- Fri Feb 01 2013 00:00:00 GMT+1300 (NZDT)
 new :: (MakeObjectRef constructor, MakeArgRefs args)
     => constructor
     -> args
@@ -205,7 +205,7 @@ new constructor args = do
 --
 -- >>> testJSC $ eval "(function(){return this;}).apply('Hello', [])"
 -- >>> testJSC $ do { test <- eval "(function(){return this;})"; call test (val "Hello") () }
--- "Hello"
+-- Hello
 call :: (MakeObjectRef function, MakeObjectRef this, MakeArgRefs args)
     => function -> this -> args -> JSC JSValueRef
 call function this args = do
@@ -236,9 +236,9 @@ type JSCallAsFunction = JSValueRef      -- ^ Function object
 --   a to a JavaScipt one.
 --
 -- >>> testJSC $ eval "(function(f) {f('Hello');})(function (a) {console.log(a)})"
--- >>> testJSC $ call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ args -> valToText (head args) >>= (liftIO . print) ]
--- "Hello"
--- "undefined"
+-- >>> testJSC $ call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ args -> valToText (head args) >>= (liftIO . putStrLn . T.unpack) ]
+-- Hello
+-- undefined
 fun :: JSCallAsFunction -> JSCallAsFunction
 fun = id
 
@@ -287,10 +287,10 @@ makeArray args exceptions = do
 --
 -- >>> testJSC $ eval "['Hello', 'World'][1]"
 -- >>> testJSC $ array ["Hello", "World"] !! 1
--- "World"
+-- World
 -- >>> testJSC $ eval "['Hello', null, undefined, true, 1]"
 -- >>> testJSC $ array ("Hello", JSNull, (), True, 1.0::Double)
--- "Hello,,,true,1"
+-- Hello,,,true,1
 array :: MakeArgRefs args => args -> JSC JSObjectRef
 array = rethrow . makeArray
 

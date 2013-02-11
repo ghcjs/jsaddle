@@ -39,9 +39,10 @@ import Data.Text (Text)
 import qualified Data.Text as T
 import Control.Applicative
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad (when)
+import Control.Monad (forM, when)
 import System.Log.Logger (debugM)
 import Control.Lens.Getter ((^.))
+import Data.Monoid ((<>))
 
 data TestState = TestState { jsContext :: JSContextRef, window :: Window }
 
@@ -49,17 +50,17 @@ state = unsafePerformIO $ newMVar Nothing
 done = unsafePerformIO $ newEmptyMVar
 
 -- >>> testJSC $ ((global ^. js "console" . js "log") # ["Hello"])
-testJSC :: MakeValueRef val => JSC val -> IO Text
+testJSC :: MakeValueRef val => JSC val -> IO ()
 testJSC = testJSC' False
 
 -- >>> showJSC $ eval "document.body.innerHTML = 'Test'"
-showJSC :: MakeValueRef val => JSC val -> IO Text
+showJSC :: MakeValueRef val => JSC val -> IO ()
 showJSC = testJSC' True
 
 debugLog = debugM "jsc"
 
-testJSC' :: MakeValueRef val => Bool -> JSC val -> IO Text
-testJSC' show f = do
+testJSC' :: MakeValueRef val => Bool -> JSC val -> IO ()
+testJSC' showWindow f = do
     debugLog "taking done"
     tryTakeMVar done
     debugLog "taking state"
@@ -96,17 +97,17 @@ testJSC' show f = do
                 debugLog "put initial state"
                 putMVar newState TestState {..}
                 debugLog "maybe show"
-                when show $ widgetShowAll window
+                when showWindow $ widgetShowAll window
                 debugLog "mainGUI"
                 mainGUI
                 debugLog "mainGUI exited"
             takeMVar newState
         Just s@TestState {..} -> do
             debugLog "maybe show (2)"
-            when show . postGUISync $ widgetShowAll window
+            when showWindow . postGUISync $ widgetShowAll window
             return s
-    x <- postGUISync $ runReaderT ((f >>= valToText)
-            `catch` \ (JSException e) -> valToText e) jsContext
+    x <- postGUISync $ runReaderT ((f >>= valToText >>= liftIO . putStrLn . T.unpack)
+            `catch` \ (JSException e) -> valToText e >>= liftIO . putStrLn . T.unpack) jsContext
     debugLog "put state"
     putMVar state $ Just TestState {..}
     return x
@@ -117,6 +118,18 @@ main = do
     postGUIAsync $ widgetDestroy window
     takeMVar done
 
+listWindowProperties = testJSC $ T.pack . show <$> do
+  window <- jsg "window"
+  names <- propertyNames window
+  forM names $ \name -> do
+        v <- window ^. js name >>= valToText
+        n <- strToText name
+        return (n, v)
+    `catch`
+        \(JSException e) -> do
+            n <- strToText name
+            msg <- valToText e
+            return (n, (T.pack $ " error ") <> msg)
 
 
 

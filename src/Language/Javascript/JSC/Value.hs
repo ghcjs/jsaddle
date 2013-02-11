@@ -107,21 +107,21 @@ data JSValue = ValNull                   -- ^ null
 --   All values in JavaScript convert to bool.
 --
 -- >>> testJSC $ valToBool JSNull
--- False
+-- false
 -- >>> testJSC $ valToBool ()
--- False
+-- false
 -- >>> testJSC $ valToBool True
--- True
+-- true
 -- >>> testJSC $ valToBool False
--- False
+-- false
 -- >>> testJSC $ valToBool (1.0 :: Double)
--- True
+-- true
 -- >>> testJSC $ valToBool (0.0 :: Double)
--- False
+-- false
 -- >>> testJSC $ valToBool ""
--- False
+-- false
 -- >>> testJSC $ valToBool "1"
--- True
+-- true
 valToBool :: MakeValueRef val => val -> JSC JSBool
 valToBool val = do
     gctxt <- ask
@@ -131,21 +131,21 @@ valToBool val = do
 -- | Given a JavaScript value get its numeric value.
 --   May throw JSException.
 --
--- >>> testJSC $ valToNumber JSNull
+-- >>> testJSC $ show <$> valToNumber JSNull
 -- 0.0
--- >>> testJSC $ valToNumber ()
+-- >>> testJSC $ show <$> valToNumber ()
 -- NaN
--- >>> testJSC $ valToNumber True
+-- >>> testJSC $ show <$> valToNumber True
 -- 1.0
--- >>> testJSC $ valToNumber False
+-- >>> testJSC $ show <$> valToNumber False
 -- 0.0
--- >>> testJSC $ valToNumber (1.0 :: Double)
+-- >>> testJSC $ show <$> valToNumber (1.0 :: Double)
+-- 1.0
+-- >>> testJSC $ show <$> valToNumber (0.0 :: Double)
 -- 0.0
--- >>> testJSC $ valToNumber (0.0 :: Double)
+-- >>> testJSC $ show <$> valToNumber ""
 -- 0.0
--- >>> testJSC $ valToNumber ""
--- 0.0
--- >>> testJSC $ valToNumber "1"
+-- >>> testJSC $ show <$> valToNumber "1"
 -- 1.0
 valToNumber :: MakeValueRef val => val -> JSC JSNumber
 valToNumber val = do
@@ -157,21 +157,21 @@ valToNumber val = do
 --   May throw JSException.
 --
 -- >>> testJSC $ valToStr JSNull >>= strToText
--- "null"
+-- null
 -- >>> testJSC $ valToStr () >>= strToText
--- "undefined"
+-- undefined
 -- >>> testJSC $ valToStr True >>= strToText
--- "true"
+-- true
 -- >>> testJSC $ valToStr False >>= strToText
--- "false"
+-- false
 -- >>> testJSC $ valToStr (1.0 :: Double) >>= strToText
--- "1"
+-- 1
 -- >>> testJSC $ valToStr (0.0 :: Double) >>= strToText
--- "0"
+-- 0
 -- >>> testJSC $ valToStr "" >>= strToText
--- ""
+--
 -- >>> testJSC $ valToStr "1" >>= strToText
--- "1"
+-- 1
 valToStr :: MakeValueRef val => val -> JSC JSStringRef
 valToStr val = do
     gctxt <- ask
@@ -181,21 +181,21 @@ valToStr val = do
 -- | Given a JavaScript value get its string value (as a Haskell 'Text').
 --   May throw JSException.
 --
--- >>> testJSC $ valToText JSNull
+-- >>> testJSC $ show <$> valToText JSNull
 -- "null"
--- >>> testJSC $ valToText ()
+-- >>> testJSC $ show <$> valToText ()
 -- "undefined"
--- >>> testJSC $ valToText True
+-- >>> testJSC $ show <$> valToText True
 -- "true"
--- >>> testJSC $ valToText False
+-- >>> testJSC $ show <$> valToText False
 -- "false"
--- >>> testJSC $ valToText (1.0 :: Double)
+-- >>> testJSC $ show <$> valToText (1.0 :: Double)
 -- "1"
--- >>> testJSC $ valToText (0.0 :: Double)
+-- >>> testJSC $ show <$> valToText (0.0 :: Double)
 -- "0"
--- >>> testJSC $ valToText ""
+-- >>> testJSC $ show <$> valToText ""
 -- ""
--- >>> testJSC $ valToText "1"
+-- >>> testJSC $ show <$> valToText "1"
 -- "1"
 valToText :: MakeValueRef val => val -> JSC Text
 valToText jsvar = valToStr jsvar >>= strToText
@@ -204,21 +204,21 @@ valToText jsvar = valToStr jsvar >>= strToText
 --   May throw JSException.
 --
 -- >>> testJSC $ (valToObject JSNull >>= valToText) `catch` \ (JSException e) -> valToText e
--- "TypeError: 'null' is not an object"
+-- TypeError: 'null' is not an object
 -- >>> testJSC $ (valToObject () >>= valToText) `catch` \ (JSException e) -> valToText e
--- "TypeError: 'undefined' is not an object"
--- >>> testJSC $ $ valToObject True
--- "true"
+-- TypeError: 'undefined' is not an object
+-- >>> testJSC $ valToObject True
+-- true
 -- >>> testJSC $ valToObject False
--- "false"
+-- false
 -- >>> testJSC $ valToObject (1.0 :: Double)
--- "1"
+-- 1
 -- >>> testJSC $ valToObject (0.0 :: Double)
--- "0"
+-- 0
 -- >>> testJSC $ valToObject ""
--- ""
+--
 -- >>> testJSC $ valToObject "1"
--- "1"
+-- 1
 valToObject :: MakeValueRef val => val -> JSC JSObjectRef
 valToObject val = do
     gctxt <- ask
@@ -326,23 +326,23 @@ instance MakeValueRef String where
 
 -- | Derefernce a value reference.
 --
--- >>> testJSC $ deRefVal JSNull
+-- >>> testJSC $ show <$> deRefVal JSNull
 -- ValNull
--- >>> testJSC $ deRefVal ()
+-- >>> testJSC $ show <$> deRefVal ()
 -- ValUndefined
--- >>> testJSC $ deRefVal True
+-- >>> testJSC $ show <$> deRefVal True
 -- ValBool True
--- >>> testJSC $ deRefVal False
+-- >>> testJSC $ show <$> deRefVal False
 -- ValBool False
--- >>> testJSC $ deRefVal (1.0 :: Double)
+-- >>> testJSC $ show <$> deRefVal (1.0 :: Double)
 -- ValNumber 1.0
--- >>> testJSC $ deRefVal (0.0 :: Double)
+-- >>> testJSC $ show <$> deRefVal (0.0 :: Double)
 -- ValNumber 0.0
--- >>> testJSC $ deRefVal ""
+-- >>> testJSC $ show <$> deRefVal ""
 -- ValString ""
--- >>> testJSC $ deRefVal "1"
+-- >>> testJSC $ show <$> deRefVal "1"
 -- ValString "1"
--- >>> testJSC $ valToObject True >>= deRefVal
+-- >>> testJSC $ show <$> valToObject True >>= deRefVal
 -- ValObject 0x...
 deRefVal :: MakeValueRef val => val -> JSC JSValue
 deRefVal val = do

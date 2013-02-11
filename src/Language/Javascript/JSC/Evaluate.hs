@@ -34,7 +34,7 @@ import Language.Javascript.JSC.Monad (JSC)
 --   specify a source URL and starting line number for beter error information.
 --
 -- >>> testJSC $ (evaluateScript "\n\n{" global "FileName" 53 >>= valToText) `catch` \(JSException e) -> array (e,e!"sourceURL", e!"line") >>= valToText
--- "SyntaxError: Expected token '}',FileName,55"
+-- SyntaxError: Expected token '}',FileName,55
 evaluateScript :: (MakeStringRef script, MakeObjectRef this, MakeStringRef url)
                => script         -- ^ JavaScript to evaluate
                -> this
@@ -48,8 +48,8 @@ evaluateScript script this url line = do
 
 -- | Evaluates a script (like eval in java script)
 --
--- >>> runjs $ eval "1+1"
--- "2"
+-- >>> testJSC $ eval "1+1"
+-- 2
 eval :: MakeStringRef script
      => script         -- ^ JavaScript to evaluate
      -> JSC JSValueRef
