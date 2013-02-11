@@ -298,12 +298,6 @@ array = rethrow . makeArray
 global :: JSC JSObjectRef
 global = ask >>= (liftIO . jscontextgetglobalobject)
 
--- | A string on its own is assumed to be the name of a property in the global object
-instance MakeObjectRef String where
-    makeObjectRef name = do
-        this <- global
-        rethrow (objGetPropertyByName this (makeStringRef name)) >>= valToObject
-
 -- | Get an array containing the property names present on a given object
 copyPropertyNames :: MakeObjectRef this => this -> JSC JSPropertyNameArrayRef
 copyPropertyNames this = do
