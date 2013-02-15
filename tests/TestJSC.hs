@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE NoMonomorphismRestriction #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  TestJSC
