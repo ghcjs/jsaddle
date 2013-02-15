@@ -14,17 +14,30 @@
 
 module Language.Javascript.JSC.JMacro (
     evalJM
+  , evalJME
 ) where
 
 import Language.Haskell.TH.Quote (QuasiQuoter(..))
 import Language.Haskell.TH
        (varE, appE, Lit(..), Exp(..), mkName, ExpQ)
-import Language.Javascript.JMacro (jmacroE, renderJs)
+import Language.Javascript.JMacro (jmacro, jmacroE, renderJs)
 
+-- | Quasi quoter that creates a JavaScript string from JMacro expression
+--   and stores it in a string litteral
+evalJME :: QuasiQuoter
+evalJME = jmacroE {quoteExp = quoteEvalJME}
+
+quoteEvalJME :: String -> ExpQ
+quoteEvalJME s =
+    appE (varE 'return) [|AppE (VarE $ mkName "Language.Javascript.JSC.eval")
+        (LitE . StringL . show $ renderJs $(quoteExp jmacroE s))|]
+
+-- | Quasi quoter that creates a JavaScript string from JMacro statement
+--   and stores it in a string litteral
 evalJM :: QuasiQuoter
-evalJM = jmacroE {quoteExp = quoteEvalJM}
+evalJM = jmacro {quoteExp = quoteEvalJM}
 
 quoteEvalJM :: String -> ExpQ
 quoteEvalJM s =
     appE (varE 'return) [|AppE (VarE $ mkName "Language.Javascript.JSC.eval")
-        (LitE . StringL . show $ renderJs $(quoteExp jmacroE s))|]
+        (LitE . StringL . show $ renderJs $(quoteExp jmacro s))|]
