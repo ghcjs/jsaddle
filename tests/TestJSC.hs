@@ -15,7 +15,7 @@ module Main (
     main
 ) where
 
-import Prelude hiding((!!))
+import Prelude hiding((!!), catch)
 import Graphics.UI.Gtk
        (Window, widgetDestroy, postGUIAsync, postGUISync, widgetShowAll,
         mainGUI, mainQuit, onDestroy, containerAdd, scrolledWindowNew,
