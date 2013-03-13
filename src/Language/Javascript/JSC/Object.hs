@@ -23,6 +23,14 @@ module Language.Javascript.JSC.Object (
   , (!)
   , (!!)
   , js
+  , JSF(..)
+  , jsf
+  , js0
+  , js1
+  , js2
+  , js3
+  , js4
+  , js5
   , jsg
 
   -- * Setting the value of a property
@@ -32,6 +40,7 @@ module Language.Javascript.JSC.Object (
   , (#)
   , new
   , call
+  , obj
 
   -- * Calling Haskell From JavaScript
   , function
@@ -68,12 +77,13 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
         JSValueRef, JSContextRef)
 import Foreign.C (CSize(..), CUInt(..), CULong(..))
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
-       (jspropertynamearraygetnameatindex, jspropertynamearraygetcount,
-        jsobjectcopypropertynames, jsobjectsetpropertyatindex,
-        jsobjectgetpropertyatindex, jsobjectcallasconstructor,
-        jsobjectmakearray, jsobjectcallasfunction, jsobjectgetproperty,
-        jsobjectsetproperty, JSPropertyAttributes,
-        JSObjectCallAsFunctionCallback, jsobjectmakefunctionwithcallback)
+       (jsobjectmake, jspropertynamearraygetnameatindex,
+        jspropertynamearraygetcount, jsobjectcopypropertynames,
+        jsobjectsetpropertyatindex, jsobjectgetpropertyatindex,
+        jsobjectcallasconstructor, jsobjectmakearray,
+        jsobjectcallasfunction, jsobjectgetproperty, jsobjectsetproperty,
+        JSPropertyAttributes, JSObjectCallAsFunctionCallback,
+        jsobjectmakefunctionwithcallback)
 import Language.Javascript.JSC.Exception (rethrow)
 import Language.Javascript.JSC.Value
        (JSUndefined, valMakeUndefined, valToObject)
@@ -152,6 +162,60 @@ js :: (MakeObjectRef s, MakeStringRef name)
    -> IndexPreservingGetter s (JSC JSPropRef)
 js name = to (!name)
 
+-- | Java script function applications have this type
+type JSF = MakeObjectRef o => IndexPreservingGetter o (JSC JSValueRef)
+
+-- | Handy way to call a function
+--
+-- > jsf name = js name . to (# args)
+--
+-- >>> testJSC $ val "Hello World" ^. jsf "indexOf" ["World"]
+-- 6
+jsf :: (MakeStringRef name, MakeArgRefs args) => name -> args -> JSF
+jsf name args = function . to (# args)
+    where
+        function = js name
+
+-- | Handy way to call a function that expects no arguments
+--
+-- > js0 name = jsf name ()
+--
+-- >>> testJSC $ val "Hello World" ^. js0 "toLowerCase"
+-- hello world
+js0 :: (MakeStringRef name) => name -> JSF
+js0 name = jsf name ()
+
+-- | Handy way to call a function that expects one argument
+--
+-- > js1 name a0 = jsf name [a0]
+--
+-- >>> testJSC $ val "Hello World" ^. js1 "indexOf" "World"
+-- 6
+js1 :: (MakeStringRef name, MakeValueRef a0) => name -> a0 -> JSF
+js1 name a0 = jsf name [a0]
+
+-- | Handy way to call a function that expects two arguments
+js2 :: (MakeStringRef name, MakeValueRef a0, MakeValueRef a1) => name -> a0 -> a1 -> JSF
+js2 name a0 a1 = jsf name (a0, a1)
+
+-- | Handy way to call a function that expects three arguments
+js3 :: (MakeStringRef name, MakeValueRef a0, MakeValueRef a1, MakeValueRef a2)
+    => name -> a0 -> a1 -> a2 -> JSF
+js3 name a0 a1 a2 = jsf name (a0, a1, a2)
+
+-- | Handy way to call a function that expects four arguments
+js4 :: (MakeStringRef name, MakeValueRef a0, MakeValueRef a1, MakeValueRef a2,
+        MakeValueRef a3)
+    => name -> a0 -> a1 -> a2 -> a3 -> JSF
+js4 name a0 a1 a2 a3 = jsf name (a0, a1, a2, a3)
+
+-- | Handy way to call a function that expects five arguments
+js5 :: (MakeStringRef name, MakeValueRef a0, MakeValueRef a1, MakeValueRef a2,
+        MakeValueRef a3, MakeValueRef a4)
+    => name -> a0 -> a1 -> a2 -> a3 -> a4 -> JSF
+js5 name a0 a1 a2 a3 a4 = jsf name (a0, a1, a2, a3, a4)
+
+
 -- | Handy way to get and hold onto a reference top level javascript
 --
 -- >>> testJSC $ eval "w = console; w.log('Hello World')"
@@ -211,6 +275,16 @@ call function this args = do
     rfunction <- makeObjectRef function
     rthis     <- makeObjectRef this
     rethrow $ objCallAsFunction rfunction rthis args
+
+-- | Make an empty object using the default constuctor
+--
+-- >>> testJSC $ eval "var a = {}; a.x = 'Hello'; a.x"
+-- >>> testJSC $ do { a <- obj; a ^. js "x" <# "Hello"; a ^. js "x" }
+-- Hello
+obj :: JSC JSObjectRef
+obj = do
+    gctxt <- ask
+    liftIO $ jsobjectmake gctxt nullPtr nullPtr
 
 type JSObjectCallAsFunctionCallback' =
        JSContextRef
