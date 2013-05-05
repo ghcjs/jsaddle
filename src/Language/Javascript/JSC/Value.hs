@@ -43,6 +43,7 @@ module Language.Javascript.JSC.Value (
   , valToStr
   , valToObject
   , valToText
+  , valToJSON
 
   -- * Make JavaScript values from Haskell ones
   , val
@@ -65,10 +66,10 @@ import Language.Javascript.JSC.Exception (rethrow)
 import Control.Monad.Trans.Reader (ask)
 import Control.Monad.IO.Class (MonadIO, MonadIO(..))
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
-       (JSType(..), jsvaluegettype, jsvaluemakestring, jsvaluemakenumber,
-        jsvaluemakeboolean, jsvaluemakeundefined, jsvaluemakenull,
-        jsvaluetoobject, jsvaluetostringcopy, jsvaluetonumber,
-        jsvaluetoboolean)
+       (jsvaluecreatejsonstring, JSType(..), jsvaluegettype,
+        jsvaluemakestring, jsvaluemakenumber, jsvaluemakeboolean,
+        jsvaluemakeundefined, jsvaluemakenull, jsvaluetoobject,
+        jsvaluetostringcopy, jsvaluetonumber, jsvaluetoboolean)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
        (jsstringcreatewithcharacters, jsstringgetcharactersptr,
         jsstringgetlength)
@@ -83,6 +84,7 @@ import Language.Javascript.JSC.Classes
         MakeArgRefs(..))
 import Language.Javascript.JSC.String (strToText, textToStr)
 import Language.Javascript.JSC.Arguments ()
+import Data.Word (Word)
 
 data JSNull      = JSNull -- ^ Type that represents a value that can only be null.
                           --   Haskell of course has no null so we are adding this type.
@@ -199,6 +201,33 @@ valToStr val = do
 -- "1"
 valToText :: MakeValueRef val => val -> JSC Text
 valToText jsvar = valToStr jsvar >>= strToText
+
+-- | Given a JavaScript value get a JSON string value.
+--   May throw JSException.
+--
+-- >>> testJSC $ valToJSON 0 JSNull >>= strToText
+-- null
+-- >>> testJSC $ valToJSON 0 () >>= strToText
+--
+-- >>> testJSC $ valToJSON 0 True >>= strToText
+-- true
+-- >>> testJSC $ valToJSON 0 False >>= strToText
+-- false
+-- >>> testJSC $ valToJSON 0 (1.0 :: Double) >>= strToText
+-- 1
+-- >>> testJSC $ valToJSON 0 (0.0 :: Double) >>= strToText
+-- 0
+-- >>> testJSC $ valToJSON 0 "" >>= strToText
+-- ""
+-- >>> testJSC $ valToJSON 0 "1" >>= strToText
+-- "1"
+-- >>> testJSC $ obj >>= valToJSON 0 >>= strToText
+-- {}
+valToJSON :: MakeValueRef val => Word -> val -> JSC JSStringRef
+valToJSON indent val = do
+    gctxt <- ask
+    rval <- makeValueRef val
+    rethrow $ liftIO . jsvaluecreatejsonstring gctxt rval (fromIntegral indent)
 
 -- | Given a JavaScript value get its object value.
 --   May throw JSException.
