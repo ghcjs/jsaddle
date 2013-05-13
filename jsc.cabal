@@ -12,7 +12,7 @@ author: Hamish Mackenzie
 data-dir: ""
 
 library
-    build-depends: template-haskell -any, base -any, lens >=3.8.5 && <3.9,
+    build-depends: template-haskell -any, base -any, lens >=3.8.5 && <3.11,
                    text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4,
                    webkit-javascriptcore >=0.0.0.999 && <0.1, jmacro >=0.6.3 && <0.7
     exposed-modules: Language.Javascript.JSC
@@ -28,7 +28,7 @@ library
     other-modules: Language.Javascript.JSC.PropRef
 
 test-suite test-tool
-    build-depends: template-haskell -any, base -any, lens >=3.8.5 && <3.9,
+    build-depends: template-haskell -any, base -any, lens >=3.8.5 && <3.11,
                    text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4,
                    webkit-javascriptcore >=0.0.0.999 && <0.1, jmacro >=0.6.3 && <0.7,
                    hslogger -any, glib -any, gtk -any, jsc ==0.1.1.0,
