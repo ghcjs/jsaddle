@@ -11,10 +11,18 @@ description: This package provides an EDSL for calling JavaScript code using
 author: Hamish Mackenzie
 data-dir: ""
 
+flag gtk3
+    Description: Use GTK3 rather than GTK2
+    Default: True
+
 library
+    if flag(gtk3)
+      build-depends: webkit3-javascriptcore >=0.0.0.999 && <0.1, webkit3 -any
+    else
+      build-depends: webkit-javascriptcore >=0.0.0.999 && <0.1, webkit -any
     build-depends: template-haskell -any, base -any, lens >=3.8.5 && <3.11,
                    text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4,
-                   webkit-javascriptcore >=0.0.0.999 && <0.1, jmacro >=0.6.3 && <0.7
+                   jmacro >=0.6.3 && <0.7
     exposed-modules: Language.Javascript.JSC
                      Language.Javascript.JSC.Arguments Language.Javascript.JSC.Classes
                      Language.Javascript.JSC.Evaluate Language.Javascript.JSC.Exception
@@ -28,11 +36,14 @@ library
     other-modules: Language.Javascript.JSC.PropRef
 
 test-suite test-tool
+    if flag(gtk3)
+      build-depends: webkit3-javascriptcore >=0.0.0.999 && <0.1, webkit3 -any
+    else
+      build-depends: webkit-javascriptcore >=0.0.0.999 && <0.1, webkit -any
     build-depends: template-haskell -any, base -any, lens >=3.8.5 && <3.11,
                    text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4,
-                   webkit-javascriptcore >=0.0.0.999 && <0.1, jmacro >=0.6.3 && <0.7,
-                   hslogger -any, glib -any, gtk -any, jsc ==0.1.1.0,
-                   webkit -any
+                   jmacro >=0.6.3 && <0.7,
+                   hslogger -any, glib -any, gtk -any, jsc ==0.1.1.0
     type: exitcode-stdio-1.0
     main-is: TestJSC.hs
     buildable: True
