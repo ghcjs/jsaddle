@@ -9,7 +9,7 @@ before_install:
   - cd ..
 install:
   - cabal install cabal-meta cabal-src
-  - cabal-meta install --enable-tests --force-reinstalls || cabal-meta install --enable-tests --force-reinstalls
+  - cabal-meta install --enable-tests --force-reinstalls
 script:
   - cabal test
 notifications:
