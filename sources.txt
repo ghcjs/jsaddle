@@ -1,5 +1,5 @@
 darcs:http://code.haskell.org/gtk2hs
-darcs:http://patch-tag.com/r/hamish/webkit
+darcs:http://code.haskell.org/webkit
 git://github.com/ghcjs/webkit-javascriptcore.git
 ./
 
