@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSC.Monad
@@ -15,6 +16,9 @@ module Language.Javascript.JSC.Monad (
     JSC(..)
   , JSContextRef
 
+  -- * Running JSC given a DOM Window
+  , runJSC
+
   -- * Exception Handling
   , catchval
   , catch
@@ -22,11 +26,22 @@ module Language.Javascript.JSC.Monad (
 
 import Prelude hiding (catch)
 import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
+import Language.Javascript.JSC.Types
        (JSValueRefRef, JSValueRef, JSContextRef)
 import Control.Monad.IO.Class (MonadIO(..))
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+import GHCJS.Types (isUndefined, isNull)
+import GHCJS.Foreign (newArray, indexArray)
+#else
 import Foreign (nullPtr, alloca)
 import Foreign.Storable (Storable(..))
+import Graphics.UI.Gtk.WebKit.Types
+       (WebView(..))
+import Graphics.UI.Gtk.WebKit.WebView
+       (webViewGetMainFrame)
+import Graphics.UI.Gtk.WebKit.JavaScriptCore.WebFrame
+       (webFrameGetGlobalContext)
+#endif
 import qualified Control.Exception as E (Exception, catch)
 
 -- | The @JSC@ monad keeps track of the JavaScript context.
@@ -53,13 +68,30 @@ t `catch` c = do
 --   to throw exceptions.
 catchval :: (JSValueRefRef -> JSC a) -> (JSValueRef -> JSC a) -> JSC a
 catchval f catcher = do
-  gctxt <- ask
-  liftIO . alloca $ \pexc -> flip runReaderT gctxt $ do
-    liftIO $ poke pexc nullPtr
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+    pexc <- liftIO $ newArray
     result <- f pexc
-    exc <- liftIO $ peek pexc
-    if exc == nullPtr
+    exc <- liftIO $ indexArray 0 pexc
+    if isUndefined exc || isNull exc
         then return result
         else catcher exc
+#else
+    gctxt <- ask
+    liftIO . alloca $ \pexc -> flip runReaderT gctxt $ do
+        liftIO $ poke pexc nullPtr
+        result <- f pexc
+        exc <- liftIO $ peek pexc
+        if exc == nullPtr
+            then return result
+            else catcher exc
+#endif
 
-
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+runJSC :: w -> JSC a -> IO a
+runJSC _ f = runReaderT f ()
+#else
+runJSC :: WebView -> JSC a -> IO a
+runJSC webView f = do
+    gctxt <- webViewGetMainFrame webView >>= webFrameGetGlobalContext
+    runReaderT f gctxt
+#endif

@@ -17,7 +17,7 @@ module Language.Javascript.JSC.Exception (
 ) where
 
 import qualified Control.Exception as E (throwIO, Exception)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
+import Language.Javascript.JSC.Types
        (JSValueRefRef, JSValueRef)
 import Data.Typeable (Typeable)
 import Language.Javascript.JSC.Monad (catchval, JSC)

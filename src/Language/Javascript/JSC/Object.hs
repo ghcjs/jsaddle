@@ -1,8 +1,12 @@
-{-# LANGUAGE ForeignFunctionInterface #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+{-# LANGUAGE JavaScriptFFI #-}
+#endif
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSC.Object
@@ -63,7 +67,6 @@ module Language.Javascript.JSC.Object (
   , global
 
   -- * Enumerating Properties
-  , copyPropertyNames
   , propertyNames
 
   -- * Low level
@@ -72,10 +75,16 @@ module Language.Javascript.JSC.Object (
 ) where
 
 import Prelude hiding ((!!))
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
+import Language.Javascript.JSC.Types
        (JSPropertyNameArrayRef, JSStringRef, JSObjectRef, JSValueRefRef,
-        JSValueRef, JSContextRef)
-import Foreign.C (CSize(..), CUInt(..), CULong(..))
+        JSValueRef, JSContextRef, Index)
+import Foreign.C (CSize(..), CUInt(..))
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+import GHCJS.Types (nullRef, castRef, JSArray, JSFun)
+import GHCJS.Foreign (newObj, toArray, fromArray, syncCallback2)
+import Control.Monad (liftM)
+import Control.Applicative ((<$>))
+#else
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
        (jsobjectmake, jspropertynamearraygetnameatindex,
         jspropertynamearraygetcount, jsobjectcopypropertynames,
@@ -84,6 +93,12 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
         jsobjectcallasfunction, jsobjectgetproperty, jsobjectsetproperty,
         JSPropertyAttributes, JSObjectCallAsFunctionCallback,
         jsobjectmakefunctionwithcallback)
+import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
+       (jsvaluemakeundefined)
+import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSContextRef
+       (jscontextgetglobalobject)
+import Foreign (peekArray, nullPtr, withArrayLen)
+#endif
 import Language.Javascript.JSC.Exception (rethrow)
 import Language.Javascript.JSC.Value
        (JSUndefined, valMakeUndefined, valToObject)
@@ -95,15 +110,10 @@ import Language.Javascript.JSC.Monad
        (JSC)
 import Control.Monad.Trans.Reader (runReaderT, ask)
 import Control.Monad.IO.Class (MonadIO(..))
-import Foreign (peekArray, nullPtr, withArrayLen)
 import qualified Control.Exception as E (catch)
 import Control.Exception (SomeException)
 import qualified Data.Text as T (pack)
 import Foreign.Storable (Storable(..))
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
-       (jsvaluemakeundefined)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSContextRef
-       (jscontextgetglobalobject)
 import Language.Javascript.JSC.Properties
 import Control.Lens
        (IndexPreservingGetter, to, (^.))
@@ -144,7 +154,7 @@ this ! name = do
 -- W
 (!!) :: (MakeObjectRef this)
      => this          -- ^ Object to look on
-     -> CUInt         -- ^ Index of the property to lookup
+     -> Index         -- ^ Index of the property to lookup
      -> JSC JSPropRef -- ^ Property reference
 this !! index = do
     rthis <- makeObjectRef this
@@ -282,15 +292,19 @@ call function this args = do
 -- >>> testJSC $ do { a <- obj; a ^. js "x" <# "Hello"; a ^. js "x" }
 -- Hello
 obj :: JSC JSObjectRef
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+obj = liftIO $ newObj
+#else
 obj = do
     gctxt <- ask
     liftIO $ jsobjectmake gctxt nullPtr nullPtr
+#endif
 
 type JSObjectCallAsFunctionCallback' =
        JSContextRef
     -> JSValueRef
     -> JSValueRef
-    -> CULong
+    -> CUInt
     -> JSValueRefRef
     -> JSValueRefRef
     -> IO JSValueRef
@@ -315,8 +329,10 @@ type JSCallAsFunction = JSValueRef      -- ^ Function object
 fun :: JSCallAsFunction -> JSCallAsFunction
 fun = id
 
+#if (!defined(__GHCJS__) || !defined(USE_JAVASCRIPTFFI)) && defined(USE_WEBKIT)
 foreign import ccall "wrapper"
   mkJSObjectCallAsFunctionCallback :: JSObjectCallAsFunctionCallback' -> IO JSObjectCallAsFunctionCallback
+#endif
 
 -- ^ Make a JavaScript function object that wraps a Haskell function.
 function :: MakeStringRef name
@@ -324,6 +340,15 @@ function :: MakeStringRef name
          -> JSCallAsFunction -- ^ Haskell function to call
          -> JSC JSObjectRef  -- ^ Returns a JavaScript function object that will
                              --   call the Haskell one when it is called
+#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+function name f = liftIO $ do
+    callback <- syncCallback2 False True $ \this args -> do
+        rargs <- fromArray args
+        runReaderT (f this this rargs) () -- TODO pass function object through
+    makeFunctionWithCallback (makeStringRef name) callback
+foreign import javascript unsafe "$r = function () { $2(this, arguments); }"
+    makeFunctionWithCallback :: JSStringRef -> JSFun (JSValueRef -> JSValueRefRef -> IO ()) -> IO JSObjectRef
+#elif defined(USE_WEBKIT)
 function name f = do
     gctxt <- ask
     callback <- liftIO $ mkJSObjectCallAsFunctionCallback wrap
@@ -337,24 +362,39 @@ function name f = do
             str <- runReaderT (makeValueRef . T.pack $ show e) ctx
             poke exception str
             jsvaluemakeundefined ctx
+#else
+function  = undefined
+#endif
 
 -- | A callback to Haskell can be used as a JavaScript value.  This will create
 --   an anonymous JavaScript function object.  Use 'function' to create one with
 --   a name.
 instance MakeValueRef JSCallAsFunction where
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+    makeValueRef = function (nullRef::JSStringRef)
+#else
     makeValueRef = function (nullPtr::JSStringRef)
+#endif
 
 instance MakeArgRefs JSCallAsFunction where
     makeArgRefs f = do
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+        rarg <- function (nullRef::JSStringRef) f
+#else
         rarg <- function (nullPtr::JSStringRef) f
+#endif
         return [rarg]
 
 makeArray :: MakeArgRefs args => args -> JSValueRefRef -> JSC JSObjectRef
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+makeArray args exceptions = makeArgRefs args >>= liftM castRef . liftIO . toArray
+#else
 makeArray args exceptions = do
     gctxt <- ask
     rargs <- makeArgRefs args
     liftIO $ withArrayLen rargs $ \ len ptr ->
         jsobjectmakearray gctxt (fromIntegral len) ptr exceptions
+#endif
 
 -- | Make an JavaScript array from a list of values
 --
@@ -369,9 +409,18 @@ array = rethrow . makeArray
 
 -- | JavaScript's global object
 global :: JSC JSObjectRef
+#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+global = liftIO js_window
+foreign import javascript unsafe "$r = window"
+    js_window :: IO JSObjectRef
+#elif defined(USE_WEBKIT)
 global = ask >>= (liftIO . jscontextgetglobalobject)
+#else
+global = undefined
+#endif
 
 -- | Get an array containing the property names present on a given object
+#if (!defined(__GHCJS__) || !defined(USE_JAVASCRIPTFFI)) && defined(USE_WEBKIT)
 copyPropertyNames :: MakeObjectRef this => this -> JSC JSPropertyNameArrayRef
 copyPropertyNames this = do
     gctxt <- ask
@@ -391,10 +440,19 @@ propertyNamesList :: MonadIO m => JSPropertyNameArrayRef -> m [JSStringRef]
 propertyNamesList names = do
     count <- propertyNamesCount names
     mapM (propertyNamesAt names) $ enumFromTo 0 (count - 1)
+#endif
 
 -- | Get a list containing the property names present on a given object
 propertyNames :: MakeObjectRef this => this -> JSC [JSStringRef]
+#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+propertyNames this = makeObjectRef this >>= liftIO . js_propertyNames >>= liftIO . fromArray
+foreign import javascript unsafe "$r = []; h$forIn($1, function(n){$r.push(n);})"
+    js_propertyNames :: JSObjectRef -> IO (JSArray a)
+#elif defined(USE_WEBKIT)
 propertyNames this = copyPropertyNames this >>= propertyNamesList
+#else
+propertyNames = undefined
+#endif
 
 -- | Get a list containing references to all the  properties present on a given object
 properties :: MakeObjectRef this => this -> JSC [JSPropRef]
@@ -407,11 +465,21 @@ objCallAsFunction :: MakeArgRefs args
                   -> args
                   -> JSValueRefRef
                   -> JSC JSValueRef
+#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+objCallAsFunction function this args exceptions = do
+    rargs <- makeArgRefs args >>= liftIO . toArray
+    liftIO $ js_apply function this rargs exceptions
+foreign import javascript unsafe "try { $r = $1.apply($2, $3) } catch(e) { $4[0] = e }"
+    js_apply :: JSObjectRef -> JSObjectRef -> JSValueRefRef -> JSValueRefRef -> IO JSValueRef
+#elif defined(USE_WEBKIT)
 objCallAsFunction function this args exceptions = do
     gctxt <- ask
     rargs <- makeArgRefs args
     liftIO $ withArrayLen rargs $ \ largs pargs ->
         jsobjectcallasfunction gctxt function this (fromIntegral largs) pargs exceptions
+#else
+objCallAsFunction = undefined
+#endif
 
 -- | Call a JavaScript object as a constructor. Consider using 'new'.
 objCallAsConstructor :: MakeArgRefs args
@@ -419,11 +487,44 @@ objCallAsConstructor :: MakeArgRefs args
                      -> args
                      -> JSValueRefRef
                      -> JSC JSValueRef
+#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+objCallAsConstructor function args exceptions = do
+    rargs <- makeArgRefs args >>= liftIO . toArray
+    liftIO $ js_new function rargs exceptions
+foreign import javascript unsafe "\
+    try {\
+        switch($2.length) {\
+            case 0 : $r = new $1();\
+            case 1 : $r = new $1($2[0]);\
+            case 2 : $r = new $1($2[0],$2[1]);\
+            case 3 : $r = new $1($2[0],$2[1],$2[2]);\
+            case 4 : $r = new $1($2[0],$2[1],$2[2],$2[3]);\
+            case 5 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4]);\
+            case 6 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5]);\
+            case 6 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5],$2[6]);\
+            default:\
+                var ret;\
+                var temp = function() {\
+                    ret = $1.apply(this, $2);\
+                };\
+                temp.prototype = f.prototype;\
+                var i = new temp();\
+                $r = ret instanceof Object ? ret : i;\
+        }\
+    }\
+    catch(e) {\
+        $3[0] = e;\
+    }"
+    js_new :: JSObjectRef -> JSValueRefRef -> JSValueRefRef -> IO JSValueRef
+#elif defined(USE_WEBKIT)
 objCallAsConstructor function args exceptions = do
     gctxt <- ask
     rargs <- makeArgRefs args
     liftIO $ withArrayLen rargs $ \ largs pargs ->
         jsobjectcallasconstructor gctxt function (fromIntegral largs) pargs exceptions
+#else
+objCallAsConstructor = undefined
+#endif
 
 
 

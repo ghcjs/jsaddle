@@ -22,7 +22,7 @@ module Language.Javascript.JSC.Classes (
 ) where
 
 import Control.Monad.IO.Class (MonadIO)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
+import Language.Javascript.JSC.Types
        (JSObjectRef, JSStringRef, JSValueRef)
 import Language.Javascript.JSC.Monad (JSC)
 import Language.Javascript.JSC.PropRef (JSPropRef)

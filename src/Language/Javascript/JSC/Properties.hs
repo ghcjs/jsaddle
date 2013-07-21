@@ -1,5 +1,9 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+{-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI #-}
+#endif
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSC.Properties
@@ -32,20 +36,24 @@ module Language.Javascript.JSC.Properties (
   , objSetProperty
 ) where
 
+import Control.Applicative ((<$>))
 import Language.Javascript.JSC.PropRef (JSPropRef(..))
 import Language.Javascript.JSC.Classes
        (MakePropRef(..), MakeObjectRef(..), MakeValueRef(..),
         MakeArgRefs(..), MakeStringRef(..))
 import Language.Javascript.JSC.Monad (JSC)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
-       (JSValueRefRef, JSObjectRef)
+import Language.Javascript.JSC.Types
+       (JSValueRefRef, JSObjectRef, JSPropertyAttributes,
+        Index(..), JSStringRef)
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#else
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
        (jsobjectgetpropertyatindex, jsobjectgetproperty,
         jsobjectsetpropertyatindex, jsobjectsetproperty,
         JSPropertyAttributes)
+#endif
 import Control.Monad.Trans.Reader (ask)
 import Control.Monad.IO.Class (MonadIO(..))
-import Foreign.C (CUInt)
 import Language.Javascript.JSC.Exception (rethrow)
 import Language.Javascript.JSC.Value (JSValueRef)
 import Language.Javascript.JSC.Arguments ()
@@ -80,18 +88,34 @@ objGetPropertyByName :: MakeStringRef name
                      -> name           -- ^ name of the property.
                      -> JSValueRefRef  -- ^ exception if one is raised.
                      -> JSC JSValueRef -- ^ returns the property value.
+#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+objGetPropertyByName this name = liftIO . js_tryGetProp (makeStringRef name) this
+foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
+    js_tryGetProp :: JSStringRef -> JSObjectRef -> JSValueRefRef -> IO JSValueRef
+#elif defined(USE_WEBKIT)
 objGetPropertyByName this name exceptions = do
     gctxt <- ask
     liftIO $ jsobjectgetproperty gctxt this (makeStringRef name) exceptions
+#else
+objGetPropertyByName = undefined
+#endif
 
 -- | Get a property value given the object and the index of the property.
 objGetPropertyAtIndex :: JSObjectRef    -- ^ object to find the property on.
-                      -> CUInt          -- ^ index of the property.
+                      -> Index          -- ^ index of the property.
                       -> JSValueRefRef  -- ^ exception if one is raised.
                       -> JSC JSValueRef -- ^ returns the property value.
+#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+objGetPropertyAtIndex this index = liftIO . js_tryIndex index this
+foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
+    js_tryIndex :: Index -> JSObjectRef -> JSValueRefRef -> IO JSValueRef
+#elif defined(USE_WEBKIT)
 objGetPropertyAtIndex this index exceptions = do
     gctxt <- ask
     liftIO $ jsobjectgetpropertyatindex gctxt this index exceptions
+#else
+objGetPropertyAtIndex = undefined
+#endif
 
 -- | Gets the value of a property given a 'JSPropRef'.
 objGetProperty :: JSPropRef      -- ^ property reference.
@@ -121,22 +145,42 @@ objSetPropertyByName :: (MakeStringRef name, MakeValueRef val)
                      -> JSPropertyAttributes -- ^ property attributes to give the property.
                      -> JSValueRefRef        -- ^ exception if one is raised.
                      -> JSC ()
+#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+objSetPropertyByName this name val attributes exceptions = do
+    vref <- makeValueRef val
+    liftIO $ js_trySetProp (makeStringRef name) this vref exceptions
+foreign import javascript unsafe "try { $2[$1]=$3 } catch(e) { $4[0] = e }"
+    js_trySetProp :: JSStringRef -> JSObjectRef -> JSValueRef -> JSValueRefRef -> IO ()
+#elif defined(USE_WEBKIT)
 objSetPropertyByName this name val attributes exceptions = do
     gctxt <- ask
     vref <- makeValueRef val
     liftIO $ jsobjectsetproperty gctxt this (makeStringRef name) vref attributes exceptions
+#else
+objSetPropertyByName = undefined
+#endif
 
 -- | Set a property value given the object and the index of the property.
 objSetPropertyAtIndex :: (MakeValueRef val)
                       => JSObjectRef    -- ^ object to find property on.
-                      -> CUInt          -- ^ index of the property.
+                      -> Index          -- ^ index of the property.
                       -> val            -- ^ new value to set the property to.
                       -> JSValueRefRef  -- ^ exception if one is raised.
                       -> JSC ()
+#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+objSetPropertyAtIndex this index val exceptions = do
+    vref <- makeValueRef val
+    liftIO $ js_trySetAtIndex index this vref exceptions
+foreign import javascript unsafe "try { $2[$1]=$3 } catch(e) { $4[0] = e }"
+    js_trySetAtIndex :: Index -> JSObjectRef -> JSValueRef -> JSValueRefRef -> IO ()
+#elif defined(USE_WEBKIT)
 objSetPropertyAtIndex this index val exceptions = do
     gctxt <- ask
     vref <- makeValueRef val
     liftIO $ jsobjectsetpropertyatindex gctxt this index vref exceptions
+#else
+objSetPropertyAtIndex = undefined
+#endif
 
 -- | Sets the value of a property given a 'JSPropRef'.
 objSetProperty :: (MakeValueRef val)

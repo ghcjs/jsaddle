@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSC
@@ -61,7 +62,9 @@ module Language.Javascript.JSC (
   , module Language.Javascript.JSC.Properties
   , module Language.Javascript.JSC.Object
   , module Language.Javascript.JSC.Evaluate
+#ifdef MIN_VERSION_jmacro
   , module Language.Javascript.JSC.JMacro
+#endif
   , module Language.Javascript.JSC.String
 ) where
 
@@ -72,5 +75,7 @@ import Language.Javascript.JSC.Arguments
 import Language.Javascript.JSC.Properties
 import Language.Javascript.JSC.Object
 import Language.Javascript.JSC.Evaluate
+#ifdef MIN_VERSION_jmacro
 import Language.Javascript.JSC.JMacro
+#endif
 import Language.Javascript.JSC.String

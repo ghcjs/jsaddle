@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 -----------------------------------------------------------------------------
@@ -24,13 +25,17 @@ module Language.Javascript.JSC.String (
 import Data.Text (Text)
 import qualified Data.Text as T (pack)
 import Control.Monad.IO.Class (MonadIO(..))
+import Language.Javascript.JSC.Types (JSStringRef)
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+import GHCJS.Foreign (fromJSString, toJSString)
+#else
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
        (jsstringcreatewithcharacters, jsstringgetcharactersptr,
         jsstringgetlength)
+#endif
 import qualified Data.Text.Foreign as T (fromPtr)
 import Foreign (castPtr)
 import Data.Text.Foreign (useAsPtr)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase (JSStringRef)
 import Language.Javascript.JSC.Classes (MakeStringRef(..))
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -46,16 +51,24 @@ instance MakeStringRef String where
 
 -- | Convert a JavaScript string to a Haskell 'Text'
 strToText :: MonadIO m => JSStringRef -> m Text
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+strToText = return . fromJSString
+#else
 strToText jsstring = liftIO $ do
     l <- jsstringgetlength jsstring
     p <- jsstringgetcharactersptr jsstring
     T.fromPtr (castPtr p) (fromIntegral l)
+#endif
 
 -- | Convert a Haskell 'Text' to a JavaScript string
 textToStr :: Text -> JSStringRef
-textToStr text =
-    unsafePerformIO $ useAsPtr text $ \p l ->
+#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+textToStr = toJSString
+#else
+textToStr text = unsafePerformIO $
+    useAsPtr text $ \p l ->
         jsstringcreatewithcharacters (castPtr p) (fromIntegral l)
+#endif
 
 
 

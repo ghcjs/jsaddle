@@ -13,13 +13,13 @@
 module Language.Javascript.JSC.PropRef (
     JSPropRef(..)
 ) where
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
-       (JSStringRef, JSObjectRef)
-import Foreign.C (CUInt)
+
+import Language.Javascript.JSC.Types
+       (JSStringRef, JSObjectRef, Index)
 
 -- | A reference to a property.
 --   Implemented as a reference to an object and something to find the property.
 data JSPropRef = JSPropRef JSObjectRef JSStringRef -- ^ Object and property name.
-               | JSPropIndexRef JSObjectRef CUInt  -- ^ Object and property index.
+               | JSPropIndexRef JSObjectRef Index  -- ^ Object and property index.
 
 
