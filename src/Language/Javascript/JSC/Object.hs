@@ -78,7 +78,7 @@ import Prelude hiding ((!!))
 import Language.Javascript.JSC.Types
        (JSPropertyNameArrayRef, JSStringRef, JSObjectRef, JSValueRefRef,
         JSValueRef, JSContextRef, Index)
-import Foreign.C (CSize(..), CUInt(..))
+import Foreign.C.Types (CSize(..), CULong(..), CUInt(..))
 #if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (nullRef, castRef, JSArray, JSFun)
 import GHCJS.Foreign (newObj, toArray, fromArray, syncCallback2)
@@ -92,7 +92,7 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
         jsobjectcallasconstructor, jsobjectmakearray,
         jsobjectcallasfunction, jsobjectgetproperty, jsobjectsetproperty,
         JSPropertyAttributes, JSObjectCallAsFunctionCallback,
-        jsobjectmakefunctionwithcallback)
+        jsobjectmakefunctionwithcallback, JSObjectCallAsFunctionCallback')
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
        (jsvaluemakeundefined)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSContextRef
@@ -299,15 +299,6 @@ obj = do
     gctxt <- ask
     liftIO $ jsobjectmake gctxt nullPtr nullPtr
 #endif
-
-type JSObjectCallAsFunctionCallback' =
-       JSContextRef
-    -> JSValueRef
-    -> JSValueRef
-    -> CUInt
-    -> JSValueRefRef
-    -> JSValueRefRef
-    -> IO JSValueRef
 
 -- | Type used for Haskell functions called from JavaScript.
 type JSCallAsFunction = JSValueRef      -- ^ Function object
