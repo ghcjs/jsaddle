@@ -18,6 +18,7 @@ module Language.Javascript.JSC.Monad (
 
   -- * Running JSC given a DOM Window
   , runJSC
+  , runJSC_
 
   -- * Exception Handling
   , catchval
@@ -95,3 +96,5 @@ runJSC webView f = do
     gctxt <- webViewGetMainFrame webView >>= webFrameGetGlobalContext
     runReaderT f gctxt
 #endif
+
+runJSC_ w f = runJSC w f >> return ()
