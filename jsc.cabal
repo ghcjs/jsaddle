@@ -25,7 +25,7 @@ flag webkit
 
 flag jmacro
     description: Include some JMacro support
-    default: False
+    default: True
 
 library
     if impl(ghcjs) && flag(jsffi)
