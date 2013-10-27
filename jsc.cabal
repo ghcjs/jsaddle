@@ -43,7 +43,7 @@ library
 
     if flag(jmacro)
         exposed-modules: Language.Javascript.JSC.JMacro
-        build-depends: jmacro >=0.6.3 && <0.7
+        build-depends: jmacro >=0.6.3 && <0.8
 
     build-depends: template-haskell -any, base -any, lens >=3.8.5 && <3.11,
                    text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4
@@ -82,7 +82,7 @@ test-suite test-tool
                            webkit-javascriptcore >=0.0.0.999 && <0.1
 
     if flag(jmacro)
-        build-depends: jmacro >=0.6.3 && <0.7
+        build-depends: jmacro >=0.6.3 && <0.8
 
     build-depends: template-haskell -any, base -any, lens >=3.8.5 && <3.11,
                    text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4,
