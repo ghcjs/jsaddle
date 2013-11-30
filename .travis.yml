@@ -5,10 +5,10 @@ before_install:
   - cabal install Cabal
   - cabal install cabal-install
 install:
-  - cabal install gtk2hs-buildtools
-  - cabal install --enable-tests
+  - PATH="$HOME/.cabal/bin:$PATH" cabal install gtk2hs-buildtools
+  - PATH="$HOME/.cabal/bin:$PATH" cabal install --enable-tests
 script:
-  - cabal test
+  - PATH="$HOME/.cabal/bin:$PATH" cabal test
 notifications:
   irc:
     channels: "irc.freenode.net#ghcjs"
