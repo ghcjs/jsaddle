@@ -10,6 +10,12 @@ description: This package provides an EDSL for calling JavaScript code using
              in the webkit-javascriptcore library <https://github.com/ghcjs/webkit-javascriptcore>.
 author: Hamish Mackenzie
 data-dir: ""
+category: Web, Javascript
+build-type: Simple
+
+Source-Repository head
+  type:         git
+  location:     https://github.com/ghcjs/jsc
 
 flag gtk3
     Description: Use GTK3 rather than GTK2
@@ -45,7 +51,7 @@ library
         exposed-modules: Language.Javascript.JSC.JMacro
         build-depends: jmacro >=0.6.3 && <0.8
 
-    build-depends: template-haskell -any, base -any, lens >=3.8.5 && <3.11,
+    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <3.11,
                    text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4
 
     exposed-modules: Language.Javascript.JSC
@@ -84,7 +90,7 @@ test-suite test-tool
     if flag(jmacro)
         build-depends: jmacro >=0.6.3 && <0.8
 
-    build-depends: template-haskell -any, base -any, lens >=3.8.5 && <3.11,
+    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <3.11,
                    text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4,
                    hslogger -any, jsc ==0.1.1.0
     type: exitcode-stdio-1.0
