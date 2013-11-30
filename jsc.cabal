@@ -36,10 +36,10 @@ library
         cpp-options: -DUSE_WEBKIT
         if flag(gtk3)
             build-depends: webkitgtk3 >=0.12.5 && <0.13,
-                           webkitgtk3-javascriptcore >=0.0.0.999 && <0.1
+                           webkitgtk3-javascriptcore >=0.12.5 && <0.13
         else
             build-depends: webkit >=0.12.5 && <0.13,
-                           webkit-javascriptcore >=0.0.0.999 && <0.1
+                           webkit-javascriptcore >=0.12.5 && <0.13
 
     if flag(jmacro)
         exposed-modules: Language.Javascript.JSC.JMacro
@@ -75,11 +75,11 @@ test-suite test-tool
         if flag(gtk3)
             build-depends: gtk3 >= 0.12.4.1 && <0.13,
                            webkitgtk3 >=0.12.5 && <0.13,
-                           webkitgtk3-javascriptcore >=0.0.0.999 && <0.1
+                           webkitgtk3-javascriptcore >=0.12.5 && <0.13
         else
             build-depends: gtk >= 0.12.4.1 && <0.13,
                            webkit >=0.12.5 && <0.13,
-                           webkit-javascriptcore >=0.0.0.999 && <0.1
+                           webkit-javascriptcore >=0.12.5 && <0.13
 
     if flag(jmacro)
         build-depends: jmacro >=0.6.3 && <0.8

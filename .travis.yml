@@ -2,14 +2,11 @@ language: haskell
 before_install:
   - sudo apt-get update -qq
   - sudo apt-get --no-install-recommends install darcs libwebkitgtk-3.0-dev
-  - mkdir vendor
-  - cd vendor
-  - darcs get --lazy http://code.haskell.org/gtk2hs/
-  - cabal install ./gtk2hs/tools
-  - cd ..
+  - cabal install Cabal
+  - cabal install cabal-install
 install:
-  - cabal install cabal-meta cabal-src
-  - cabal-meta install --enable-tests --force-reinstalls
+  - cabal install gtk2hs-buildtools
+  - cabal install --enable-tests
 script:
   - cabal test
 notifications:
