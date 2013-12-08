@@ -17,6 +17,10 @@ Source-Repository head
   type:         git
   location:     https://github.com/ghcjs/jsaddle
 
+flag ghcjs
+    description: Tell cabal we are using ghcjs (work around until hackage supports impl(ghcjs))
+    default: True
+  
 flag gtk3
     Description: Use GTK3 rather than GTK2
     Default: True
@@ -34,11 +38,13 @@ flag jmacro
     default: True
 
 library
-    if impl(ghcjs) && flag(jsffi)
+--    if impl(ghcjs) && flag(jsffi)
+    if flag(ghcjs) && flag(jsffi)
         cpp-options: -DUSE_JAVASCRIPTFFI
         build-depends: ghcjs-base
 
-    if !impl(ghcjs) || flag(webkit)
+--    if !impl(ghcjs) || flag(webkit)
+    if !flag(ghcjs) || flag(webkit)
         cpp-options: -DUSE_WEBKIT
         if flag(gtk3)
             build-depends: webkitgtk3 >=0.12.5 && <0.13,
@@ -71,11 +77,13 @@ test-suite test-tool
     if flag(jsffi)
         buildable: False
 
-    if impl(ghcjs) && flag(jsffi)
+--    if impl(ghcjs) && flag(jsffi)
+    if flag(ghcjs) && flag(jsffi)
         cpp-options: -DUSE_JAVASCRIPTFFI
         build-depends: ghcjs-base
 
-    if !impl(ghcjs) || flag(webkit)
+--    if !impl(ghcjs) || flag(webkit)
+    if !flag(ghcjs) || flag(webkit)
         cpp-options: -DUSE_WEBKIT
         build-depends: glib >=0.12.3.1 && <0.13
         if flag(gtk3)
