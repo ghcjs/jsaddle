@@ -18,7 +18,7 @@ module Main (
 import Prelude hiding((!!), catch)
 import Graphics.UI.Gtk
        (Window, widgetDestroy, postGUIAsync, postGUISync, widgetShowAll,
-        mainGUI, mainQuit, on, destroyEvent, containerAdd, scrolledWindowNew,
+        mainGUI, mainQuit, on, objectDestroy, containerAdd, scrolledWindowNew,
         windowSetPosition, windowSetDefaultSize, timeoutAddFull, windowNew,
         initGUI)
 import Control.Concurrent
@@ -82,7 +82,7 @@ testJSC' showWindow f = do
                 webView <- webViewNew
                 window `containerAdd` scrollWin
                 scrollWin `containerAdd` webView
-                on window destroyEvent . liftIO $ do
+                on window objectDestroy $ do
                     debugLog "onDestroy"
                     tryTakeMVar state
                     debugLog "put state"
