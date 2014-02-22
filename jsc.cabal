@@ -51,8 +51,8 @@ library
         exposed-modules: Language.Javascript.JSC.JMacro
         build-depends: jmacro >=0.6.3 && <0.8
 
-    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <3.11,
-                   text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4
+    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.1,
+                   text >=0.11.2.3 && <1.2, transformers >=0.3.0.0 && <0.4
 
     exposed-modules: Language.Javascript.JSC
                      Language.Javascript.JSC.Arguments Language.Javascript.JSC.Classes
@@ -90,8 +90,8 @@ test-suite test-tool
     if flag(jmacro)
         build-depends: jmacro >=0.6.3 && <0.8
 
-    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <3.11,
-                   text >=0.11.2.3 && <0.12, transformers >=0.3.0.0 && <0.4,
+    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.1,
+                   text >=0.11.2.3 && <1.2, transformers >=0.3.0.0 && <0.4,
                    hslogger -any, jsc ==0.1.1.0
     type: exitcode-stdio-1.0
     main-is: TestJSC.hs
