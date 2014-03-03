@@ -1,5 +1,5 @@
 {-# LANGUAGE CPP #-}
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI #-}
 #endif
 -----------------------------------------------------------------------------
@@ -25,7 +25,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSC.Types
        (JSStringRef, JSValueRef, JSObjectRef,
         JSValueRefRef)
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (nullRef)
 #else
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
@@ -51,7 +51,7 @@ evaluateScript :: (MakeStringRef script, MakeObjectRef this, MakeStringRef url)
                -> url
                -> Int            -- ^ The Line number of the first line of the script
                -> JSC JSValueRef
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 evaluateScript script this url line = liftIO $ js_eval (makeStringRef script)
 foreign import javascript unsafe "$r = eval(s);"
     js_eval :: JSStringRef -> IO JSValueRef
@@ -71,7 +71,7 @@ evaluateScript = undefined
 eval :: MakeStringRef script
      => script         -- ^ JavaScript to evaluate
      -> JSC JSValueRef
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 eval script = evaluateScript script (nullRef::JSObjectRef) (nullRef::JSStringRef) 1
 #else
 eval script = evaluateScript script (nullPtr::JSObjectRef) (nullPtr::JSStringRef) 1

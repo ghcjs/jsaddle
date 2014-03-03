@@ -30,7 +30,7 @@ import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
 import Language.Javascript.JSC.Types
        (JSValueRefRef, JSValueRef, JSContextRef)
 import Control.Monad.IO.Class (MonadIO(..))
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (isUndefined, isNull)
 import GHCJS.Foreign (newArray, indexArray)
 #else
@@ -69,7 +69,7 @@ t `catch` c = do
 --   to throw exceptions.
 catchval :: (JSValueRefRef -> JSC a) -> (JSValueRef -> JSC a) -> JSC a
 catchval f catcher = do
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
     pexc <- liftIO $ newArray
     result <- f pexc
     exc <- liftIO $ indexArray 0 pexc
@@ -87,7 +87,7 @@ catchval f catcher = do
             else catcher exc
 #endif
 
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 runJSC :: w -> JSC a -> IO a
 runJSC _ f = runReaderT f ()
 #else

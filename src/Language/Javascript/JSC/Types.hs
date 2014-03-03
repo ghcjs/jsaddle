@@ -22,7 +22,7 @@ module Language.Javascript.JSC.Types (
   , Index(..)
 ) where
 
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types
 import Data.Word (Word(..))
 #else
@@ -33,7 +33,7 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef (JSPropertyAttributes)
 import Foreign.C (CUInt(..))
 #endif
 
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 data ValueOrObject
 data Object
 data PropertyNameArray

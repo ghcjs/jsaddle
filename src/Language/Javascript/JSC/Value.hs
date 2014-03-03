@@ -2,7 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI #-}
 #endif
 -----------------------------------------------------------------------------
@@ -66,7 +66,7 @@ module Language.Javascript.JSC.Value (
 import Prelude hiding (catch)
 import Language.Javascript.JSC.Types
        (JSValueRefRef, JSObjectRef, JSStringRef, JSValueRef)
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (castRef, JSRef(..))
 import GHCJS.Foreign (toJSBool, fromJSBool', jsNull, jsUndefined, toJSString)
 import GHCJS.Marshal (toJSRef)
@@ -136,7 +136,7 @@ data JSValue = ValNull                   -- ^ null
 -- >>> testJSC $ valToBool "1"
 -- true
 valToBool :: MakeValueRef val => val -> JSC JSBool
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valToBool val = fromJSBool' <$> makeValueRef val
 #else
 valToBool val = do
@@ -165,7 +165,7 @@ valToBool val = do
 -- >>> testJSC $ show <$> valToNumber "1"
 -- 1.0
 valToNumber :: MakeValueRef val => val -> JSC JSNumber
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 valToNumber val = jsrefToNumber <$> makeValueRef val
 foreign import javascript unsafe "$r = Number($1);" jsrefToNumber :: JSRef a -> Double
 #elif defined(USE_WEBKIT)
@@ -197,7 +197,7 @@ valToNumber = undefined
 -- >>> testJSC $ valToStr "1" >>= strToText
 -- 1
 valToStr :: MakeValueRef val => val -> JSC JSStringRef
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 valToStr val = jsrefToString <$> makeValueRef val
 foreign import javascript unsafe "$r = $1.toString();" jsrefToString :: JSRef a -> JSStringRef
 #elif defined(USE_WEBKIT)
@@ -253,7 +253,7 @@ valToText jsvar = valToStr jsvar >>= strToText
 -- >>> testJSC $ obj >>= valToJSON 0 >>= strToText
 -- {}
 valToJSON :: MakeValueRef val => Word -> val -> JSC JSStringRef
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 valToJSON indent val = jsrefToJSON <$> makeValueRef val
 foreign import javascript unsafe "$r = JSON.stringify($1);" jsrefToJSON :: JSRef a -> JSStringRef
 #elif defined(USE_WEBKIT)
@@ -285,7 +285,7 @@ valToJSON = undefined
 -- >>> testJSC $ valToObject "1"
 -- 1
 valToObject :: MakeValueRef val => val -> JSC JSObjectRef
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valToObject val = castRef <$> makeValueRef val
 #else
 valToObject val = do
@@ -316,7 +316,7 @@ instance MakeValueRef v => MakeValueRef (JSC v) where
 ----------- null ---------------
 -- | Make a @null@ JavaScript value
 valMakeNull :: JSC JSValueRef
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valMakeNull = return jsNull
 #else
 valMakeNull = ask >>= (liftIO . jsvaluemakenull)
@@ -333,7 +333,7 @@ instance MakeArgRefs JSNull where
 ----------- undefined ---------------
 -- | Make an @undefined@ JavaScript value
 valMakeUndefined :: JSC JSValueRef
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valMakeUndefined = return jsUndefined
 #else
 valMakeUndefined = ask >>= (liftIO . jsvaluemakeundefined)
@@ -355,7 +355,7 @@ instance MakeArgRefs () where
 ----------- booleans ---------------
 -- | Make a JavaScript boolean value
 valMakeBool :: JSBool -> JSC JSValueRef
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valMakeBool b = return . castRef $ toJSBool b
 #else
 valMakeBool b = do
@@ -374,7 +374,7 @@ instance MakeArgRefs Bool where
 ----------- numbers ---------------
 -- | Make a JavaScript number
 valMakeNumber :: JSNumber -> JSC JSValueRef
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valMakeNumber n = liftIO $ castRef <$> toJSRef n
 #else
 valMakeNumber n = do
@@ -393,7 +393,7 @@ instance MakeArgRefs Double where
 ----------- numbers ---------------
 -- | Make a JavaScript string
 valMakeString :: Text -> JSC JSValueRef
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valMakeString = return . castRef . toJSString
 #else
 valMakeString text = do
@@ -434,7 +434,7 @@ instance MakeValueRef String where
 -- >>> testJSC $ show <$> valToObject True >>= deRefVal
 -- ValObject 0x...
 deRefVal :: MakeValueRef val => val -> JSC JSValue
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 deRefVal val = do
     gctxt <- ask
     valref <- makeValueRef val

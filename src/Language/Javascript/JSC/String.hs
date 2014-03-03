@@ -26,7 +26,7 @@ import Data.Text (Text)
 import qualified Data.Text as T (pack)
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSC.Types (JSStringRef)
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Foreign (fromJSString, toJSString)
 #else
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
@@ -51,7 +51,7 @@ instance MakeStringRef String where
 
 -- | Convert a JavaScript string to a Haskell 'Text'
 strToText :: MonadIO m => JSStringRef -> m Text
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 strToText = return . fromJSString
 #else
 strToText jsstring = liftIO $ do
@@ -62,7 +62,7 @@ strToText jsstring = liftIO $ do
 
 -- | Convert a Haskell 'Text' to a JavaScript string
 textToStr :: Text -> JSStringRef
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 textToStr = toJSString
 #else
 textToStr text = unsafePerformIO $

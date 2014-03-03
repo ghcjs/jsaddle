@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI #-}
 #endif
 -----------------------------------------------------------------------------
@@ -45,7 +45,7 @@ import Language.Javascript.JSC.Monad (JSC)
 import Language.Javascript.JSC.Types
        (JSValueRefRef, JSObjectRef, JSPropertyAttributes,
         Index(..), JSStringRef)
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 #else
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
        (jsobjectgetpropertyatindex, jsobjectgetproperty,
@@ -88,7 +88,7 @@ objGetPropertyByName :: MakeStringRef name
                      -> name           -- ^ name of the property.
                      -> JSValueRefRef  -- ^ exception if one is raised.
                      -> JSC JSValueRef -- ^ returns the property value.
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objGetPropertyByName this name = liftIO . js_tryGetProp (makeStringRef name) this
 foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
     js_tryGetProp :: JSStringRef -> JSObjectRef -> JSValueRefRef -> IO JSValueRef
@@ -105,7 +105,7 @@ objGetPropertyAtIndex :: JSObjectRef    -- ^ object to find the property on.
                       -> Index          -- ^ index of the property.
                       -> JSValueRefRef  -- ^ exception if one is raised.
                       -> JSC JSValueRef -- ^ returns the property value.
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objGetPropertyAtIndex this index = liftIO . js_tryIndex index this
 foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
     js_tryIndex :: Index -> JSObjectRef -> JSValueRefRef -> IO JSValueRef
@@ -145,7 +145,7 @@ objSetPropertyByName :: (MakeStringRef name, MakeValueRef val)
                      -> JSPropertyAttributes -- ^ property attributes to give the property.
                      -> JSValueRefRef        -- ^ exception if one is raised.
                      -> JSC ()
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objSetPropertyByName this name val attributes exceptions = do
     vref <- makeValueRef val
     liftIO $ js_trySetProp (makeStringRef name) this vref exceptions
@@ -167,7 +167,7 @@ objSetPropertyAtIndex :: (MakeValueRef val)
                       -> val            -- ^ new value to set the property to.
                       -> JSValueRefRef  -- ^ exception if one is raised.
                       -> JSC ()
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objSetPropertyAtIndex this index val exceptions = do
     vref <- makeValueRef val
     liftIO $ js_trySetAtIndex index this vref exceptions

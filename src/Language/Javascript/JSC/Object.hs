@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 {-# LANGUAGE JavaScriptFFI #-}
 #endif
 -----------------------------------------------------------------------------
@@ -79,7 +79,7 @@ import Language.Javascript.JSC.Types
        (JSPropertyNameArrayRef, JSStringRef, JSObjectRef, JSValueRefRef,
         JSValueRef, JSContextRef, Index)
 import Foreign.C.Types (CSize(..), CULong(..), CUInt(..))
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (nullRef, castRef, JSArray, JSFun)
 import GHCJS.Foreign (newObj, toArray, fromArray, syncCallback2)
 import Control.Monad (liftM)
@@ -292,7 +292,7 @@ call function this args = do
 -- >>> testJSC $ do { a <- obj; a ^. js "x" <# "Hello"; a ^. js "x" }
 -- Hello
 obj :: JSC JSObjectRef
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 obj = liftIO $ newObj
 #else
 obj = do
@@ -320,7 +320,7 @@ type JSCallAsFunction = JSValueRef      -- ^ Function object
 fun :: JSCallAsFunction -> JSCallAsFunction
 fun = id
 
-#if (!defined(__GHCJS__) || !defined(USE_JAVASCRIPTFFI)) && defined(USE_WEBKIT)
+#if (!defined(ghcjs_HOST_OS) || !defined(USE_JAVASCRIPTFFI)) && defined(USE_WEBKIT)
 foreign import ccall "wrapper"
   mkJSObjectCallAsFunctionCallback :: JSObjectCallAsFunctionCallback' -> IO JSObjectCallAsFunctionCallback
 #endif
@@ -331,7 +331,7 @@ function :: MakeStringRef name
          -> JSCallAsFunction -- ^ Haskell function to call
          -> JSC JSObjectRef  -- ^ Returns a JavaScript function object that will
                              --   call the Haskell one when it is called
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 function name f = liftIO $ do
     callback <- syncCallback2 False True $ \this args -> do
         rargs <- fromArray args
@@ -361,7 +361,7 @@ function  = undefined
 --   an anonymous JavaScript function object.  Use 'function' to create one with
 --   a name.
 instance MakeValueRef JSCallAsFunction where
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
     makeValueRef = function (nullRef::JSStringRef)
 #else
     makeValueRef = function (nullPtr::JSStringRef)
@@ -369,7 +369,7 @@ instance MakeValueRef JSCallAsFunction where
 
 instance MakeArgRefs JSCallAsFunction where
     makeArgRefs f = do
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
         rarg <- function (nullRef::JSStringRef) f
 #else
         rarg <- function (nullPtr::JSStringRef) f
@@ -377,7 +377,7 @@ instance MakeArgRefs JSCallAsFunction where
         return [rarg]
 
 makeArray :: MakeArgRefs args => args -> JSValueRefRef -> JSC JSObjectRef
-#if (defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 makeArray args exceptions = makeArgRefs args >>= liftM castRef . liftIO . toArray
 #else
 makeArray args exceptions = do
@@ -400,7 +400,7 @@ array = rethrow . makeArray
 
 -- | JavaScript's global object
 global :: JSC JSObjectRef
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 global = liftIO js_window
 foreign import javascript unsafe "$r = window"
     js_window :: IO JSObjectRef
@@ -411,7 +411,7 @@ global = undefined
 #endif
 
 -- | Get an array containing the property names present on a given object
-#if (!defined(__GHCJS__) || !defined(USE_JAVASCRIPTFFI)) && defined(USE_WEBKIT)
+#if (!defined(ghcjs_HOST_OS) || !defined(USE_JAVASCRIPTFFI)) && defined(USE_WEBKIT)
 copyPropertyNames :: MakeObjectRef this => this -> JSC JSPropertyNameArrayRef
 copyPropertyNames this = do
     gctxt <- ask
@@ -435,7 +435,7 @@ propertyNamesList names = do
 
 -- | Get a list containing the property names present on a given object
 propertyNames :: MakeObjectRef this => this -> JSC [JSStringRef]
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 propertyNames this = makeObjectRef this >>= liftIO . js_propertyNames >>= liftIO . fromArray
 foreign import javascript unsafe "$r = []; h$forIn($1, function(n){$r.push(n);})"
     js_propertyNames :: JSObjectRef -> IO (JSArray a)
@@ -456,7 +456,7 @@ objCallAsFunction :: MakeArgRefs args
                   -> args
                   -> JSValueRefRef
                   -> JSC JSValueRef
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objCallAsFunction function this args exceptions = do
     rargs <- makeArgRefs args >>= liftIO . toArray
     liftIO $ js_apply function this rargs exceptions
@@ -478,7 +478,7 @@ objCallAsConstructor :: MakeArgRefs args
                      -> args
                      -> JSValueRefRef
                      -> JSC JSValueRef
-#if defined(__GHCJS__) && defined(USE_JAVASCRIPTFFI)
+#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objCallAsConstructor function args exceptions = do
     rargs <- makeArgRefs args >>= liftIO . toArray
     liftIO $ js_new function rargs exceptions
