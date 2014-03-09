@@ -9,7 +9,7 @@
 #endif
 -----------------------------------------------------------------------------
 --
--- Module      :  Language.Javascript.JSC.Object
+-- Module      :  Language.Javascript.JSaddle.Object
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
@@ -19,7 +19,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSC.Object (
+module Language.Javascript.JSaddle.Object (
     JSObjectRef
   , MakeObjectRef(..)
 
@@ -75,7 +75,7 @@ module Language.Javascript.JSC.Object (
 ) where
 
 import Prelude hiding ((!!))
-import Language.Javascript.JSC.Types
+import Language.Javascript.JSaddle.Types
        (JSPropertyNameArrayRef, JSStringRef, JSObjectRef, JSValueRefRef,
         JSValueRef, JSContextRef, Index)
 import Foreign.C.Types (CSize(..), CULong(..), CUInt(..))
@@ -99,46 +99,46 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSContextRef
        (jscontextgetglobalobject)
 import Foreign (peekArray, nullPtr, withArrayLen)
 #endif
-import Language.Javascript.JSC.Exception (rethrow)
-import Language.Javascript.JSC.Value
+import Language.Javascript.JSaddle.Exception (rethrow)
+import Language.Javascript.JSaddle.Value
        (JSUndefined, valMakeUndefined, valToObject)
-import Language.Javascript.JSC.PropRef (JSPropRef(..))
-import Language.Javascript.JSC.Classes
+import Language.Javascript.JSaddle.PropRef (JSPropRef(..))
+import Language.Javascript.JSaddle.Classes
        (MakeValueRef(..), MakeStringRef(..), MakeArgRefs(..), MakePropRef(..),
         MakeObjectRef(..))
-import Language.Javascript.JSC.Monad
-       (JSC)
+import Language.Javascript.JSaddle.Monad
+       (JSM)
 import Control.Monad.Trans.Reader (runReaderT, ask)
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Control.Exception as E (catch)
 import Control.Exception (SomeException)
 import qualified Data.Text as T (pack)
 import Foreign.Storable (Storable(..))
-import Language.Javascript.JSC.Properties
+import Language.Javascript.JSaddle.Properties
 import Control.Lens
        (IndexPreservingGetter, to, (^.))
-import Language.Javascript.JSC.String (textToStr)
+import Language.Javascript.JSaddle.String (textToStr)
 
 -- | If we already have a JSObjectRef we are fine
 instance MakeObjectRef JSObjectRef where
     makeObjectRef = return
 
--- | JSObjectRef can be made by evaluating a function in 'JSC' as long
+-- | JSObjectRef can be made by evaluating a function in 'JSM' as long
 --   as it returns something we can make into a JSObjectRef.
-instance MakeObjectRef v => MakeObjectRef (JSC v) where
+instance MakeObjectRef v => MakeObjectRef (JSM v) where
     makeObjectRef v = v >>= makeObjectRef
 
 -- | Lookup a property based on its name.  This function just constructs a JSPropRef
 --   the lookup is delayed until we use the JSPropRef.  This makes it a bit lazy compared
 --   to JavaScript's @.@ operator.
 --
--- >>> testJSC $ eval "'Hello World'.length"
--- >>> testJSC $ val "Hello World" ! "length"
+-- >>> testJSaddle $ eval "'Hello World'.length"
+-- >>> testJSaddle $ val "Hello World" ! "length"
 -- 11
 (!) :: (MakeObjectRef this, MakeStringRef name)
     => this          -- ^ Object to look on
     -> name          -- ^ Name of the property to find
-    -> JSC JSPropRef -- ^ Property reference
+    -> JSM JSPropRef -- ^ Property reference
 this ! name = do
     rthis <- makeObjectRef this
     return (JSPropRef rthis rname)
@@ -149,13 +149,13 @@ this ! name = do
 --   the lookup is delayed until we use the JSPropRef.  This makes it a bit lazy compared
 --   to JavaScript's @[]@ operator.
 --
--- >>> testJSC $ eval "'Hello World'[6]"
--- >>> testJSC $ val "Hello World" !! 6
+-- >>> testJSaddle $ eval "'Hello World'[6]"
+-- >>> testJSaddle $ val "Hello World" !! 6
 -- W
 (!!) :: (MakeObjectRef this)
      => this          -- ^ Object to look on
      -> Index         -- ^ Index of the property to lookup
-     -> JSC JSPropRef -- ^ Property reference
+     -> JSM JSPropRef -- ^ Property reference
 this !! index = do
     rthis <- makeObjectRef this
     return (JSPropIndexRef rthis index)
@@ -164,22 +164,22 @@ this !! index = do
 --
 -- > js name = to (!name)
 --
--- >>> testJSC $ eval "'Hello World'.length"
--- >>> testJSC $ val "Hello World" ^. js "length"
+-- >>> testJSaddle $ eval "'Hello World'.length"
+-- >>> testJSaddle $ val "Hello World" ^. js "length"
 -- 11
 js :: (MakeObjectRef s, MakeStringRef name)
    => name          -- ^ Name of the property to find
-   -> IndexPreservingGetter s (JSC JSPropRef)
+   -> IndexPreservingGetter s (JSM JSPropRef)
 js name = to (!name)
 
 -- | Java script function applications have this type
-type JSF = MakeObjectRef o => IndexPreservingGetter o (JSC JSValueRef)
+type JSF = MakeObjectRef o => IndexPreservingGetter o (JSM JSValueRef)
 
 -- | Handy way to call a function
 --
 -- > jsf name = js name . to (# args)
 --
--- >>> testJSC $ val "Hello World" ^. jsf "indexOf" ["World"]
+-- >>> testJSaddle $ val "Hello World" ^. jsf "indexOf" ["World"]
 -- 6
 jsf :: (MakeStringRef name, MakeArgRefs args) => name -> args -> JSF
 jsf name args = function . to (# args)
@@ -190,7 +190,7 @@ jsf name args = function . to (# args)
 --
 -- > js0 name = jsf name ()
 --
--- >>> testJSC $ val "Hello World" ^. js0 "toLowerCase"
+-- >>> testJSaddle $ val "Hello World" ^. js0 "toLowerCase"
 -- hello world
 js0 :: (MakeStringRef name) => name -> JSF
 js0 name = jsf name ()
@@ -199,7 +199,7 @@ js0 name = jsf name ()
 --
 -- > js1 name a0 = jsf name [a0]
 --
--- >>> testJSC $ val "Hello World" ^. js1 "indexOf" "World"
+-- >>> testJSaddle $ val "Hello World" ^. js1 "indexOf" "World"
 -- 6
 js1 :: (MakeStringRef name, MakeValueRef a0) => name -> a0 -> JSF
 js1 name a0 = jsf name [a0]
@@ -228,20 +228,20 @@ js5 name a0 a1 a2 a3 a4 = jsf name (a0, a1, a2, a3, a4)
 
 -- | Handy way to get and hold onto a reference top level javascript
 --
--- >>> testJSC $ eval "w = console; w.log('Hello World')"
--- >>> testJSC $ do w <- jsg "console"; w ^. js "log" # ["Hello World"]
+-- >>> testJSaddle $ eval "w = console; w.log('Hello World')"
+-- >>> testJSaddle $ do w <- jsg "console"; w ^. js "log" # ["Hello World"]
 -- 11
-jsg :: MakeStringRef a => a -> JSC JSPropRef
+jsg :: MakeStringRef a => a -> JSM JSPropRef
 jsg name = global ! name
 
 -- | Call a JavaScript function
 --
--- >>> testJSC $ eval "'Hello World'.indexOf('World')"
--- >>> testJSC $ val "Hello World" ! "indexOf" # ["World"]
+-- >>> testJSaddle $ eval "'Hello World'.indexOf('World')"
+-- >>> testJSaddle $ val "Hello World" ! "indexOf" # ["World"]
 -- 6
 infixr 2 #
 (#) :: (MakePropRef prop, MakeArgRefs args)
-    => prop -> args -> JSC JSValueRef
+    => prop -> args -> JSM JSValueRef
 prop # args = do
     rprop <- makePropRef prop
     (this, f) <- objGetProperty' rprop
@@ -249,14 +249,14 @@ prop # args = do
 
 -- | Call a JavaScript function
 --
--- >>> testJSC $ eval "var j = {}; j.x = 1; j.x"
--- >>> testJSC $ do {j <- eval "({})"; j!"x" <# 1; j!"x"}
+-- >>> testJSaddle $ eval "var j = {}; j.x = 1; j.x"
+-- >>> testJSaddle $ do {j <- eval "({})"; j!"x" <# 1; j!"x"}
 -- 1
 infixr 0 <#
 (<#) :: (MakePropRef prop, MakeValueRef val)
      => prop          -- ^ Property to set
      -> val           -- ^ Value to set it to
-     -> JSC JSPropRef -- ^ Reference to the property set
+     -> JSM JSPropRef -- ^ Reference to the property set
 prop <# val = do
     p <- makePropRef prop
     objSetProperty p val
@@ -264,23 +264,23 @@ prop <# val = do
 
 -- | Use this to create a new JavaScript object
 --
--- >>> testJSC $ new "Date" (2013, 1, 1)
+-- >>> testJSaddle $ new "Date" (2013, 1, 1)
 -- Fri Feb 01 2013 00:00:00 GMT+1300 (NZDT)
 new :: (MakeObjectRef constructor, MakeArgRefs args)
     => constructor
     -> args
-    -> JSC JSValueRef
+    -> JSM JSValueRef
 new constructor args = do
     f <- makeObjectRef constructor
     rethrow $ objCallAsConstructor f args
 
 -- | Call function with a given @this@.  In most cases you should use '#'.
 --
--- >>> testJSC $ eval "(function(){return this;}).apply('Hello', [])"
--- >>> testJSC $ do { test <- eval "(function(){return this;})"; call test (val "Hello") () }
+-- >>> testJSaddle $ eval "(function(){return this;}).apply('Hello', [])"
+-- >>> testJSaddle $ do { test <- eval "(function(){return this;})"; call test (val "Hello") () }
 -- Hello
 call :: (MakeObjectRef function, MakeObjectRef this, MakeArgRefs args)
-    => function -> this -> args -> JSC JSValueRef
+    => function -> this -> args -> JSM JSValueRef
 call function this args = do
     rfunction <- makeObjectRef function
     rthis     <- makeObjectRef this
@@ -288,10 +288,10 @@ call function this args = do
 
 -- | Make an empty object using the default constuctor
 --
--- >>> testJSC $ eval "var a = {}; a.x = 'Hello'; a.x"
--- >>> testJSC $ do { a <- obj; a ^. js "x" <# "Hello"; a ^. js "x" }
+-- >>> testJSaddle $ eval "var a = {}; a.x = 'Hello'; a.x"
+-- >>> testJSaddle $ do { a <- obj; a ^. js "x" <# "Hello"; a ^. js "x" }
 -- Hello
-obj :: JSC JSObjectRef
+obj :: JSM JSObjectRef
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 obj = liftIO $ newObj
 #else
@@ -304,7 +304,7 @@ obj = do
 type JSCallAsFunction = JSValueRef      -- ^ Function object
                      -> JSValueRef      -- ^ this
                      -> [JSValueRef]    -- ^ Function arguments
-                     -> JSC JSUndefined -- ^ Only 'JSUndefined' can be returned because
+                     -> JSM JSUndefined -- ^ Only 'JSUndefined' can be returned because
                                         --   the function may need to be executed in a
                                         --   different thread.  If you need to get a
                                         --   value out pass in a continuation function
@@ -313,8 +313,8 @@ type JSCallAsFunction = JSValueRef      -- ^ Function object
 -- | Short hand @::JSCallAsFunction@ so a haskell function can be passed to
 --   a to a JavaScipt one.
 --
--- >>> testJSC $ eval "(function(f) {f('Hello');})(function (a) {console.log(a)})"
--- >>> testJSC $ call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ args -> valToText (head args) >>= (liftIO . putStrLn . T.unpack) ]
+-- >>> testJSaddle $ eval "(function(f) {f('Hello');})(function (a) {console.log(a)})"
+-- >>> testJSaddle $ call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ args -> valToText (head args) >>= (liftIO . putStrLn . T.unpack) ]
 -- Hello
 -- undefined
 fun :: JSCallAsFunction -> JSCallAsFunction
@@ -329,7 +329,7 @@ foreign import ccall "wrapper"
 function :: MakeStringRef name
          => name             -- ^ Name of the function
          -> JSCallAsFunction -- ^ Haskell function to call
-         -> JSC JSObjectRef  -- ^ Returns a JavaScript function object that will
+         -> JSM JSObjectRef  -- ^ Returns a JavaScript function object that will
                              --   call the Haskell one when it is called
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 function name f = liftIO $ do
@@ -376,7 +376,7 @@ instance MakeArgRefs JSCallAsFunction where
 #endif
         return [rarg]
 
-makeArray :: MakeArgRefs args => args -> JSValueRefRef -> JSC JSObjectRef
+makeArray :: MakeArgRefs args => args -> JSValueRefRef -> JSM JSObjectRef
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 makeArray args exceptions = makeArgRefs args >>= liftM castRef . liftIO . toArray
 #else
@@ -389,17 +389,17 @@ makeArray args exceptions = do
 
 -- | Make an JavaScript array from a list of values
 --
--- >>> testJSC $ eval "['Hello', 'World'][1]"
--- >>> testJSC $ array ["Hello", "World"] !! 1
+-- >>> testJSaddle $ eval "['Hello', 'World'][1]"
+-- >>> testJSaddle $ array ["Hello", "World"] !! 1
 -- World
--- >>> testJSC $ eval "['Hello', null, undefined, true, 1]"
--- >>> testJSC $ array ("Hello", JSNull, (), True, 1.0::Double)
+-- >>> testJSaddle $ eval "['Hello', null, undefined, true, 1]"
+-- >>> testJSaddle $ array ("Hello", JSNull, (), True, 1.0::Double)
 -- Hello,,,true,1
-array :: MakeArgRefs args => args -> JSC JSObjectRef
+array :: MakeArgRefs args => args -> JSM JSObjectRef
 array = rethrow . makeArray
 
 -- | JavaScript's global object
-global :: JSC JSObjectRef
+global :: JSM JSObjectRef
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 global = liftIO js_window
 foreign import javascript unsafe "$r = window"
@@ -412,7 +412,7 @@ global = undefined
 
 -- | Get an array containing the property names present on a given object
 #if (!defined(ghcjs_HOST_OS) || !defined(USE_JAVASCRIPTFFI)) && defined(USE_WEBKIT)
-copyPropertyNames :: MakeObjectRef this => this -> JSC JSPropertyNameArrayRef
+copyPropertyNames :: MakeObjectRef this => this -> JSM JSPropertyNameArrayRef
 copyPropertyNames this = do
     gctxt <- ask
     rthis <- makeObjectRef this
@@ -434,7 +434,7 @@ propertyNamesList names = do
 #endif
 
 -- | Get a list containing the property names present on a given object
-propertyNames :: MakeObjectRef this => this -> JSC [JSStringRef]
+propertyNames :: MakeObjectRef this => this -> JSM [JSStringRef]
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 propertyNames this = makeObjectRef this >>= liftIO . js_propertyNames >>= liftIO . fromArray
 foreign import javascript unsafe "$r = []; h$forIn($1, function(n){$r.push(n);})"
@@ -446,7 +446,7 @@ propertyNames = undefined
 #endif
 
 -- | Get a list containing references to all the  properties present on a given object
-properties :: MakeObjectRef this => this -> JSC [JSPropRef]
+properties :: MakeObjectRef this => this -> JSM [JSPropRef]
 properties this = propertyNames this >>= mapM (this !)
 
 -- | Call a JavaScript object as function.  Consider using '#'.
@@ -455,7 +455,7 @@ objCallAsFunction :: MakeArgRefs args
                   -> JSObjectRef
                   -> args
                   -> JSValueRefRef
-                  -> JSC JSValueRef
+                  -> JSM JSValueRef
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objCallAsFunction function this args exceptions = do
     rargs <- makeArgRefs args >>= liftIO . toArray
@@ -477,7 +477,7 @@ objCallAsConstructor :: MakeArgRefs args
                      => JSObjectRef
                      -> args
                      -> JSValueRefRef
-                     -> JSC JSValueRef
+                     -> JSM JSValueRef
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objCallAsConstructor function args exceptions = do
     rargs <- makeArgRefs args >>= liftIO . toArray

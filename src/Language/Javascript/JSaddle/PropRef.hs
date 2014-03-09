@@ -1,6 +1,6 @@
 -----------------------------------------------------------------------------
 --
--- Module      :  Language.Javascript.JSC.PropRef
+-- Module      :  Language.Javascript.JSaddle.PropRef
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
@@ -10,11 +10,11 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSC.PropRef (
+module Language.Javascript.JSaddle.PropRef (
     JSPropRef(..)
 ) where
 
-import Language.Javascript.JSC.Types
+import Language.Javascript.JSaddle.Types
        (JSStringRef, JSObjectRef, Index)
 
 -- | A reference to a property.

@@ -6,21 +6,21 @@
 #endif
 -----------------------------------------------------------------------------
 --
--- Module      :  Language.Javascript.JSC.Properties
+-- Module      :  Language.Javascript.JSaddle.Properties
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
 -- Maintainer  :  Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
 --
 -- | Low level JavaScript object property access.  In most cases you
---   should use "Language.Javascript.JSC.Object" instead.
+--   should use "Language.Javascript.JSaddle.Object" instead.
 --
 --   This module is mostly here to implement functions needed to use
 --   'JSPropRef'.
 --
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSC.Properties (
+module Language.Javascript.JSaddle.Properties (
   -- * Propery Reference
     JSPropRef(..)
   , MakePropRef(..)
@@ -37,12 +37,12 @@ module Language.Javascript.JSC.Properties (
 ) where
 
 import Control.Applicative ((<$>))
-import Language.Javascript.JSC.PropRef (JSPropRef(..))
-import Language.Javascript.JSC.Classes
+import Language.Javascript.JSaddle.PropRef (JSPropRef(..))
+import Language.Javascript.JSaddle.Classes
        (MakePropRef(..), MakeObjectRef(..), MakeValueRef(..),
         MakeArgRefs(..), MakeStringRef(..))
-import Language.Javascript.JSC.Monad (JSC)
-import Language.Javascript.JSC.Types
+import Language.Javascript.JSaddle.Monad (JSM)
+import Language.Javascript.JSaddle.Types
        (JSValueRefRef, JSObjectRef, JSPropertyAttributes,
         Index(..), JSStringRef)
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
@@ -54,18 +54,18 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
 #endif
 import Control.Monad.Trans.Reader (ask)
 import Control.Monad.IO.Class (MonadIO(..))
-import Language.Javascript.JSC.Exception (rethrow)
-import Language.Javascript.JSC.Value (JSValueRef)
-import Language.Javascript.JSC.Arguments ()
-import Language.Javascript.JSC.String ()
+import Language.Javascript.JSaddle.Exception (rethrow)
+import Language.Javascript.JSaddle.Value (JSValueRef)
+import Language.Javascript.JSaddle.Arguments ()
+import Language.Javascript.JSaddle.String ()
 
 -- | If we already have a JSPropRef we are fine
 instance MakePropRef JSPropRef where
     makePropRef = return
 
--- | JSPropRef can be made by evaluating a function in 'JSC' as long
+-- | JSPropRef can be made by evaluating a function in 'JSM' as long
 --   as it returns something we can make into a JSPropRef.
-instance MakePropRef prop => MakePropRef (JSC prop) where
+instance MakePropRef prop => MakePropRef (JSM prop) where
     makePropRef prop = prop >>= makePropRef
 
 -- | We can use a property as an object.
@@ -87,7 +87,7 @@ objGetPropertyByName :: MakeStringRef name
                      => JSObjectRef    -- ^ object to find the property on.
                      -> name           -- ^ name of the property.
                      -> JSValueRefRef  -- ^ exception if one is raised.
-                     -> JSC JSValueRef -- ^ returns the property value.
+                     -> JSM JSValueRef -- ^ returns the property value.
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objGetPropertyByName this name = liftIO . js_tryGetProp (makeStringRef name) this
 foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
@@ -104,7 +104,7 @@ objGetPropertyByName = undefined
 objGetPropertyAtIndex :: JSObjectRef    -- ^ object to find the property on.
                       -> Index          -- ^ index of the property.
                       -> JSValueRefRef  -- ^ exception if one is raised.
-                      -> JSC JSValueRef -- ^ returns the property value.
+                      -> JSM JSValueRef -- ^ returns the property value.
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objGetPropertyAtIndex this index = liftIO . js_tryIndex index this
 foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
@@ -119,7 +119,7 @@ objGetPropertyAtIndex = undefined
 
 -- | Gets the value of a property given a 'JSPropRef'.
 objGetProperty :: JSPropRef      -- ^ property reference.
-               -> JSC JSValueRef -- ^ returns the property value.
+               -> JSM JSValueRef -- ^ returns the property value.
 objGetProperty (JSPropRef      this name ) =
     rethrow $ objGetPropertyByName  this name
 objGetProperty (JSPropIndexRef this index) =
@@ -128,7 +128,7 @@ objGetProperty (JSPropIndexRef this index) =
 -- | This version of 'objGetProperty' is handy when you also need to perform.
 --   another operation on the object the property is on.
 objGetProperty' :: JSPropRef                     -- ^ property reference.
-                -> JSC (JSObjectRef, JSValueRef) -- ^ returns the object and property value.
+                -> JSM (JSObjectRef, JSValueRef) -- ^ returns the object and property value.
 objGetProperty' (JSPropRef this name) = do
     p <- rethrow $ objGetPropertyByName this name
     return (this, p)
@@ -144,7 +144,7 @@ objSetPropertyByName :: (MakeStringRef name, MakeValueRef val)
                      -> val                  -- ^ new value to set the property to.
                      -> JSPropertyAttributes -- ^ property attributes to give the property.
                      -> JSValueRefRef        -- ^ exception if one is raised.
-                     -> JSC ()
+                     -> JSM ()
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objSetPropertyByName this name val attributes exceptions = do
     vref <- makeValueRef val
@@ -166,7 +166,7 @@ objSetPropertyAtIndex :: (MakeValueRef val)
                       -> Index          -- ^ index of the property.
                       -> val            -- ^ new value to set the property to.
                       -> JSValueRefRef  -- ^ exception if one is raised.
-                      -> JSC ()
+                      -> JSM ()
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 objSetPropertyAtIndex this index val exceptions = do
     vref <- makeValueRef val
@@ -186,7 +186,7 @@ objSetPropertyAtIndex = undefined
 objSetProperty :: (MakeValueRef val)
                => JSPropRef -- ^ property reference.
                -> val       -- ^ new value to set the property to.
-               -> JSC ()
+               -> JSM ()
 objSetProperty (JSPropRef      this name ) val = rethrow $ objSetPropertyByName  this name  val 0
 objSetProperty (JSPropIndexRef this index) val = rethrow $ objSetPropertyAtIndex this index val
 

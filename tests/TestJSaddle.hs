@@ -33,7 +33,7 @@ import Control.Monad.Trans.Reader (runReaderT)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase (JSContextRef)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.WebFrame
        (webFrameGetGlobalContext)
-import Language.Javascript.JSC
+import Language.Javascript.JSaddle
 import Data.Text (Text)
 import qualified Data.Text as T
 import Control.Applicative
@@ -48,18 +48,18 @@ data TestState = TestState { jsContext :: JSContextRef, window :: Window }
 state = unsafePerformIO $ newMVar Nothing
 done = unsafePerformIO $ newEmptyMVar
 
--- >>> testJSC $ ((global ^. js "console" . js "log") # ["Hello"])
-testJSC :: MakeValueRef val => JSC val -> IO ()
-testJSC = testJSC' False
+-- >>> testJSaddle $ ((global ^. js "console" . js "log") # ["Hello"])
+testJSaddle :: MakeValueRef val => JSM val -> IO ()
+testJSaddle = testJSaddle' False
 
--- >>> showJSC $ eval "document.body.innerHTML = 'Test'"
-showJSC :: MakeValueRef val => JSC val -> IO ()
-showJSC = testJSC' True
+-- >>> showJSaddle $ eval "document.body.innerHTML = 'Test'"
+showJSaddle :: MakeValueRef val => JSM val -> IO ()
+showJSaddle = testJSaddle' True
 
-debugLog = debugM "jsc"
+debugLog = debugM "jsaddle"
 
-testJSC' :: MakeValueRef val => Bool -> JSC val -> IO ()
-testJSC' showWindow f = do
+testJSaddle' :: MakeValueRef val => Bool -> JSM val -> IO ()
+testJSaddle' showWindow f = do
     debugLog "taking done"
     tryTakeMVar done
     debugLog "taking state"
@@ -113,12 +113,12 @@ testJSC' showWindow f = do
     return x
 
 main = do
-    testJSC $ return ()
+    testJSaddle $ return ()
     Just TestState{..} <- takeMVar state
     postGUIAsync $ widgetDestroy window
     takeMVar done
 
-listWindowProperties = testJSC $ T.pack . show <$> do
+listWindowProperties = testJSaddle $ T.pack . show <$> do
   window <- jsg "window"
   names <- propertyNames window
   forM names $ \name -> do

@@ -1,18 +1,18 @@
 {-# LANGUAGE TemplateHaskell, QuasiQuotes #-}
 -----------------------------------------------------------------------------
 --
--- Module      :  Language.Javascript.JSC.JMacro
+-- Module      :  Language.Javascript.JSaddle.JMacro
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
 -- Maintainer  :  Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
 --
 -- | Helper function to make it easy to embed JMacro in your code and
---   use it from JSC
+--   use it from JSaddle
 --
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSC.JMacro (
+module Language.Javascript.JSaddle.JMacro (
     evalJM
   , evalJME
 ) where
@@ -29,7 +29,7 @@ evalJME = jmacroE {quoteExp = quoteEvalJME}
 
 quoteEvalJME :: String -> ExpQ
 quoteEvalJME s =
-    appE (varE 'return) [|AppE (VarE $ mkName "Language.Javascript.JSC.eval")
+    appE (varE 'return) [|AppE (VarE $ mkName "Language.Javascript.JSaddle.eval")
         (LitE . StringL . show $ renderJs $(quoteExp jmacroE s))|]
 
 -- | Quasi quoter that creates a JavaScript string from JMacro statement
@@ -39,5 +39,5 @@ evalJM = jmacro {quoteExp = quoteEvalJM}
 
 quoteEvalJM :: String -> ExpQ
 quoteEvalJM s =
-    appE (varE 'return) [|AppE (VarE $ mkName "Language.Javascript.JSC.eval")
+    appE (varE 'return) [|AppE (VarE $ mkName "Language.Javascript.JSaddle.eval")
         (LitE . StringL . show $ renderJs $(quoteExp jmacro s))|]

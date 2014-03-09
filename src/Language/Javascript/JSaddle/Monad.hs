@@ -1,24 +1,24 @@
 {-# LANGUAGE CPP #-}
 -----------------------------------------------------------------------------
 --
--- Module      :  Language.Javascript.JSC.Monad
+-- Module      :  Language.Javascript.JSaddle.Monad
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
 -- Maintainer  :  Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
 --
--- | JSC monad keeps track of the JavaScript context
+-- | JSM monad keeps track of the JavaScript context
 --
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSC.Monad (
+module Language.Javascript.JSaddle.Monad (
   -- * Types
-    JSC(..)
+    JSM(..)
   , JSContextRef
 
-  -- * Running JSC given a DOM Window
-  , runJSC
-  , runJSC_
+  -- * Running JSaddle given a DOM Window
+  , runJSaddle
+  , runJSaddle_
 
   -- * Exception Handling
   , catchval
@@ -27,7 +27,7 @@ module Language.Javascript.JSC.Monad (
 
 import Prelude hiding (catch)
 import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
-import Language.Javascript.JSC.Types
+import Language.Javascript.JSaddle.Types
        (JSValueRefRef, JSValueRef, JSContextRef)
 import Control.Monad.IO.Class (MonadIO(..))
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
@@ -45,18 +45,18 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.WebFrame
 #endif
 import qualified Control.Exception as E (Exception, catch)
 
--- | The @JSC@ monad keeps track of the JavaScript context.
+-- | The @JSM@ monad keeps track of the JavaScript context.
 --
--- Given a @JSC@ function and a 'JSContextRef' you can run the
+-- Given a @JSM@ function and a 'JSContextRef' you can run the
 -- function like this...
 --
--- > runReaderT jscFunction javaScriptContext
+-- > runReaderT jsmFunction javaScriptContext
 --
--- For an example of how to set up WebKitGTK+ see tests/TestJSC.hs
-type JSC = ReaderT JSContextRef IO
+-- For an example of how to set up WebKitGTK+ see tests/TestJSaddle.hs
+type JSM = ReaderT JSContextRef IO
 
 -- | Wrapped version of 'E.catch' that runs in a MonadIO that works
---   a bit better with 'JSC'
+--   a bit better with 'JSM'
 catch :: (MonadIO m, E.Exception e)
       => ReaderT r IO b
       -> (e -> ReaderT r IO b)
@@ -67,7 +67,7 @@ t `catch` c = do
 
 -- | Handle JavaScriptCore functions that take a JSValueRefRef in order
 --   to throw exceptions.
-catchval :: (JSValueRefRef -> JSC a) -> (JSValueRef -> JSC a) -> JSC a
+catchval :: (JSValueRefRef -> JSM a) -> (JSValueRef -> JSM a) -> JSM a
 catchval f catcher = do
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
     pexc <- liftIO $ newArray
@@ -88,13 +88,13 @@ catchval f catcher = do
 #endif
 
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
-runJSC :: w -> JSC a -> IO a
-runJSC _ f = runReaderT f ()
+runJSaddle :: w -> JSM a -> IO a
+runJSaddle _ f = runReaderT f ()
 #else
-runJSC :: WebView -> JSC a -> IO a
-runJSC webView f = do
+runJSaddle :: WebView -> JSM a -> IO a
+runJSaddle webView f = do
     gctxt <- webViewGetMainFrame webView >>= webFrameGetGlobalContext
     runReaderT f gctxt
 #endif
 
-runJSC_ w f = runJSC w f >> return ()
+runJSaddle_ w f = runJSaddle w f >> return ()

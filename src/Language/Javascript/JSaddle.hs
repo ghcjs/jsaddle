@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 -----------------------------------------------------------------------------
 --
--- Module      :  Language.Javascript.JSC
+-- Module      :  Language.Javascript.JSaddle
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
@@ -12,34 +12,34 @@
 --   in the webkit-javascriptcore library <https://github.com/ghcjs/webkit-javascriptcore>.
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSC (
-  -- * JSC EDSL
-  -- | The 'JSC' monad gives us the context for evaluation.  In keeping
+module Language.Javascript.JSaddle (
+  -- * JSaddle EDSL
+  -- | The 'JSM' monad gives us the context for evaluation.  In keeping
   --   with JavaScript the EDSL has
   --
   --   * /Weakish typing/ - type classes are used to convert to JSValueRef
   --   and JSObjectRef types
   --
-  --   * /Strict evaluation/ - function in the 'JSC' monad can be passed in
+  --   * /Strict evaluation/ - function in the 'JSM' monad can be passed in
   --   place of a value and will evaluated and converted to JSValueRef or
   --   JSObjectRef and then passed on to JavaScript
   --
-  --   JSC should be used to write wrappers for JavaScript libraries that provide
+  --   JSaddle should be used to write wrappers for JavaScript libraries that provide
   --   more type safety.
 
   -- * Code Examples
   -- | The code examples in this documentation are executed with a 'runjs'
-  --   function that executes the example code in the JSC monad and converts
+  --   function that executes the example code in the JSM monad and converts
   --   the result to 'Text' with 'valToText'.  It also catches unhandled
-  --   exceptions with 'catch'.  The source code can be found in tests/TestJSC.hs
+  --   exceptions with 'catch'.  The source code can be found in tests/TestJSaddle.hs
   --
   --   Where it makes sense code examples are given in two forms.  One
   --   that uses 'eval' to run a purely JavaScript version and one that
-  --   uses more of the JSC EDSL feature being demonstated.
+  --   uses more of the JSaddle EDSL feature being demonstated.
 
   -- * Calling Haskell from JavaScript
   -- | You can call back into haskell from JavaScript using 'fun' to
-  --   convert a Haskell function in the JSC monad into a javascript
+  --   convert a Haskell function in the JSM monad into a javascript
   --   value.
 
   -- * JMacro Support
@@ -49,33 +49,33 @@ module Language.Javascript.JSC (
   --   using JavaScriptCore.
 
   -- * GHCJS Support
-  -- | Because it uses webkit-javascriptcore you can compile your JSC code to
+  -- | Because it uses webkit-javascriptcore you can compile your JSaddle code to
   --   JavaScript using GHCJS <https://github.com/ghcjs/ghcjs> and run it
   --   in a web browser.  Calls to the WebKitGTK+ JavaScriptCore C functions
   --   will be replaced with JavaScript function calls.
 
   -- * Modules
-    module Language.Javascript.JSC.Monad
-  , module Language.Javascript.JSC.Exception
-  , module Language.Javascript.JSC.Value
-  , module Language.Javascript.JSC.Arguments
-  , module Language.Javascript.JSC.Properties
-  , module Language.Javascript.JSC.Object
-  , module Language.Javascript.JSC.Evaluate
+    module Language.Javascript.JSaddle.Monad
+  , module Language.Javascript.JSaddle.Exception
+  , module Language.Javascript.JSaddle.Value
+  , module Language.Javascript.JSaddle.Arguments
+  , module Language.Javascript.JSaddle.Properties
+  , module Language.Javascript.JSaddle.Object
+  , module Language.Javascript.JSaddle.Evaluate
 #ifdef MIN_VERSION_jmacro
-  , module Language.Javascript.JSC.JMacro
+  , module Language.Javascript.JSaddle.JMacro
 #endif
-  , module Language.Javascript.JSC.String
+  , module Language.Javascript.JSaddle.String
 ) where
 
-import Language.Javascript.JSC.Monad
-import Language.Javascript.JSC.Exception
-import Language.Javascript.JSC.Value
-import Language.Javascript.JSC.Arguments
-import Language.Javascript.JSC.Properties
-import Language.Javascript.JSC.Object
-import Language.Javascript.JSC.Evaluate
+import Language.Javascript.JSaddle.Monad
+import Language.Javascript.JSaddle.Exception
+import Language.Javascript.JSaddle.Value
+import Language.Javascript.JSaddle.Arguments
+import Language.Javascript.JSaddle.Properties
+import Language.Javascript.JSaddle.Object
+import Language.Javascript.JSaddle.Evaluate
 #ifdef MIN_VERSION_jmacro
-import Language.Javascript.JSC.JMacro
+import Language.Javascript.JSaddle.JMacro
 #endif
-import Language.Javascript.JSC.String
+import Language.Javascript.JSaddle.String

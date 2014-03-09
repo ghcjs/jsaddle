@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 -----------------------------------------------------------------------------
 --
--- Module      :  Language.Javascript.JSC.String
+-- Module      :  Language.Javascript.JSaddle.String
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
@@ -13,7 +13,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSC.String (
+module Language.Javascript.JSaddle.String (
     JSStringRef
   , MakeStringRef(..)
 
@@ -25,7 +25,7 @@ module Language.Javascript.JSC.String (
 import Data.Text (Text)
 import qualified Data.Text as T (pack)
 import Control.Monad.IO.Class (MonadIO(..))
-import Language.Javascript.JSC.Types (JSStringRef)
+import Language.Javascript.JSaddle.Types (JSStringRef)
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Foreign (fromJSString, toJSString)
 #else
@@ -36,7 +36,7 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
 import qualified Data.Text.Foreign as T (fromPtr)
 import Foreign (castPtr)
 import Data.Text.Foreign (useAsPtr)
-import Language.Javascript.JSC.Classes (MakeStringRef(..))
+import Language.Javascript.JSaddle.Classes (MakeStringRef(..))
 import System.IO.Unsafe (unsafePerformIO)
 
 -- | If we already have a JSStringRef we are fine

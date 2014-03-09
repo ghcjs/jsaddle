@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP, FlexibleInstances #-}
 -----------------------------------------------------------------------------
 --
--- Module      :  Language.Javascript.JSC.Properties
+-- Module      :  Language.Javascript.JSaddle.Properties
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
@@ -11,7 +11,7 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSC.Types (
+module Language.Javascript.JSaddle.Types (
     JSValueRef(..)
   , JSValueRefRef(..)
   , JSObjectRef(..)

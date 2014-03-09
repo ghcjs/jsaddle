@@ -2,7 +2,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 -----------------------------------------------------------------------------
 --
--- Module      :  Language.Javascript.JSC.Arguments
+-- Module      :  Language.Javascript.JSaddle.Arguments
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
@@ -12,15 +12,15 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSC.Arguments (
+module Language.Javascript.JSaddle.Arguments (
     MakeArgRefs(..)
 ) where
 
-import Language.Javascript.JSC.Classes
+import Language.Javascript.JSaddle.Classes
        (MakeValueRef(..), MakeValueRef, MakeArgRefs(..), MakeArgRefs)
-import Language.Javascript.JSC.Monad (JSC)
+import Language.Javascript.JSaddle.Monad (JSM)
 
-instance MakeArgRefs arg => MakeArgRefs (JSC arg) where
+instance MakeArgRefs arg => MakeArgRefs (JSM arg) where
     makeArgRefs arg = arg >>= makeArgRefs
 
 instance MakeValueRef arg => MakeArgRefs [arg] where

@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 -----------------------------------------------------------------------------
 --
--- Module      :  Language.Javascript.JSC.Exception
+-- Module      :  Language.Javascript.JSaddle.Exception
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
@@ -11,16 +11,16 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSC.Exception (
+module Language.Javascript.JSaddle.Exception (
     JSException(..)
   , rethrow
 ) where
 
 import qualified Control.Exception as E (throwIO, Exception)
-import Language.Javascript.JSC.Types
+import Language.Javascript.JSaddle.Types
        (JSValueRefRef, JSValueRef)
 import Data.Typeable (Typeable)
-import Language.Javascript.JSC.Monad (catchval, JSC)
+import Language.Javascript.JSaddle.Monad (catchval, JSM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Text (Text)
 
@@ -29,7 +29,7 @@ data JSException = JSException JSValueRef deriving (Show, Typeable)
 instance E.Exception JSException
 
 -- | Catch JavaScript exceptions and rethrow Haskell ones
-rethrow :: (JSValueRefRef -> JSC a) -> JSC a
+rethrow :: (JSValueRefRef -> JSM a) -> JSM a
 rethrow f = f `catchval` \e -> do
     liftIO . E.throwIO $ JSException e
 

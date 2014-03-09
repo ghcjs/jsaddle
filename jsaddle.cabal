@@ -1,4 +1,4 @@
-name: jsc
+name: jsaddle
 version: 0.1.1.2
 cabal-version: >=1.10
 license: MIT
@@ -15,7 +15,7 @@ build-type: Simple
 
 Source-Repository head
   type:         git
-  location:     https://github.com/ghcjs/jsc
+  location:     https://github.com/ghcjs/jsaddle
 
 flag gtk3
     Description: Use GTK3 rather than GTK2
@@ -48,24 +48,24 @@ library
                            webkit-javascriptcore >=0.12.5 && <0.13
 
     if flag(jmacro)
-        exposed-modules: Language.Javascript.JSC.JMacro
+        exposed-modules: Language.Javascript.JSaddle.JMacro
         build-depends: jmacro >=0.6.3 && <0.8
 
     build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.1,
                    text >=0.11.2.3 && <1.2, transformers >=0.3.0.0 && <0.4
 
-    exposed-modules: Language.Javascript.JSC
-                     Language.Javascript.JSC.Arguments Language.Javascript.JSC.Classes
-                     Language.Javascript.JSC.Evaluate Language.Javascript.JSC.Exception
-                     Language.Javascript.JSC.Monad
-                     Language.Javascript.JSC.Object Language.Javascript.JSC.Properties
-                     Language.Javascript.JSC.String Language.Javascript.JSC.Value
-                     Language.Javascript.JSC.Types
+    exposed-modules: Language.Javascript.JSaddle
+                     Language.Javascript.JSaddle.Arguments Language.Javascript.JSaddle.Classes
+                     Language.Javascript.JSaddle.Evaluate Language.Javascript.JSaddle.Exception
+                     Language.Javascript.JSaddle.Monad
+                     Language.Javascript.JSaddle.Object Language.Javascript.JSaddle.Properties
+                     Language.Javascript.JSaddle.String Language.Javascript.JSaddle.Value
+                     Language.Javascript.JSaddle.Types
     exposed: True
     buildable: True
     default-language: Haskell2010
     hs-source-dirs: src
-    other-modules: Language.Javascript.JSC.PropRef
+    other-modules: Language.Javascript.JSaddle.PropRef
 
 test-suite test-tool
     if flag(jsffi)
@@ -92,8 +92,8 @@ test-suite test-tool
 
     build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.1,
                    text >=0.11.2.3 && <1.2, transformers >=0.3.0.0 && <0.4,
-                   hslogger -any, jsc ==0.1.1.2
+                   hslogger -any, jsaddle ==0.1.1.2
     type: exitcode-stdio-1.0
-    main-is: TestJSC.hs
+    main-is: TestJSaddle.hs
     default-language: Haskell2010
     hs-source-dirs: tests
