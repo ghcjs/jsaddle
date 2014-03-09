@@ -30,6 +30,6 @@ instance E.Exception JSException
 
 -- | Catch JavaScript exceptions and rethrow Haskell ones
 rethrow :: (JSValueRefRef -> JSM a) -> JSM a
-rethrow f = f `catchval` \e -> do
+rethrow f = f `catchval` \e ->
     liftIO . E.throwIO $ JSException e
 

@@ -70,7 +70,7 @@ t `catch` c = do
 catchval :: (JSValueRefRef -> JSM a) -> (JSValueRef -> JSM a) -> JSM a
 catchval f catcher = do
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
-    pexc <- liftIO $ newArray
+    pexc <- liftIO newArray
     result <- f pexc
     exc <- liftIO $ indexArray 0 pexc
     if isUndefined exc || isNull exc

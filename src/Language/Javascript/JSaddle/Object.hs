@@ -362,17 +362,17 @@ function  = undefined
 --   a name.
 instance MakeValueRef JSCallAsFunction where
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
-    makeValueRef = function (nullRef::JSStringRef)
+    makeValueRef = function (nullRef:: JSStringRef)
 #else
-    makeValueRef = function (nullPtr::JSStringRef)
+    makeValueRef = function (nullPtr:: JSStringRef)
 #endif
 
 instance MakeArgRefs JSCallAsFunction where
     makeArgRefs f = do
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
-        rarg <- function (nullRef::JSStringRef) f
+        rarg <- function (nullRef:: JSStringRef) f
 #else
-        rarg <- function (nullPtr::JSStringRef) f
+        rarg <- function (nullPtr:: JSStringRef) f
 #endif
         return [rarg]
 

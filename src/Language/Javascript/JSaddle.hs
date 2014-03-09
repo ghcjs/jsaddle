@@ -55,27 +55,17 @@ module Language.Javascript.JSaddle (
   --   will be replaced with JavaScript function calls.
 
   -- * Modules
-    module Language.Javascript.JSaddle.Monad
-  , module Language.Javascript.JSaddle.Exception
-  , module Language.Javascript.JSaddle.Value
-  , module Language.Javascript.JSaddle.Arguments
-  , module Language.Javascript.JSaddle.Properties
-  , module Language.Javascript.JSaddle.Object
-  , module Language.Javascript.JSaddle.Evaluate
-#ifdef MIN_VERSION_jmacro
-  , module Language.Javascript.JSaddle.JMacro
-#endif
-  , module Language.Javascript.JSaddle.String
+    module JSaddle
 ) where
 
-import Language.Javascript.JSaddle.Monad
-import Language.Javascript.JSaddle.Exception
-import Language.Javascript.JSaddle.Value
-import Language.Javascript.JSaddle.Arguments
-import Language.Javascript.JSaddle.Properties
-import Language.Javascript.JSaddle.Object
-import Language.Javascript.JSaddle.Evaluate
+import Language.Javascript.JSaddle.Monad as JSaddle
+import Language.Javascript.JSaddle.Exception as JSaddle
+import Language.Javascript.JSaddle.Value as JSaddle
+import Language.Javascript.JSaddle.Arguments as JSaddle
+import Language.Javascript.JSaddle.Properties as JSaddle
+import Language.Javascript.JSaddle.Object as JSaddle
+import Language.Javascript.JSaddle.Evaluate as JSaddle
 #ifdef MIN_VERSION_jmacro
-import Language.Javascript.JSaddle.JMacro
+import Language.Javascript.JSaddle.JMacro as JSaddle
 #endif
-import Language.Javascript.JSaddle.String
+import Language.Javascript.JSaddle.String as JSaddle
