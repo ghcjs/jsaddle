@@ -81,7 +81,7 @@ import Language.Javascript.JSaddle.Types
 import Foreign.C.Types (CSize(..), CULong(..), CUInt(..))
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (nullRef, castRef, JSArray, JSFun)
-import GHCJS.Foreign (newObj, toArray, fromArray, syncCallback2)
+import GHCJS.Foreign (newObj, toArray, fromArray, syncCallback2, ForeignRetention(..))
 import Control.Monad (liftM)
 import Control.Applicative ((<$>))
 #else
@@ -333,7 +333,7 @@ function :: MakeStringRef name
                              --   call the Haskell one when it is called
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 function name f = liftIO $ do
-    callback <- syncCallback2 False True $ \this args -> do
+    callback <- syncCallback2 NeverRetain True $ \this args -> do
         rargs <- fromArray args
         runReaderT (f this this rargs) () -- TODO pass function object through
     makeFunctionWithCallback (makeStringRef name) callback
