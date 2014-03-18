@@ -264,6 +264,9 @@ prop <# val = do
 
 -- | Use this to create a new JavaScript object
 --
+-- If you pass more than 7 arguments to a constructor for a built in
+-- JavaScript type (like Date) then this function will fail.
+--
 -- >>> testJSaddle $ new "Date" (2013, 1, 1)
 -- Fri Feb 01 2013 00:00:00 GMT+1300 (NZDT)
 new :: (MakeObjectRef constructor, MakeArgRefs args)
@@ -473,6 +476,9 @@ objCallAsFunction = undefined
 #endif
 
 -- | Call a JavaScript object as a constructor. Consider using 'new'.
+--
+-- If you pass more than 7 arguments to a constructor for a built in
+-- JavaScript type (like Date) then this function will fail.
 objCallAsConstructor :: MakeArgRefs args
                      => JSObjectRef
                      -> args
@@ -485,22 +491,25 @@ objCallAsConstructor function args exceptions = do
 foreign import javascript unsafe "\
     try {\
         switch($2.length) {\
-            case 0 : $r = new $1();\
-            case 1 : $r = new $1($2[0]);\
-            case 2 : $r = new $1($2[0],$2[1]);\
-            case 3 : $r = new $1($2[0],$2[1],$2[2]);\
-            case 4 : $r = new $1($2[0],$2[1],$2[2],$2[3]);\
-            case 5 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4]);\
-            case 6 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5]);\
-            case 6 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5],$2[6]);\
+            case 0 : $r = new $1(); break;\
+            case 1 : $r = new $1($2[0]); break;\
+            case 2 : $r = new $1($2[0],$2[1]); break;\
+            case 3 : $r = new $1($2[0],$2[1],$2[2]); break;\
+            case 4 : $r = new $1($2[0],$2[1],$2[2],$2[3]); break;\
+            case 5 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4]); break;\
+            case 6 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5]); break;\
+            case 7 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5],$2[6]); break;\
             default:\
                 var ret;\
                 var temp = function() {\
                     ret = $1.apply(this, $2);\
                 };\
-                temp.prototype = f.prototype;\
+                temp.prototype = $1.prototype;\
                 var i = new temp();\
-                $r = ret instanceof Object ? ret : i;\
+                if(ret instanceof Object)\
+                    return ret;\
+                i.constructor = $1;\
+                return i;\
         }\
     }\
     catch(e) {\
