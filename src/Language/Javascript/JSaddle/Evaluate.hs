@@ -53,7 +53,7 @@ evaluateScript :: (MakeStringRef script, MakeObjectRef this, MakeStringRef url)
                -> JSM JSValueRef
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 evaluateScript script this url line = liftIO $ js_eval (makeStringRef script)
-foreign import javascript unsafe "$r = eval(s);"
+foreign import javascript unsafe "$r = eval($1);"
     js_eval :: JSStringRef -> IO JSValueRef
 #elif defined(USE_WEBKIT)
 evaluateScript script this url line = do
