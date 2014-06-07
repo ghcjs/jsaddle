@@ -336,7 +336,7 @@ function :: MakeStringRef name
                              --   call the Haskell one when it is called
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 function name f = liftIO $ do
-    callback <- syncCallback2 NeverRetain True $ \this args -> do
+    callback <- syncCallback2 AlwaysRetain True $ \this args -> do
         rargs <- fromArray args
         runReaderT (f this this rargs) () -- TODO pass function object through
     makeFunctionWithCallback (makeStringRef name) callback
