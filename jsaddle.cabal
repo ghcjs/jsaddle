@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.1.1.4
+version: 0.1.1.5
 cabal-version: >=1.10
 license: MIT
 license-file: LICENSE
@@ -57,8 +57,8 @@ library
         exposed-modules: Language.Javascript.JSaddle.JMacro
         build-depends: jmacro >=0.6.3 && <0.8
 
-    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.1,
-                   text >=0.11.2.3 && <1.2, transformers >=0.3.0.0 && <0.4
+    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.3,
+                   text >=0.11.2.3 && <1.2, transformers >=0.3.0.0 && <0.5
 
     exposed-modules: Language.Javascript.JSaddle
                      Language.Javascript.JSaddle.Arguments Language.Javascript.JSaddle.Classes
@@ -98,8 +98,8 @@ test-suite test-tool
     if flag(jmacro)
         build-depends: jmacro >=0.6.3 && <0.8
 
-    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.1,
-                   text >=0.11.2.3 && <1.2, transformers >=0.3.0.0 && <0.4,
+    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.3,
+                   text >=0.11.2.3 && <1.2, transformers >=0.3.0.0 && <0.5,
                    hslogger -any, jsaddle ==0.1.1.4
     type: exitcode-stdio-1.0
     main-is: TestJSaddle.hs
