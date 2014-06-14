@@ -1,15 +1,26 @@
-language: haskell
+env:
+  - GHCVER=7.6.3
+  - GHCVER=7.8.2
 before_install:
+  - sudo add-apt-repository -y ppa:hvr/ghc
   - sudo apt-get update -qq
   - sudo apt-get --no-install-recommends install libwebkitgtk-3.0-dev alex happy
-  - cabal install Cabal
-  - cabal install cabal-install
+  - sudo apt-get install cabal-install-1.18 ghc-$GHCVER
+  - export CABAL=cabal-1.18
+  - export PATH=$HOME/.cabal/bin:/opt/ghc/$GHCVER/bin:$PATH
+  - $CABAL update
+  - |
+    if [ $GHCVER = "head" ] || [ $GHCVER = "7.8.2" ]; then
+      $CABAL install happy alex
+    fi
+  - $CABAL install Cabal
 install:
-  - PATH="$HOME/.cabal/bin:$PATH" cabal install gtk2hs-buildtools
-  - PATH="$HOME/.cabal/bin:$PATH" cabal install --enable-tests
+  - $CABAL install gtk2hs-buildtools
+  - $CABAL install --enable-tests
 script:
-  - PATH="$HOME/.cabal/bin:$PATH" cabal test
+  - $CABAL test
 notifications:
   irc:
     channels: "irc.freenode.net#ghcjs"
+    skip_join: true
   email: true
