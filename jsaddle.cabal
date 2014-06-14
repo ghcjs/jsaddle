@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.1.1.6
+version: 0.1.1.7
 cabal-version: >=1.10
 license: MIT
 license-file: LICENSE
@@ -104,7 +104,7 @@ test-suite test-tool
 
     build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.3,
                    text >=0.11.2.3 && <1.2, transformers >=0.3.0.0 && <0.5,
-                   hslogger -any, jsaddle ==0.1.1.6
+                   hslogger -any, jsaddle ==0.1.1.7
     type: exitcode-stdio-1.0
     main-is: TestJSaddle.hs
     default-language: Haskell2010
