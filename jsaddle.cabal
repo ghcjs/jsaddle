@@ -38,6 +38,10 @@ flag jmacro
     default: True
 
 library
+    -- Make sure ghcjs gets turned off if ghcjs-base is not avaialbe
+    if flag(ghcjs)
+        build-depends: ghcjs-base
+
 --    if impl(ghcjs) && flag(jsffi)
     if flag(ghcjs) && flag(jsffi)
         cpp-options: -DUSE_JAVASCRIPTFFI
