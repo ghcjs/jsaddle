@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.1.1.7
+version: 0.2.0.0
 cabal-version: >=1.10
 license: MIT
 license-file: LICENSE
@@ -20,7 +20,7 @@ Source-Repository head
 flag ghcjs
     description: Tell cabal we are using ghcjs (work around until hackage supports impl(ghcjs))
     default: True
-  
+
 flag gtk3
     Description: Use GTK3 rather than GTK2
     Default: True
@@ -51,11 +51,11 @@ library
     if !flag(ghcjs) || flag(webkit)
         cpp-options: -DUSE_WEBKIT
         if flag(gtk3)
-            build-depends: webkitgtk3 >=0.12.5 && <0.13,
-                           webkitgtk3-javascriptcore >=0.12.5 && <0.13
+            build-depends: webkitgtk3 >=0.13.0.0 && <0.14,
+                           webkitgtk3-javascriptcore >=0.13.0.0 && <0.14
         else
-            build-depends: webkit >=0.12.5 && <0.13,
-                           webkit-javascriptcore >=0.12.5 && <0.13
+            build-depends: webkit >=0.13.0.0 && <0.14,
+                           webkit-javascriptcore >=0.13.0.0 && <0.14
 
     if flag(jmacro)
         exposed-modules: Language.Javascript.JSaddle.JMacro
