@@ -23,7 +23,7 @@ module Language.Javascript.JSaddle.String (
 ) where
 
 import Data.Text (Text)
-import qualified Data.Text as T (pack)
+import qualified Data.Text as T (unpack, pack)
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Types (JSStringRef)
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
@@ -31,7 +31,7 @@ import GHCJS.Foreign (fromJSString, toJSString)
 #else
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
        (jsstringcreatewithcharacters, jsstringgetcharactersptr,
-        jsstringgetlength)
+        jsstringgetlength, jsstringcreatewithutf8cstring)
 #endif
 import qualified Data.Text.Foreign as T (fromPtr)
 import Foreign (castPtr)

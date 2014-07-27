@@ -89,22 +89,17 @@ test-suite test-tool
 --    if !impl(ghcjs) || flag(webkit)
     if !flag(ghcjs) || flag(webkit)
         cpp-options: -DUSE_WEBKIT
-        build-depends: glib >=0.12.3.1 && <0.13
+        build-depends: glib
         if flag(gtk3)
-            build-depends: gtk3 >= 0.12.4.1 && <0.13,
-                           webkitgtk3 >=0.12.5 && <0.13,
-                           webkitgtk3-javascriptcore >=0.12.5 && <0.13
+            build-depends: gtk3, webkitgtk3, webkitgtk3-javascriptcore
         else
-            build-depends: gtk >= 0.12.4.1 && <0.13,
-                           webkit >=0.12.5 && <0.13,
-                           webkit-javascriptcore >=0.12.5 && <0.13
+            build-depends: gtk, webkit, webkit-javascriptcore
 
     if flag(jmacro)
-        build-depends: jmacro >=0.6.3 && <0.8
+        build-depends: jmacro
 
-    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.3,
-                   text >=0.11.2.3 && <1.2, transformers >=0.3.0.0 && <0.5,
-                   hslogger -any, jsaddle ==0.1.1.7
+    build-depends: template-haskell, base, lens, text,
+                   transformers, hslogger, jsaddle
     type: exitcode-stdio-1.0
     main-is: TestJSaddle.hs
     default-language: Haskell2010

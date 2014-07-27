@@ -77,8 +77,7 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
         jsvaluemakeundefined, jsvaluemakenull, jsvaluetoobject,
         jsvaluetostringcopy, jsvaluetonumber, jsvaluetoboolean)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
-       (jsstringcreatewithcharacters, jsstringgetcharactersptr,
-        jsstringgetlength)
+       (jsstringgetcharactersptr, jsstringgetlength)
 #endif
 import Language.Javascript.JSaddle.Monad (JSM, catchval)
 import Language.Javascript.JSaddle.Exception (rethrow)
