@@ -42,17 +42,11 @@ module Language.Javascript.JSaddle (
   --   convert a Haskell function in the JSM monad into a javascript
   --   value.
 
-  -- * JMacro Support
-  -- | If you want a more JavaScript like syntax we also have a
-  --   JMacro based QuasiQuoter 'evalJM'.  This converts your JMacro
-  --   code into a string literal and a call to @eval@ to evaluate it
-  --   using JavaScriptCore.
-
   -- * GHCJS Support
-  -- | Because it uses webkit-javascriptcore you can compile your JSaddle code to
-  --   JavaScript using GHCJS <https://github.com/ghcjs/ghcjs> and run it
-  --   in a web browser.  Calls to the WebKitGTK+ JavaScriptCore C functions
-  --   will be replaced with JavaScript function calls.
+  -- | When built with ghcjs the code works using JavaScript FFI by default.
+  --   It can also be built to use webkitgtk3-javascriptcore C FFI as there
+  --   are shims for these (but this introduces a dependancy on WebKitGTK+
+  --   and is probably not as fast).
 
   -- * Modules
     module JSaddle
@@ -65,7 +59,4 @@ import Language.Javascript.JSaddle.Arguments as JSaddle
 import Language.Javascript.JSaddle.Properties as JSaddle
 import Language.Javascript.JSaddle.Object as JSaddle
 import Language.Javascript.JSaddle.Evaluate as JSaddle
-#ifdef MIN_VERSION_jmacro
-import Language.Javascript.JSaddle.JMacro as JSaddle
-#endif
 import Language.Javascript.JSaddle.String as JSaddle
