@@ -78,7 +78,7 @@ import Prelude hiding ((!!))
 import Language.Javascript.JSaddle.Types
        (JSPropertyNameArrayRef, JSStringRef, JSObjectRef, JSValueRefRef,
         JSValueRef, JSContextRef, Index)
-import Foreign.C.Types (CSize(..), CULong(..), CUInt(..))
+import Foreign.C.Types (CSize(..), CULong(..), CUInt(..), CULLong(..))
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (nullRef, castRef, JSArray, JSFun)
 import GHCJS.Foreign (newObj, toArray, fromArray, syncCallback2, ForeignRetention(..))
