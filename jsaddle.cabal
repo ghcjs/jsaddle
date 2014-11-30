@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.2.0.1
+version: 0.2.0.2
 cabal-version: >=1.10
 license: MIT
 license-file: LICENSE
@@ -53,7 +53,7 @@ library
             build-depends: webkit >=0.13.0.0 && <0.14,
                            webkit-javascriptcore >=0.13.0.0 && <0.14
 
-    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.6,
+    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.7,
                    text >=0.11.2.3 && <1.3, transformers >=0.3.0.0 && <0.5
 
     exposed-modules: Language.Javascript.JSaddle
