@@ -24,7 +24,7 @@ import Graphics.UI.Gtk
 import Control.Concurrent
        (tryTakeMVar, forkIO, newMVar, putMVar, takeMVar, newEmptyMVar,
         yield)
-import System.Glib.MainLoop (priorityHigh)
+import System.Glib.MainLoop (priorityLow)
 import Graphics.UI.Gtk.General.Enums (WindowPosition(..))
 import Graphics.UI.Gtk.WebKit.WebView
        (webViewGetMainFrame, webViewNew)
@@ -75,7 +75,7 @@ testJSaddle' showWindow f = do
                 debugLog "windowNew"
                 window <- windowNew
                 debugLog "timeoutAdd"
-                timeoutAddFull (yield >> return True) priorityHigh 10
+                timeoutAddFull (yield >> return True) priorityLow 10
                 windowSetDefaultSize window 900 600
                 windowSetPosition window WinPosCenter
                 scrollWin <- scrolledWindowNew Nothing Nothing
