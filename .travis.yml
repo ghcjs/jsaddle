@@ -25,15 +25,21 @@ install:
   - cabal --version
   - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
   - cabal update
-  - cabal install Cabal
+  - cabal install Cabal cabal-install
   - cabal install gtk2hs-buildtools
 
 script:
-  - cabal install --enable-tests
+  - cabal install --only-dependencies --enable-tests --force-reinstalls
+  - cabal configure --enable-tests
+  - cabal build
   - cabal test
   - cabal clean
-  - cabal install -f-gtk3 --enable-tests
+  - cabal install --only-dependencies -f-gtk3 --enable-tests --force-reinstalls
+  - cabal configure -f-gtk3 --enable-tests
+  - cabal build
   - cabal test
+  - cabal clean
+  - cabal sdist
 
 notifications:
   irc:

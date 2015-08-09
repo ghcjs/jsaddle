@@ -62,6 +62,8 @@ library
 test-suite test-tool
     if flag(jsffi)
         buildable: False
+    else
+        buildable: True
 
     if impl(ghcjs) && flag(jsffi)
         cpp-options: -DUSE_JAVASCRIPTFFI
