@@ -17,10 +17,6 @@ Source-Repository head
   type:         git
   location:     https://github.com/ghcjs/jsaddle
 
-flag ghcjs
-    description: Tell cabal we are using ghcjs (work around until hackage supports impl(ghcjs))
-    default: True
-
 flag gtk3
     Description: Use GTK3 rather than GTK2
     Default: True
@@ -34,23 +30,17 @@ flag webkit
     default: False
 
 library
-    -- Make sure ghcjs gets turned off if ghcjs-base is not avaialbe
-    if flag(ghcjs)
-        build-depends: ghcjs-base
-
---    if impl(ghcjs) && flag(jsffi)
-    if flag(ghcjs) && flag(jsffi)
+    if impl(ghcjs) && flag(jsffi)
         cpp-options: -DUSE_JAVASCRIPTFFI
         build-depends: ghcjs-base
 
---    if !impl(ghcjs) || flag(webkit)
-    if !flag(ghcjs) || flag(webkit)
+    if !impl(ghcjs) || flag(webkit)
         cpp-options: -DUSE_WEBKIT
         if flag(gtk3)
-            build-depends: webkitgtk3 >=0.13.0.0 && <0.14,
+            build-depends: webkitgtk3 >=0.13.0.0 && <0.15,
                            webkitgtk3-javascriptcore >=0.13.0.0 && <0.14
         else
-            build-depends: webkit >=0.13.0.0 && <0.14,
+            build-depends: webkit >=0.13.0.0 && <0.15,
                            webkit-javascriptcore >=0.13.0.0 && <0.14
 
     build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.13,
@@ -73,13 +63,11 @@ test-suite test-tool
     if flag(jsffi)
         buildable: False
 
---    if impl(ghcjs) && flag(jsffi)
-    if flag(ghcjs) && flag(jsffi)
+    if impl(ghcjs) && flag(jsffi)
         cpp-options: -DUSE_JAVASCRIPTFFI
         build-depends: ghcjs-base
 
---    if !impl(ghcjs) || flag(webkit)
-    if !flag(ghcjs) || flag(webkit)
+    if !impl(ghcjs) || flag(webkit)
         cpp-options: -DUSE_WEBKIT
         build-depends: glib
         if flag(gtk3)
