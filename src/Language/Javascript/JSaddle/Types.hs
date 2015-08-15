@@ -47,7 +47,6 @@ type JSStringRef   = JSString
 type Index         = Int
 
 instance Show (JSRef ValueOrObject)
-instance Eq (JSRef ValueOrObject)
 #else
 type Index = CUInt
 #endif
