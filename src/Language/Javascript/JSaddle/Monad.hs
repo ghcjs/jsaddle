@@ -28,11 +28,12 @@ module Language.Javascript.JSaddle.Monad (
 import Prelude hiding (catch)
 import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
 import Language.Javascript.JSaddle.Types
-       (JSValueRefRef, JSValueRef, JSContextRef)
+       (JSValueRefRef, JSValueRef, JSContextRef, JSValueRef(..))
 import Control.Monad.IO.Class (MonadIO(..))
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (isUndefined, isNull)
-import GHCJS.Foreign (newArray, indexArray)
+--import GHCJS.Foreign (newArray, indexArray)
+import qualified JavaScript.Array as Array
 #else
 import Foreign (nullPtr, alloca)
 import Foreign.Storable (Storable(..))
@@ -70,12 +71,12 @@ t `catch` c = do
 catchval :: (JSValueRefRef -> JSM a) -> (JSValueRef -> JSM a) -> JSM a
 catchval f catcher = do
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
-    pexc <- liftIO newArray
+    pexc   <- liftIO Array.create
     result <- f pexc
-    exc <- liftIO $ indexArray 0 pexc
+    exc    <- liftIO $ (Array.! 0) <$> Array.freeze pexc 
     if isUndefined exc || isNull exc
         then return result
-        else catcher exc
+        else catcher (JSValueRef exc)
 #else
     gctxt <- ask
     liftIO . alloca $ \pexc -> flip runReaderT gctxt $ do
