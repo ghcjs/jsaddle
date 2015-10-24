@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI #-}
 #endif
@@ -24,9 +25,11 @@ import Control.Monad.Trans.Reader (ask)
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Types
        (JSStringRef, JSValueRef, JSObjectRef,
-        JSValueRefRef)
+        JSValueRefRef, castRef)
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (nullRef)
+import GHCJS.Prim (JSRef)
+import Data.JSString (JSString)
 #else
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
        (jsevaluatescript)
@@ -39,6 +42,9 @@ import Language.Javascript.JSaddle.Classes
        (MakeObjectRef(..), MakeStringRef(..))
 import Language.Javascript.JSaddle.Monad (JSM)
 
+
+foreign import javascript unsafe
+  "$r = $1" jsRefToJSSTring :: JSRef -> JSString
 
 -- | Evaluates a script (like eval in java script).  Unlike 'eval' this function lets you
 --   specify a source URL and starting line number for beter error information.
@@ -72,8 +78,12 @@ eval :: MakeStringRef script
      => script         -- ^ JavaScript to evaluate
      -> JSM JSValueRef
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
-eval script = evaluateScript script (nullRef::JSObjectRef) (nullRef::JSStringRef) 1
+eval script = evaluateScript script (castRef nullRef::JSObjectRef) (jsRefToJSSTring nullRef::JSStringRef) 1
 #else
-eval script = evaluateScript script (nullPtr::JSObjectRef) (nullPtr::JSStringRef) 1
+eval script = evaluateScript script (castRef nullPtr::JSObjectRef) (jsRefToJSSTring nullPtr::JSStringRef) 1
 #endif
 
+
+
+instance MakeObjectRef String where
+    makeObjectRef = makeObjectRef . eval

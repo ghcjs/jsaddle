@@ -44,7 +44,7 @@ import Language.Javascript.JSaddle.Classes
 import Language.Javascript.JSaddle.Monad (JSM)
 import Language.Javascript.JSaddle.Types
        (JSValueRefRef, JSObjectRef, JSPropertyAttributes,
-        Index(..), JSStringRef)
+        Index(..), JSStringRef, castRef)
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 #else
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
@@ -70,7 +70,7 @@ instance MakePropRef prop => MakePropRef (JSM prop) where
 
 -- | We can use a property as an object.
 instance MakeObjectRef JSPropRef where
-    makeObjectRef = objGetProperty
+    makeObjectRef a = castRef <$> objGetProperty a
 
 -- | We can use a property as a value.
 instance MakeValueRef JSPropRef where

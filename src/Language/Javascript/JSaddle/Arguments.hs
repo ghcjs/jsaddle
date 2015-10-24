@@ -56,3 +56,14 @@ instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef 
         rarg5 <- makeValueRef arg5
         return [rarg1, rarg2, rarg3, rarg4, rarg5]
 
+
+instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4, MakeValueRef arg5, MakeValueRef arg6) => MakeArgRefs (arg1, arg2, arg3, arg4, arg5, arg6) where
+    makeArgRefs (arg1, arg2, arg3, arg4, arg5, arg6) = do
+        rarg1 <- makeValueRef arg1
+        rarg2 <- makeValueRef arg2
+        rarg3 <- makeValueRef arg3
+        rarg4 <- makeValueRef arg4
+        rarg5 <- makeValueRef arg5
+        rarg6 <- makeValueRef arg6
+        return [rarg1, rarg2, rarg3, rarg4, rarg5, rarg6]
+

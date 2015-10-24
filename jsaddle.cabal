@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.2.1.0
+version: 0.2.2.0
 cabal-version: >=1.10
 license: MIT
 license-file: LICENSE
@@ -32,7 +32,8 @@ flag webkit
 library
     if impl(ghcjs) && flag(jsffi)
         cpp-options: -DUSE_JAVASCRIPTFFI
-        build-depends: ghcjs-base
+        build-depends: ghcjs-base,
+                       ghcjs-prim
 
     if !impl(ghcjs) || flag(webkit)
         cpp-options: -DUSE_WEBKIT
@@ -67,7 +68,8 @@ test-suite test-tool
 
     if impl(ghcjs) && flag(jsffi)
         cpp-options: -DUSE_JAVASCRIPTFFI
-        build-depends: ghcjs-base
+        build-depends: ghcjs-base,
+                       ghcjs-prim
 
     if !impl(ghcjs) || flag(webkit)
         cpp-options: -DUSE_WEBKIT
