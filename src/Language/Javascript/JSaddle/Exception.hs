@@ -24,8 +24,9 @@ import Language.Javascript.JSaddle.Monad (catchval, JSM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Text (Text)
 
-data JSException = JSException JSValueRef deriving (Show, Typeable)
+newtype JSException = JSException JSValueRef deriving (Typeable)
 
+instance Show JSException where show _ = "JSException"
 instance E.Exception JSException
 
 -- | Catch JavaScript exceptions and rethrow Haskell ones

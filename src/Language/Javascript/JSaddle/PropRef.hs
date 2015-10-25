@@ -1,6 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.PropRef
@@ -18,15 +15,11 @@ module Language.Javascript.JSaddle.PropRef (
 ) where
 
 import Language.Javascript.JSaddle.Types
-       (JSStringRef, JSObjectRef, Index, RefCast(..))
-import GHCJS.Types (JSRef)
-
---foreign import javascript unsafe "$1[$2]"
---    getChild :: JSRef -> JSRef -> IO JSRef
+       (JSStringRef, Object, Index)
 
 -- | A reference to a property.
 --   Implemented as a reference to an object and something to find the property.
-data JSPropRef = JSPropRef      JSObjectRef JSStringRef -- ^ Object and property name.
-               | JSPropIndexRef JSObjectRef Index       -- ^ Object and property index.
+data JSPropRef = JSPropRef      Object JSStringRef -- ^ Object and property name.
+               | JSPropIndexRef Object Index       -- ^ Object and property index.
 
 

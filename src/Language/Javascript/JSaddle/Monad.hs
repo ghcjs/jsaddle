@@ -25,15 +25,14 @@ module Language.Javascript.JSaddle.Monad (
   , catch
 ) where
 
-import Prelude hiding (catch)
+import Prelude hiding (catch, read)
 import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
 import Language.Javascript.JSaddle.Types
-       (JSValueRefRef, JSValueRef, JSContextRef, JSValueRef(..))
+       (JSValueRefRef(..), JSValueRef(..), JSContextRef)
 import Control.Monad.IO.Class (MonadIO(..))
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (isUndefined, isNull)
---import GHCJS.Foreign (newArray, indexArray)
-import qualified JavaScript.Array as Array
+import qualified JavaScript.Array as Array (create, read)
 #else
 import Foreign (nullPtr, alloca)
 import Foreign.Storable (Storable(..))
@@ -45,6 +44,7 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.WebFrame
        (webFrameGetGlobalContext)
 #endif
 import qualified Control.Exception as E (Exception, catch)
+import Control.Monad (void)
 
 -- | The @JSM@ monad keeps track of the JavaScript context.
 --
@@ -65,6 +65,7 @@ catch :: (MonadIO m, E.Exception e)
 t `catch` c = do
     r <- ask
     liftIO (runReaderT t r `E.catch` \e -> runReaderT (c e) r)
+{-# INLINE catch #-}
 
 -- | Handle JavaScriptCore functions that take a JSValueRefRef in order
 --   to throw exceptions.
@@ -73,10 +74,10 @@ catchval f catcher = do
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
     pexc   <- liftIO Array.create
     result <- f pexc
-    exc    <- liftIO $ (Array.! 0) <$> Array.freeze pexc 
+    exc    <- liftIO $ Array.read 0 pexc
     if isUndefined exc || isNull exc
         then return result
-        else catcher (JSValueRef exc)
+        else catcher exc
 #else
     gctxt <- ask
     liftIO . alloca $ \pexc -> flip runReaderT gctxt $ do
@@ -97,5 +98,7 @@ runJSaddle webView f = do
     gctxt <- webViewGetMainFrame webView >>= webFrameGetGlobalContext
     runReaderT f gctxt
 #endif
+{-# INLINE runJSaddle #-}
 
-runJSaddle_ w f = runJSaddle w f >> return ()
+runJSaddle_ w f = void $ runJSaddle w f
+{-# INLINE runJSaddle_ #-}

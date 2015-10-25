@@ -22,15 +22,18 @@ import Language.Javascript.JSaddle.Monad (JSM)
 
 instance MakeArgRefs arg => MakeArgRefs (JSM arg) where
     makeArgRefs arg = arg >>= makeArgRefs
+    {-# INLINE makeArgRefs #-}
 
 instance MakeValueRef arg => MakeArgRefs [arg] where
     makeArgRefs = mapM makeValueRef
+    {-# INLINE makeArgRefs #-}
 
 instance (MakeValueRef arg1, MakeValueRef arg2) => MakeArgRefs (arg1, arg2) where
     makeArgRefs (arg1, arg2) = do
         rarg1 <- makeValueRef arg1
         rarg2 <- makeValueRef arg2
         return [rarg1, rarg2]
+    {-# INLINE makeArgRefs #-}
 
 instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3) => MakeArgRefs (arg1, arg2, arg3) where
     makeArgRefs (arg1, arg2, arg3) = do
@@ -38,6 +41,7 @@ instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3) => MakeArgRef
         rarg2 <- makeValueRef arg2
         rarg3 <- makeValueRef arg3
         return [rarg1, rarg2, rarg3]
+    {-# INLINE makeArgRefs #-}
 
 instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4) => MakeArgRefs (arg1, arg2, arg3, arg4) where
     makeArgRefs (arg1, arg2, arg3, arg4) = do
@@ -46,6 +50,7 @@ instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef 
         rarg3 <- makeValueRef arg3
         rarg4 <- makeValueRef arg4
         return [rarg1, rarg2, rarg3, rarg4]
+    {-# INLINE makeArgRefs #-}
 
 instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4, MakeValueRef arg5) => MakeArgRefs (arg1, arg2, arg3, arg4, arg5) where
     makeArgRefs (arg1, arg2, arg3, arg4, arg5) = do
@@ -55,6 +60,7 @@ instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef 
         rarg4 <- makeValueRef arg4
         rarg5 <- makeValueRef arg5
         return [rarg1, rarg2, rarg3, rarg4, rarg5]
+    {-# INLINE makeArgRefs #-}
 
 
 instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4, MakeValueRef arg5, MakeValueRef arg6) => MakeArgRefs (arg1, arg2, arg3, arg4, arg5, arg6) where
@@ -66,4 +72,5 @@ instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef 
         rarg5 <- makeValueRef arg5
         rarg6 <- makeValueRef arg6
         return [rarg1, rarg2, rarg3, rarg4, rarg5, rarg6]
+    {-# INLINE makeArgRefs #-}
 

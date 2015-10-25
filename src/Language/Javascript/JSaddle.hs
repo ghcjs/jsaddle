@@ -18,11 +18,11 @@ module Language.Javascript.JSaddle (
   --   with JavaScript the EDSL has
   --
   --   * /Weakish typing/ - type classes are used to convert to JSValueRef
-  --   and JSObjectRef types
+  --   and Object types
   --
   --   * /Strict evaluation/ - function in the 'JSM' monad can be passed in
   --   place of a value and will evaluated and converted to JSValueRef or
-  --   JSObjectRef and then passed on to JavaScript
+  --   Object and then passed on to JavaScript
   --
   --   JSaddle should be used to write wrappers for JavaScript libraries that provide
   --   more type safety.

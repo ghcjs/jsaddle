@@ -91,7 +91,7 @@ testJSaddle' showWindow f = do
                     mainQuit
                     debugLog "put done"
                     putMVar done ()
-                    return True
+                    return ()
                 debugLog "get context"
                 jsContext <- webViewGetMainFrame webView >>= webFrameGetGlobalContext
                 debugLog "put initial state"

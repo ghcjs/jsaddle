@@ -42,12 +42,15 @@ import System.IO.Unsafe (unsafePerformIO)
 -- | If we already have a JSStringRef we are fine
 instance MakeStringRef JSStringRef where
     makeStringRef = id
+    {-# INLINE makeStringRef #-}
 
 instance MakeStringRef Text where
     makeStringRef = textToStr
+    {-# INLINE makeStringRef #-}
 
 instance MakeStringRef String where
     makeStringRef = textToStr . T.pack
+    {-# INLINE makeStringRef #-}
 
 -- | Convert a JavaScript string to a Haskell 'Text'
 strToText :: MonadIO m => JSStringRef -> m Text
@@ -59,6 +62,7 @@ strToText jsstring = liftIO $ do
     p <- jsstringgetcharactersptr jsstring
     T.fromPtr (castPtr p) (fromIntegral l)
 #endif
+{-# INLINE strToText #-}
 
 -- | Convert a Haskell 'Text' to a JavaScript string
 textToStr :: Text -> JSStringRef
@@ -69,6 +73,7 @@ textToStr text = unsafePerformIO $
     useAsPtr text $ \p l ->
         jsstringcreatewithcharacters (castPtr p) (fromIntegral l)
 #endif
+{-# INLINE textToStr #-}
 
 
 
