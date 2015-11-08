@@ -27,6 +27,7 @@ module Language.Javascript.JSaddle.Object (
   , (!)
   , (!!)
   , js
+  , jss
   , JSF(..)
   , jsf
   , js0
@@ -36,12 +37,21 @@ module Language.Javascript.JSaddle.Object (
   , js4
   , js5
   , jsg
+  , jsgf
+  , jsg0
+  , jsg1
+  , jsg2
+  , jsg3
+  , jsg4
+  , jsg5
 
   -- * Setting the value of a property
   , (<#)
+  , (<##)
 
   -- * Calling JavaSctipt
   , (#)
+  , (##)
   , new
   , call
   , obj
@@ -108,10 +118,8 @@ import Foreign (peekArray, nullPtr, withArrayLen)
 import Language.Javascript.JSaddle.Exception (rethrow)
 import Language.Javascript.JSaddle.Value
        (JSUndefined, valMakeUndefined, valToObject)
-import Language.Javascript.JSaddle.PropRef (JSPropRef(..))
 import Language.Javascript.JSaddle.Classes
-       (MakeValueRef(..), MakeStringRef(..), MakeArgRefs(..), MakePropRef(..),
-        MakeObject(..))
+       (MakeValueRef(..), MakeStringRef(..), MakeArgRefs(..), MakeObject(..))
 import Language.Javascript.JSaddle.Monad
        (JSM)
 import Control.Monad.Trans.Reader (runReaderT, ask)
@@ -136,38 +144,34 @@ instance MakeObject v => MakeObject (JSM v) where
     makeObject v = v >>= makeObject
     {-# INLINE makeObject #-}
 
--- | Lookup a property based on its name.  This function just constructs a JSPropRef
---   the lookup is delayed until we use the JSPropRef.  This makes it a bit lazy compared
---   to JavaScript's @.@ operator.
+-- | Lookup a property based on its name.
 --
 -- >>> testJSaddle $ eval "'Hello World'.length"
 -- >>> testJSaddle $ val "Hello World" ! "length"
 -- 11
 (!) :: (MakeObject this, MakeStringRef name)
-    => this          -- ^ Object to look on
-    -> name          -- ^ Name of the property to find
-    -> JSM JSPropRef -- ^ Property reference
+    => this           -- ^ Object to look on
+    -> name           -- ^ Name of the property to find
+    -> JSM JSValueRef -- ^ Property reference
 this ! name = do
     rthis <- makeObject this
-    return (JSPropRef rthis rname)
+    rethrow $ objGetPropertyByName rthis rname
   where
     rname = makeStringRef name
 {-# INLINE (!) #-}
 
--- | Lookup a property based on its index.  This function just constructs a JSPropRef
---   the lookup is delayed until we use the JSPropRef.  This makes it a bit lazy compared
---   to JavaScript's @[]@ operator.
+-- | Lookup a property based on its index.
 --
 -- >>> testJSaddle $ eval "'Hello World'[6]"
 -- >>> testJSaddle $ val "Hello World" !! 6
 -- W
 (!!) :: (MakeObject this)
-     => this          -- ^ Object to look on
-     -> Index         -- ^ Index of the property to lookup
-     -> JSM JSPropRef -- ^ Property reference
+     => this           -- ^ Object to look on
+     -> Index          -- ^ Index of the property to lookup
+     -> JSM JSValueRef -- ^ Property reference
 this !! index = do
     rthis <- makeObject this
-    return (JSPropIndexRef rthis index)
+    rethrow $ objGetPropertyAtIndex rthis index
 {-# INLINE (!!) #-}
 
 -- | Makes a getter for a particular property name.
@@ -179,24 +183,36 @@ this !! index = do
 -- 11
 js :: (MakeObject s, MakeStringRef name)
    => name          -- ^ Name of the property to find
-   -> IndexPreservingGetter s (JSM JSPropRef)
+   -> IndexPreservingGetter s (JSM JSValueRef)
 js name = to (!name)
 {-# INLINE js #-}
 
--- | Java script function applications have this type
-type JSF = forall o . MakeObject o => IndexPreservingGetter o (JSM JSValueRef)
+-- | Makes a setter for a particular property name.
+--
+-- > jss name = to (<#name)
+--
+-- >>> testJSaddle $ eval "'Hello World'.length"
+-- >>> testJSaddle $ val "Hello World" ^. js "length"
+-- 11
+jss :: (MakeStringRef name, MakeValueRef val)
+   => name          -- ^ Name of the property to find
+   -> val
+   -> forall o . MakeObject o => IndexPreservingGetter o (JSM ())
+jss name val = to (\o -> o <# name $ val)
+{-# INLINE jss #-}
 
 -- | Handy way to call a function
 --
--- > jsf name = js name . to (# args)
+-- > jsf name = to (\o -> o # name $ args)
 --
 -- >>> testJSaddle $ val "Hello World" ^. jsf "indexOf" ["World"]
 -- 6
 jsf :: (MakeStringRef name, MakeArgRefs args) => name -> args -> JSF
-jsf name args = function . to (# args)
-    where
-        function = js name
+jsf name args = to (\o -> o # name $ args)
 {-# INLINE jsf #-}
+
+-- | Java script function applications have this type
+type JSF = forall o . MakeObject o => IndexPreservingGetter o (JSM JSValueRef)
 
 -- | Handy way to call a function that expects no arguments
 --
@@ -249,40 +265,125 @@ js5 name a0 a1 a2 a3 a4 = jsf name (a0, a1, a2, a3, a4)
 -- >>> testJSaddle $ eval "w = console; w.log('Hello World')"
 -- >>> testJSaddle $ do w <- jsg "console"; w ^. js "log" # ["Hello World"]
 -- 11
-jsg :: MakeStringRef a => a -> JSM JSPropRef
+jsg :: MakeStringRef a => a -> JSM JSValueRef
 jsg name = global ! name
 {-# INLINE jsg #-}
+
+-- | Handy way to call a function
+--
+-- > jsgf name = jsg name . to (# args)
+--
+-- >>> testJSaddle $ jsf "globalFunc" ["World"]
+-- 6
+jsgf :: (MakeStringRef name, MakeArgRefs args) => name -> args -> JSM JSValueRef
+jsgf name = global # name
+{-# INLINE jsgf #-}
+
+-- | Handy way to call a function that expects no arguments
+--
+-- > jsg0 name = jsgf name ()
+--
+-- >>> testJSaddle $ js0 "globalFunc"
+-- hello world
+jsg0 :: (MakeStringRef name) => name -> JSM JSValueRef
+jsg0 name = jsgf name ()
+{-# INLINE jsg0 #-}
+
+-- | Handy way to call a function that expects one argument
+--
+-- > jsg1 name a0 = jsgf name [a0]
+--
+-- >>> testJSaddle $ jsg1 "globalFunc" "World"
+-- 6
+jsg1 :: (MakeStringRef name, MakeValueRef a0) => name -> a0 -> JSM JSValueRef
+jsg1 name a0 = jsgf name [a0]
+{-# INLINE jsg1 #-}
+
+-- | Handy way to call a function that expects two arguments
+jsg2 :: (MakeStringRef name, MakeValueRef a0, MakeValueRef a1) => name -> a0 -> a1 -> JSM JSValueRef
+jsg2 name a0 a1 = jsgf name (a0, a1)
+{-# INLINE jsg2 #-}
+
+-- | Handy way to call a function that expects three arguments
+jsg3 :: (MakeStringRef name, MakeValueRef a0, MakeValueRef a1, MakeValueRef a2)
+    => name -> a0 -> a1 -> a2 -> JSM JSValueRef
+jsg3 name a0 a1 a2 = jsgf name (a0, a1, a2)
+{-# INLINE jsg3 #-}
+
+-- | Handy way to call a function that expects four arguments
+jsg4 :: (MakeStringRef name, MakeValueRef a0, MakeValueRef a1, MakeValueRef a2,
+        MakeValueRef a3)
+    => name -> a0 -> a1 -> a2 -> a3 -> JSM JSValueRef
+jsg4 name a0 a1 a2 a3 = jsgf name (a0, a1, a2, a3)
+{-# INLINE jsg4 #-}
+
+-- | Handy way to call a function that expects five arguments
+jsg5 :: (MakeStringRef name, MakeValueRef a0, MakeValueRef a1, MakeValueRef a2,
+        MakeValueRef a3, MakeValueRef a4)
+    => name -> a0 -> a1 -> a2 -> a3 -> a4 -> JSM JSValueRef
+jsg5 name a0 a1 a2 a3 a4 = jsgf name (a0, a1, a2, a3, a4)
+{-# INLINE jsg5 #-}
 
 -- | Call a JavaScript function
 --
 -- >>> testJSaddle $ eval "'Hello World'.indexOf('World')"
--- >>> testJSaddle $ val "Hello World" ! "indexOf" # ["World"]
+-- >>> testJSaddle $ val "Hello World" # "indexOf" $ ["World"]
 -- 6
 infixr 2 #
-(#) :: (MakePropRef prop, MakeArgRefs args)
-    => prop -> args -> JSM JSValueRef
-prop # args = do
-    rprop <- makePropRef prop
-    (this, f) <- objGetProperty' rprop
+(#) :: (MakeObject this, MakeStringRef name, MakeArgRefs args)
+    => this -> name -> args -> JSM JSValueRef
+(#) this name args = do
+    rthis <- makeObject this
+    f <- rethrow $ objGetPropertyByName rthis name
     f' <- valToObject f
-    rethrow $ objCallAsFunction f' this args
+    rethrow $ objCallAsFunction f' rthis args
 {-# INLINE (#) #-}
 
 -- | Call a JavaScript function
 --
+-- >>> testJSaddle $ eval "something[6]('World')"
+-- >>> testJSaddle $ val something ## 6 ["World"]
+infixr 2 ##
+(##) :: (MakeObject this, MakeArgRefs args)
+    => this -> Index -> args -> JSM JSValueRef
+(##) this index args = do
+    rthis <- makeObject this
+    f <- rethrow $ objGetPropertyAtIndex rthis index
+    f' <- valToObject f
+    rethrow $ objCallAsFunction f' rthis args
+{-# INLINE (##) #-}
+
+-- | Set a JavaScript property
+--
 -- >>> testJSaddle $ eval "var j = {}; j.x = 1; j.x"
--- >>> testJSaddle $ do {j <- eval "({})"; j!"x" <# 1; j!"x"}
+-- >>> testJSaddle $ do {j <- eval "({})"; j <# "x" 1; j!"x"}
 -- 1
-infixr 0 <#
-(<#) :: (MakePropRef prop, MakeValueRef val)
-     => prop          -- ^ Property to set
-     -> val           -- ^ Value to set it to
-     -> JSM JSPropRef -- ^ Reference to the property set
-prop <# val = do
-    p <- makePropRef prop
-    objSetProperty p val
-    return p
+infixr 1 <#
+(<#) :: (MakeObject this, MakeStringRef name, MakeValueRef val)
+     => this           -- ^ Object to set the property on
+     -> name           -- ^ Name of the property to set
+     -> val            -- ^ Value to set it to
+     -> JSM ()
+(<#) this name val = do
+    rthis <- makeObject this
+    rethrow $ objSetPropertyByName rthis name val 0
 {-# INLINE (<#) #-}
+
+-- | Set a JavaScript property
+--
+-- >>> testJSaddle $ eval "var j = {}; j[6] = 1; j[6]"
+-- >>> testJSaddle $ do {j <- eval "({})"; j <## 6 1; j!!6}
+-- 1
+infixr 1 <##
+(<##) :: (MakeObject this, MakeValueRef val)
+     => this           -- ^ Object to set the property on
+     -> Index          -- ^ Index of the property to set
+     -> val            -- ^ Value to set it to
+     -> JSM ()
+(<##) this index val = do
+    rthis <- makeObject this
+    rethrow $ objSetPropertyAtIndex rthis index val
+{-# INLINE (<##) #-}
 
 -- | Use this to create a new JavaScript object
 --
@@ -488,7 +589,7 @@ propertyNames = undefined
 #endif
 
 -- | Get a list containing references to all the  properties present on a given object
-properties :: MakeObject this => this -> JSM [JSPropRef]
+properties :: MakeObject this => this -> JSM [JSValueRef]
 properties this = propertyNames this >>= mapM (this !)
 
 -- | Call a JavaScript object as function.  Consider using '#'.

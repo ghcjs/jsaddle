@@ -18,14 +18,12 @@ module Language.Javascript.JSaddle.Classes (
   , MakeStringRef(..)
   , MakeArgRefs(..)
   , MakeObject(..)
-  , MakePropRef(..)
 ) where
 
 import Control.Monad.IO.Class (MonadIO)
 import Language.Javascript.JSaddle.Types
        (Object(..), JSStringRef, JSValueRef)
 import Language.Javascript.JSaddle.Monad (JSM)
-import Language.Javascript.JSaddle.PropRef (JSPropRef)
 
 -- | Anything that can be used to make a JavaScript value reference
 class MakeValueRef a where
@@ -43,10 +41,6 @@ class MakeArgRefs this where
 -- | Anything that can be used to make a JavaScript object reference
 class MakeObject this where
     makeObject :: this -> JSM Object
-
--- | Anything that can be used to make a JavaScript property reference
-class MakePropRef this where
-    makePropRef :: this -> JSM JSPropRef
 
 instance MakeValueRef Object where
     makeValueRef (Object r) = return r

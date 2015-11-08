@@ -304,6 +304,10 @@ valToObject val = Object <$>
 #endif
 {-# INLINE valToObject #-}
 
+instance MakeObject JSValueRef where
+    makeObject = valToObject
+    {-# INLINE makeObject #-}
+
 -- | Convert to a JavaScript value (just an alias for 'makeValueRef')
 val :: MakeValueRef value
     => value          -- ^ value to convert to a JavaScript value

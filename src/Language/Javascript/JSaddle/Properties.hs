@@ -21,25 +21,17 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.Properties (
-  -- * Propery Reference
-    JSPropRef(..)
-  , MakePropRef(..)
-
   -- * Getting Property Values
-  , objGetPropertyByName
+    objGetPropertyByName
   , objGetPropertyAtIndex
-  , objGetProperty
-  , objGetProperty'
   -- * Setting Property Values
   , objSetPropertyByName
   , objSetPropertyAtIndex
-  , objSetProperty
 ) where
 
 import Control.Applicative ((<$>))
-import Language.Javascript.JSaddle.PropRef (JSPropRef(..))
 import Language.Javascript.JSaddle.Classes
-       (MakePropRef(..), MakeObject(..), MakeValueRef(..),
+       (MakeObject(..), MakeValueRef(..),
         MakeArgRefs(..), MakeStringRef(..))
 import Language.Javascript.JSaddle.Monad (JSM)
 import Language.Javascript.JSaddle.Types
@@ -58,34 +50,6 @@ import Language.Javascript.JSaddle.Exception (rethrow)
 import Language.Javascript.JSaddle.Value (JSValueRef)
 import Language.Javascript.JSaddle.Arguments ()
 import Language.Javascript.JSaddle.String ()
-
--- | If we already have a JSPropRef we are fine
-instance MakePropRef JSPropRef where
-    makePropRef = return
-    {-# INLINE makePropRef #-}
-
--- | JSPropRef can be made by evaluating a function in 'JSM' as long
---   as it returns something we can make into a JSPropRef.
-instance MakePropRef prop => MakePropRef (JSM prop) where
-    makePropRef prop = prop >>= makePropRef
-    {-# INLINE makePropRef #-}
-
--- | We can use a property as an object.
-instance MakeObject JSPropRef where
-    makeObject prop = Object <$> objGetProperty prop
-    {-# INLINE makeObject #-}
-
--- | We can use a property as a value.
-instance MakeValueRef JSPropRef where
-    makeValueRef = objGetProperty
-    {-# INLINE makeValueRef #-}
-
--- | We can pass a property as the only paramter to a function.
-instance MakeArgRefs JSPropRef where
-    makeArgRefs p = do
-        rarg <- objGetProperty p
-        return [rarg]
-    {-# INLINE makeArgRefs #-}
 
 -- | Get a property value given the object and the name of the property.
 objGetPropertyByName :: MakeStringRef name
@@ -125,27 +89,6 @@ objGetPropertyAtIndex (Object this) index exceptions = do
 #else
 objGetPropertyAtIndex = undefined
 #endif
-
--- | Gets the value of a property given a 'JSPropRef'.
-objGetProperty :: JSPropRef      -- ^ property reference.
-               -> JSM JSValueRef -- ^ returns the property value.
-objGetProperty (JSPropRef      this name ) =
-    rethrow $ objGetPropertyByName  this name
-objGetProperty (JSPropIndexRef this index) =
-    rethrow $ objGetPropertyAtIndex this index
-{-# INLINE objGetProperty #-}
-
--- | This version of 'objGetProperty' is handy when you also need to perform.
---   another operation on the object the property is on.
-objGetProperty' :: JSPropRef                     -- ^ property reference.
-                -> JSM (Object, JSValueRef) -- ^ returns the object and property value.
-objGetProperty' (JSPropRef this name) = do
-    p <- rethrow $ objGetPropertyByName this name
-    return (this, p)
-objGetProperty' (JSPropIndexRef this index) = do
-    p <- rethrow $ objGetPropertyAtIndex this index
-    return (this, p)
-{-# INLINE objGetProperty' #-}
 
 -- | Set a property value given the object and the name of the property.
 objSetPropertyByName :: (MakeStringRef name, MakeValueRef val)
@@ -195,17 +138,4 @@ objSetPropertyAtIndex (Object this) index val exceptions = do
 #else
 objSetPropertyAtIndex = undefined
 #endif
-
--- | Sets the value of a property given a 'JSPropRef'.
-objSetProperty :: (MakeValueRef val)
-               => JSPropRef -- ^ property reference.
-               -> val       -- ^ new value to set the property to.
-               -> JSM ()
-objSetProperty (JSPropRef      this name ) val = rethrow $ objSetPropertyByName  this name  val 0
-objSetProperty (JSPropIndexRef this index) val = rethrow $ objSetPropertyAtIndex this index val
-{-# INLINE objSetProperty #-}
-
-
-
-
 
