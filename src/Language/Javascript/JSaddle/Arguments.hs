@@ -13,64 +13,64 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.Arguments (
-    MakeArgRefs(..)
+    MakeArgs(..)
 ) where
 
 import Language.Javascript.JSaddle.Classes
-       (MakeValueRef(..), MakeValueRef, MakeArgRefs(..), MakeArgRefs)
+       (MakeVal(..), MakeArgs(..))
 import Language.Javascript.JSaddle.Monad (JSM)
 
-instance MakeArgRefs arg => MakeArgRefs (JSM arg) where
-    makeArgRefs arg = arg >>= makeArgRefs
-    {-# INLINE makeArgRefs #-}
+instance MakeArgs arg => MakeArgs (JSM arg) where
+    makeArgs arg = arg >>= makeArgs
+    {-# INLINE makeArgs #-}
 
-instance MakeValueRef arg => MakeArgRefs [arg] where
-    makeArgRefs = mapM makeValueRef
-    {-# INLINE makeArgRefs #-}
+instance MakeVal arg => MakeArgs [arg] where
+    makeArgs = mapM makeVal
+    {-# INLINE makeArgs #-}
 
-instance (MakeValueRef arg1, MakeValueRef arg2) => MakeArgRefs (arg1, arg2) where
-    makeArgRefs (arg1, arg2) = do
-        rarg1 <- makeValueRef arg1
-        rarg2 <- makeValueRef arg2
+instance (MakeVal arg1, MakeVal arg2) => MakeArgs (arg1, arg2) where
+    makeArgs (arg1, arg2) = do
+        rarg1 <- makeVal arg1
+        rarg2 <- makeVal arg2
         return [rarg1, rarg2]
-    {-# INLINE makeArgRefs #-}
+    {-# INLINE makeArgs #-}
 
-instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3) => MakeArgRefs (arg1, arg2, arg3) where
-    makeArgRefs (arg1, arg2, arg3) = do
-        rarg1 <- makeValueRef arg1
-        rarg2 <- makeValueRef arg2
-        rarg3 <- makeValueRef arg3
+instance (MakeVal arg1, MakeVal arg2, MakeVal arg3) => MakeArgs (arg1, arg2, arg3) where
+    makeArgs (arg1, arg2, arg3) = do
+        rarg1 <- makeVal arg1
+        rarg2 <- makeVal arg2
+        rarg3 <- makeVal arg3
         return [rarg1, rarg2, rarg3]
-    {-# INLINE makeArgRefs #-}
+    {-# INLINE makeArgs #-}
 
-instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4) => MakeArgRefs (arg1, arg2, arg3, arg4) where
-    makeArgRefs (arg1, arg2, arg3, arg4) = do
-        rarg1 <- makeValueRef arg1
-        rarg2 <- makeValueRef arg2
-        rarg3 <- makeValueRef arg3
-        rarg4 <- makeValueRef arg4
+instance (MakeVal arg1, MakeVal arg2, MakeVal arg3, MakeVal arg4) => MakeArgs (arg1, arg2, arg3, arg4) where
+    makeArgs (arg1, arg2, arg3, arg4) = do
+        rarg1 <- makeVal arg1
+        rarg2 <- makeVal arg2
+        rarg3 <- makeVal arg3
+        rarg4 <- makeVal arg4
         return [rarg1, rarg2, rarg3, rarg4]
-    {-# INLINE makeArgRefs #-}
+    {-# INLINE makeArgs #-}
 
-instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4, MakeValueRef arg5) => MakeArgRefs (arg1, arg2, arg3, arg4, arg5) where
-    makeArgRefs (arg1, arg2, arg3, arg4, arg5) = do
-        rarg1 <- makeValueRef arg1
-        rarg2 <- makeValueRef arg2
-        rarg3 <- makeValueRef arg3
-        rarg4 <- makeValueRef arg4
-        rarg5 <- makeValueRef arg5
+instance (MakeVal arg1, MakeVal arg2, MakeVal arg3, MakeVal arg4, MakeVal arg5) => MakeArgs (arg1, arg2, arg3, arg4, arg5) where
+    makeArgs (arg1, arg2, arg3, arg4, arg5) = do
+        rarg1 <- makeVal arg1
+        rarg2 <- makeVal arg2
+        rarg3 <- makeVal arg3
+        rarg4 <- makeVal arg4
+        rarg5 <- makeVal arg5
         return [rarg1, rarg2, rarg3, rarg4, rarg5]
-    {-# INLINE makeArgRefs #-}
+    {-# INLINE makeArgs #-}
 
 
-instance (MakeValueRef arg1, MakeValueRef arg2, MakeValueRef arg3, MakeValueRef arg4, MakeValueRef arg5, MakeValueRef arg6) => MakeArgRefs (arg1, arg2, arg3, arg4, arg5, arg6) where
-    makeArgRefs (arg1, arg2, arg3, arg4, arg5, arg6) = do
-        rarg1 <- makeValueRef arg1
-        rarg2 <- makeValueRef arg2
-        rarg3 <- makeValueRef arg3
-        rarg4 <- makeValueRef arg4
-        rarg5 <- makeValueRef arg5
-        rarg6 <- makeValueRef arg6
+instance (MakeVal arg1, MakeVal arg2, MakeVal arg3, MakeVal arg4, MakeVal arg5, MakeVal arg6) => MakeArgs (arg1, arg2, arg3, arg4, arg5, arg6) where
+    makeArgs (arg1, arg2, arg3, arg4, arg5, arg6) = do
+        rarg1 <- makeVal arg1
+        rarg2 <- makeVal arg2
+        rarg3 <- makeVal arg3
+        rarg4 <- makeVal arg4
+        rarg5 <- makeVal arg5
+        rarg6 <- makeVal arg6
         return [rarg1, rarg2, rarg3, rarg4, rarg5, rarg6]
-    {-# INLINE makeArgRefs #-}
+    {-# INLINE makeArgs #-}
 

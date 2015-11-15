@@ -18,19 +18,19 @@ module Language.Javascript.JSaddle.Exception (
 
 import qualified Control.Exception as E (throwIO, Exception)
 import Language.Javascript.JSaddle.Types
-       (JSValueRefRef, JSValueRef)
+       (MutableJSArray, JSVal)
 import Data.Typeable (Typeable)
 import Language.Javascript.JSaddle.Monad (catchval, JSM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Text (Text)
 
-newtype JSException = JSException JSValueRef deriving (Typeable)
+newtype JSException = JSException JSVal deriving (Typeable)
 
 instance Show JSException where show _ = "JSException"
 instance E.Exception JSException
 
 -- | Catch JavaScript exceptions and rethrow Haskell ones
-rethrow :: (JSValueRefRef -> JSM a) -> JSM a
+rethrow :: (MutableJSArray -> JSM a) -> JSM a
 rethrow f = f `catchval` \e ->
     liftIO . E.throwIO $ JSException e
 

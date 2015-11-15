@@ -14,34 +14,34 @@
 
 module Language.Javascript.JSaddle.Classes (
   -- * Type classes to convert Haskell data to JavaScript
-    MakeValueRef(..)
-  , MakeStringRef(..)
-  , MakeArgRefs(..)
+    MakeVal(..)
+  , MakeString(..)
+  , MakeArgs(..)
   , MakeObject(..)
 ) where
 
 import Control.Monad.IO.Class (MonadIO)
 import Language.Javascript.JSaddle.Types
-       (Object(..), JSStringRef, JSValueRef)
+       (Object(..), JSString, JSVal(..))
 import Language.Javascript.JSaddle.Monad (JSM)
 
 -- | Anything that can be used to make a JavaScript value reference
-class MakeValueRef a where
-    makeValueRef :: a -> JSM JSValueRef
+class MakeVal a where
+    makeVal :: a -> JSM JSVal
 
 -- | Anything that can be used to make a JavaScript string reference
-class MakeStringRef a where
-    makeStringRef :: a -> JSStringRef
+class MakeString a where
+    makeString :: a -> JSString
 
 -- | Anything that can be used to make a list of JavaScript value
 --   references for use as function arguments
-class MakeArgRefs this where
-    makeArgRefs :: this -> JSM [JSValueRef]
+class MakeArgs this where
+    makeArgs :: this -> JSM [JSVal]
 
 -- | Anything that can be used to make a JavaScript object reference
 class MakeObject this where
     makeObject :: this -> JSM Object
 
-instance MakeValueRef Object where
-    makeValueRef (Object r) = return r
-    {-# INLINE makeValueRef #-}
+instance MakeVal Object where
+    makeVal (Object r) = return r
+    {-# INLINE makeVal #-}

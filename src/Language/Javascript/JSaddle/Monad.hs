@@ -28,7 +28,7 @@ module Language.Javascript.JSaddle.Monad (
 import Prelude hiding (catch, read)
 import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
 import Language.Javascript.JSaddle.Types
-       (JSValueRefRef(..), JSValueRef(..), JSContextRef)
+       (JSVal(..), MutableJSArray(..), JSContextRef)
 import Control.Monad.IO.Class (MonadIO(..))
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (isUndefined, isNull)
@@ -67,9 +67,9 @@ t `catch` c = do
     liftIO (runReaderT t r `E.catch` \e -> runReaderT (c e) r)
 {-# INLINE catch #-}
 
--- | Handle JavaScriptCore functions that take a JSValueRefRef in order
+-- | Handle JavaScriptCore functions that take a MutableJSArray in order
 --   to throw exceptions.
-catchval :: (JSValueRefRef -> JSM a) -> (JSValueRef -> JSM a) -> JSM a
+catchval :: (MutableJSArray -> JSM a) -> (JSVal -> JSM a) -> JSM a
 catchval f catcher = do
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
     pexc   <- liftIO Array.create

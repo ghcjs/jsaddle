@@ -14,8 +14,8 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.String (
-    JSStringRef
-  , MakeStringRef(..)
+    JSString
+  , MakeString(..)
 
   -- * Data.Text helpers
   , strToText
@@ -25,7 +25,7 @@ module Language.Javascript.JSaddle.String (
 import Data.Text (Text)
 import qualified Data.Text as T (unpack, pack)
 import Control.Monad.IO.Class (MonadIO(..))
-import Language.Javascript.JSaddle.Types (JSStringRef)
+import Language.Javascript.JSaddle.Types (JSString)
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import Data.JSString.Text (textFromJSString, textToJSString)
 #else
@@ -36,24 +36,24 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
 import qualified Data.Text.Foreign as T (fromPtr)
 import Foreign (castPtr)
 import Data.Text.Foreign (useAsPtr)
-import Language.Javascript.JSaddle.Classes (MakeStringRef(..))
+import Language.Javascript.JSaddle.Classes (MakeString(..))
 import System.IO.Unsafe (unsafePerformIO)
 
 -- | If we already have a JSStringRef we are fine
-instance MakeStringRef JSStringRef where
-    makeStringRef = id
-    {-# INLINE makeStringRef #-}
+instance MakeString JSString where
+    makeString = id
+    {-# INLINE makeString #-}
 
-instance MakeStringRef Text where
-    makeStringRef = textToStr
-    {-# INLINE makeStringRef #-}
+instance MakeString Text where
+    makeString = textToStr
+    {-# INLINE makeString #-}
 
-instance MakeStringRef String where
-    makeStringRef = textToStr . T.pack
-    {-# INLINE makeStringRef #-}
+instance MakeString String where
+    makeString = textToStr . T.pack
+    {-# INLINE makeString #-}
 
 -- | Convert a JavaScript string to a Haskell 'Text'
-strToText :: MonadIO m => JSStringRef -> m Text
+strToText :: MonadIO m => JSString -> m Text
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 strToText = return . textFromJSString
 #else
@@ -65,7 +65,7 @@ strToText jsstring = liftIO $ do
 {-# INLINE strToText #-}
 
 -- | Convert a Haskell 'Text' to a JavaScript string
-textToStr :: Text -> JSStringRef
+textToStr :: Text -> JSString
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 textToStr = textToJSString
 #else

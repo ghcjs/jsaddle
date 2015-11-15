@@ -49,16 +49,16 @@ state = unsafePerformIO $ newMVar Nothing
 done = unsafePerformIO $ newEmptyMVar
 
 -- >>> testJSaddle $ ((global ^. js "console" . js "log") # ["Hello"])
-testJSaddle :: MakeValueRef val => JSM val -> IO ()
+testJSaddle :: MakeVal val => JSM val -> IO ()
 testJSaddle = testJSaddle' False
 
 -- >>> showJSaddle $ eval "document.body.innerHTML = 'Test'"
-showJSaddle :: MakeValueRef val => JSM val -> IO ()
+showJSaddle :: MakeVal val => JSM val -> IO ()
 showJSaddle = testJSaddle' True
 
 debugLog = debugM "jsaddle"
 
-testJSaddle' :: MakeValueRef val => Bool -> JSM val -> IO ()
+testJSaddle' :: MakeVal val => Bool -> JSM val -> IO ()
 testJSaddle' showWindow f = do
     debugLog "taking done"
     tryTakeMVar done

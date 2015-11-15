@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE LambdaCase #-}
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI #-}
 #endif
@@ -31,14 +32,12 @@
 
 module Language.Javascript.JSaddle.Value (
   -- * JavaScript value references
-    JSValueRef
-  , MakeValueRef(..)
+    JSVal
+  , MakeVal(..)
 
   -- * Haskell types for JavaScript values
   , JSNull(..)
   , JSUndefined(..)
-  , JSBool(..)
-  , JSNumber(..)
   , JSString(..)
   , JSValue(..)
 
@@ -53,7 +52,10 @@ module Language.Javascript.JSaddle.Value (
   -- * Make JavaScript values from Haskell ones
   , val
   , valMakeNull
+  , valIsNull
   , valMakeUndefined
+  , valIsUndefined
+  , maybeNullOrUndefined
   , valMakeBool
   , valMakeNumber
   , valMakeString
@@ -65,9 +67,9 @@ module Language.Javascript.JSaddle.Value (
 
 import Prelude hiding (catch)
 import Language.Javascript.JSaddle.Types
-       (JSValueRefRef, Object(..), JSStringRef, JSValueRef(..))
+       (MutableJSArray, Object(..), JSString, JSVal(..))
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
-import GHCJS.Types (JSVal(..))
+import GHCJS.Types (JSVal(..), isNull, isUndefined)
 import GHCJS.Foreign (toJSBool, isTruthy, jsNull, jsUndefined)
 import GHCJS.Marshal (toJSVal)
 import GHCJS.Marshal.Pure (pToJSVal)
@@ -77,9 +79,11 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
        (jsvaluecreatejsonstring, JSType(..), jsvaluegettype,
         jsvaluemakestring, jsvaluemakenumber, jsvaluemakeboolean,
         jsvaluemakeundefined, jsvaluemakenull, jsvaluetoobject,
-        jsvaluetostringcopy, jsvaluetonumber, jsvaluetoboolean)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
+        jsvaluetostringcopy, jsvaluetonumber, jsvaluetoboolean,
+        jsvalueisnull, jsvalueisundefined)
+import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSString
        (jsstringgetcharactersptr, jsstringgetlength)
+import System.IO.Unsafe (unsafePerformIO)
 #endif
 import Language.Javascript.JSaddle.Monad (JSM, catchval)
 import Language.Javascript.JSaddle.Exception (rethrow)
@@ -92,8 +96,8 @@ import Control.Applicative ((<$>))
 import Data.Text (Text)
 import qualified Data.Text as T (pack)
 import Language.Javascript.JSaddle.Classes
-       (MakeObject(..), MakeStringRef(..), MakeValueRef(..),
-        MakeArgRefs(..))
+       (MakeObject(..), MakeString(..), MakeVal(..),
+        MakeArgs(..))
 import Language.Javascript.JSaddle.String (strToText, textToStr)
 import Language.Javascript.JSaddle.Arguments ()
 import Data.Word (Word)
@@ -103,17 +107,17 @@ data JSNull      = JSNull -- ^ Type that represents a value that can only be nul
 type JSUndefined = ()     -- ^ A type that can only be undefined in JavaScript.  Using ()
                           --   because functions in JavaScript that have no return, impicitly
                           --   return undefined.
-type JSBool      = Bool   -- ^ JavaScript boolean values map the 'Bool' haskell type.
-type JSNumber    = Double -- ^ A number in JavaScript maps nicely to 'Double'.
-type JSString    = Text   -- ^ JavaScript strings can be represented with the Haskell 'Text' type.
+-- type JSBool      = Bool   -- ^ JavaScript boolean values map the 'Bool' haskell type.
+-- type JSNumber    = Double -- ^ A number in JavaScript maps nicely to 'Double'.
+-- type JSString    = Text   -- ^ JavaScript strings can be represented with the Haskell 'Text' type.
 
 -- | An algebraic data type that can represent a JavaScript value.  Any JavaScriptCore
---   'JSValueRef' can be converted into this type.
+--   'JSVal' can be converted into this type.
 data JSValue = ValNull                   -- ^ null
              | ValUndefined              -- ^ undefined
-             | ValBool      JSBool       -- ^ true or false
-             | ValNumber    JSNumber     -- ^ a number
-             | ValString    JSString     -- ^ a string
+             | ValBool      Bool         -- ^ true or false
+             | ValNumber    Double       -- ^ a number
+             | ValString    Text         -- ^ a string
              | ValObject    Object       -- ^ an object
 --             deriving(Show, Eq)
 
@@ -136,13 +140,13 @@ data JSValue = ValNull                   -- ^ null
 -- false
 -- >>> testJSaddle $ valToBool "1"
 -- true
-valToBool :: MakeValueRef val => val -> JSM JSBool
+valToBool :: MakeVal val => val -> JSM Bool
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
-valToBool val = isTruthy <$> makeValueRef val
+valToBool val = isTruthy <$> makeVal val
 #else
 valToBool val = do
     gctxt <- ask
-    rval <- makeValueRef val
+    rval <- makeVal val
     liftIO $ jsvaluetoboolean gctxt rval
 #endif
 {-# INLINE valToBool #-}
@@ -166,15 +170,15 @@ valToBool val = do
 -- 0.0
 -- >>> testJSaddle $ show <$> valToNumber "1"
 -- 1.0
-valToNumber :: MakeValueRef val => val -> JSM JSNumber
+valToNumber :: MakeVal val => val -> JSM Double
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
-valToNumber val = jsrefToNumber <$> makeValueRef val
+valToNumber val = jsrefToNumber <$> makeVal val
 {-# INLINE valToNumber #-}
 foreign import javascript unsafe "$r = Number($1);" jsrefToNumber :: JSVal -> Double
 #elif defined(USE_WEBKIT)
 valToNumber val = do
     gctxt <- ask
-    rval <- makeValueRef val
+    rval <- makeVal val
     rethrow $ liftIO . jsvaluetonumber gctxt rval
 {-# INLINE valToNumber #-}
 #else
@@ -200,15 +204,15 @@ valToNumber = undefined
 --
 -- >>> testJSaddle $ valToStr "1" >>= strToText
 -- 1
-valToStr :: MakeValueRef val => val -> JSM JSStringRef
+valToStr :: MakeVal val => val -> JSM JSString
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
-valToStr val = jsrefToString <$> makeValueRef val
+valToStr val = jsrefToString <$> makeVal val
 {-# INLINE valToStr #-}
-foreign import javascript unsafe "$r = $1.toString();" jsrefToString :: JSVal -> JSStringRef
+foreign import javascript unsafe "$r = $1.toString();" jsrefToString :: JSVal -> JSString
 #elif defined(USE_WEBKIT)
 valToStr val = do
     gctxt <- ask
-    rval <- makeValueRef val
+    rval <- makeVal val
     rethrow $ liftIO . jsvaluetostringcopy gctxt rval
 {-# INLINE valToStr #-}
 #else
@@ -234,7 +238,7 @@ valToStr = undefined
 -- ""
 -- >>> testJSaddle $ show <$> valToText "1"
 -- "1"
-valToText :: MakeValueRef val => val -> JSM Text
+valToText :: MakeVal val => val -> JSM Text
 valToText jsvar = valToStr jsvar >>= strToText
 {-# INLINE valToText #-}
 
@@ -259,15 +263,15 @@ valToText jsvar = valToStr jsvar >>= strToText
 -- "1"
 -- >>> testJSaddle $ obj >>= valToJSON 0 >>= strToText
 -- {}
-valToJSON :: MakeValueRef val => Word -> val -> JSM JSStringRef
+valToJSON :: MakeVal val => Word -> val -> JSM JSString
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
-valToJSON indent val = jsrefToJSON <$> makeValueRef val
+valToJSON indent val = jsrefToJSON <$> makeVal val
 {-# INLINE valToJSON #-}
-foreign import javascript unsafe "$r = JSON.stringify($1);" jsrefToJSON :: JSVal -> JSStringRef
+foreign import javascript unsafe "$r = JSON.stringify($1);" jsrefToJSON :: JSVal -> JSString
 #elif defined(USE_WEBKIT)
 valToJSON indent val = do
     gctxt <- ask
-    rval <- makeValueRef val
+    rval <- makeVal val
     rethrow $ liftIO . jsvaluecreatejsonstring gctxt rval (fromIntegral indent)
 {-# INLINE valToJSON #-}
 #else
@@ -293,47 +297,47 @@ valToJSON = undefined
 --
 -- >>> testJSaddle $ valToObject "1"
 -- 1
-valToObject :: MakeValueRef val => val -> JSM Object
+valToObject :: MakeVal val => val -> JSM Object
 valToObject val = Object <$>
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
-    makeValueRef val
+    makeVal val
 #else
  do gctxt <- ask
-    rval <- makeValueRef val
+    rval <- makeVal val
     rethrow $ liftIO . jsvaluetoobject gctxt rval
 #endif
 {-# INLINE valToObject #-}
 
-instance MakeObject JSValueRef where
+instance MakeObject JSVal where
     makeObject = valToObject
     {-# INLINE makeObject #-}
 
--- | Convert to a JavaScript value (just an alias for 'makeValueRef')
-val :: MakeValueRef value
+-- | Convert to a JavaScript value (just an alias for 'makeVal')
+val :: MakeVal value
     => value          -- ^ value to convert to a JavaScript value
-    -> JSM JSValueRef
-val = makeValueRef
+    -> JSM JSVal
+val = makeVal
 {-# INLINE val #-}
 
--- | If we already have a JSValueRef we are fine
-instance MakeValueRef JSValueRef where
-    makeValueRef = return
-    {-# INLINE makeValueRef #-}
+-- | If we already have a JSVal we are fine
+instance MakeVal JSVal where
+    makeVal = return
+    {-# INLINE makeVal #-}
 
--- | A single JSValueRef can be used as the argument list
-instance MakeArgRefs JSValueRef where
-    makeArgRefs arg = return [arg]
-    {-# INLINE makeArgRefs #-}
+-- | A single JSVal can be used as the argument list
+instance MakeArgs JSVal where
+    makeArgs arg = return [arg]
+    {-# INLINE makeArgs #-}
 
--- | JSValueRef can be made by evaluating a function in 'JSM' as long
---   as it returns something we can make into a JSValueRef.
-instance MakeValueRef v => MakeValueRef (JSM v) where
-    makeValueRef v = v >>= makeValueRef
-    {-# INLINE makeValueRef #-}
+-- | JSVal can be made by evaluating a function in 'JSM' as long
+--   as it returns something we can make into a JSVal.
+instance MakeVal v => MakeVal (JSM v) where
+    makeVal v = v >>= makeVal
+    {-# INLINE makeVal #-}
 
 ----------- null ---------------
 -- | Make a @null@ JavaScript value
-valMakeNull :: JSM JSValueRef
+valMakeNull :: JSM JSVal
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valMakeNull = return jsNull
 #else
@@ -342,18 +346,30 @@ valMakeNull = ask >>= (liftIO . jsvaluemakenull)
 {-# INLINE valMakeNull #-}
 
 -- | Makes a @null@ JavaScript value
-instance MakeValueRef JSNull where
-    makeValueRef = const valMakeNull
-    {-# INLINE makeValueRef #-}
+instance MakeVal JSNull where
+    makeVal = const valMakeNull
+    {-# INLINE makeVal #-}
 
 -- | Makes an argument list with just a single @null@ JavaScript value
-instance MakeArgRefs JSNull where
-    makeArgRefs _ = valMakeNull >>= (\ref -> return [ref])
-    {-# INLINE makeArgRefs #-}
+instance MakeArgs JSNull where
+    makeArgs _ = valMakeNull >>= (\ref -> return [ref])
+    {-# INLINE makeArgs #-}
+
+-- | Test a JavaScript value to see if it is @null@
+valIsNull :: MakeVal val => val -> JSM Bool
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+valIsNull val = isNull <$> makeVal val
+#else
+valIsNull val = do
+    gctxt <- ask
+    rval <- makeVal val
+    liftIO $ jsvalueisnull gctxt rval
+#endif
+{-# INLINE valIsNull #-}
 
 ----------- undefined ---------------
 -- | Make an @undefined@ JavaScript value
-valMakeUndefined :: JSM JSValueRef
+valMakeUndefined :: JSM JSVal
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valMakeUndefined = return jsUndefined
 #else
@@ -362,23 +378,47 @@ valMakeUndefined = ask >>= (liftIO . jsvaluemakeundefined)
 {-# INLINE valMakeUndefined #-}
 
 -- | Makes an @undefined@ JavaScript value
-instance MakeValueRef JSUndefined where
-    makeValueRef = const valMakeUndefined
-    {-# INLINE makeValueRef #-}
+instance MakeVal JSUndefined where
+    makeVal = const valMakeUndefined
+    {-# INLINE makeVal #-}
 
 --We can't allow this if JSUndefined is () as () is no args not "(null)".
 --Use [()] instead.
---instance MakeArgRefs JSUndefined where
---    makeArgRefs _ = valMakeUndefined >>= (\ref -> return [ref])
+--instance MakeArgs JSUndefined where
+--    makeArgs _ = valMakeUndefined >>= (\ref -> return [ref])
 
--- | This allows us to pass no arguments easily (altenative would be to use @[]::[JSValueRef]@).
-instance MakeArgRefs () where
-    makeArgRefs _ = return []
-    {-# INLINE makeArgRefs #-}
+-- | This allows us to pass no arguments easily (altenative would be to use @[]::[JSVal]@).
+instance MakeArgs () where
+    makeArgs _ = return []
+    {-# INLINE makeArgs #-}
+
+-- | Test a JavaScript value to see if it is @undefined@
+valIsUndefined :: MakeVal val => val -> JSM Bool
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+valIsUndefined val = isUndefined <$> makeVal val
+#else
+valIsUndefined val = do
+    gctxt <- ask
+    rval <- makeVal val
+    liftIO $ jsvalueisundefined gctxt rval
+#endif
+{-# INLINE valIsUndefined #-}
+
+-- | Convert a JSVal to a Maybe JSVal (converting null and undefined to Nothing)
+maybeNullOrUndefined :: MakeVal val => val -> JSM (Maybe JSVal)
+maybeNullOrUndefined val = do
+    rval <- makeVal val
+    valIsNull rval >>= \case
+        True -> return Nothing
+        _    ->
+            valIsUndefined rval >>= \case
+                True -> return Nothing
+                _    -> return (Just rval)
+{-# INLINE maybeNullOrUndefined #-}
 
 ----------- booleans ---------------
 -- | Make a JavaScript boolean value
-valMakeBool :: JSBool -> JSM JSValueRef
+valMakeBool :: Bool -> JSM JSVal
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valMakeBool b = return  $ toJSBool b
 #else
@@ -389,18 +429,18 @@ valMakeBool b = do
 {-# INLINE valMakeBool #-}
 
 -- | Make a JavaScript boolean value
-instance MakeValueRef Bool where
-    makeValueRef = valMakeBool
-    {-# INLINE makeValueRef #-}
+instance MakeVal Bool where
+    makeVal = valMakeBool
+    {-# INLINE makeVal #-}
 
 -- | Makes an argument list with just a single JavaScript boolean value
-instance MakeArgRefs Bool where
-    makeArgRefs b = valMakeBool b >>= (\ref -> return [ref])
-    {-# INLINE makeArgRefs #-}
+instance MakeArgs Bool where
+    makeArgs b = valMakeBool b >>= (\ref -> return [ref])
+    {-# INLINE makeArgs #-}
 
 ----------- numbers ---------------
 -- | Make a JavaScript number
-valMakeNumber :: JSNumber -> JSM JSValueRef
+valMakeNumber :: Double -> JSM JSVal
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valMakeNumber n = liftIO $ toJSVal n
 #else
@@ -411,18 +451,18 @@ valMakeNumber n = do
 {-# INLINE valMakeNumber #-}
 
 -- | Makes a JavaScript number
-instance MakeValueRef Double where
-    makeValueRef = valMakeNumber
-    {-# INLINE makeValueRef #-}
+instance MakeVal Double where
+    makeVal = valMakeNumber
+    {-# INLINE makeVal #-}
 
 -- | Makes an argument list with just a single JavaScript number
-instance MakeArgRefs Double where
-    makeArgRefs n = valMakeNumber n >>= (\ref -> return [ref])
-    {-# INLINE makeArgRefs #-}
+instance MakeArgs Double where
+    makeArgs n = valMakeNumber n >>= (\ref -> return [ref])
+    {-# INLINE makeArgs #-}
 
 ----------- numbers ---------------
 -- | Make a JavaScript string
-valMakeString :: Text -> JSM JSValueRef
+valMakeString :: Text -> JSM JSVal
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 valMakeString = return . pToJSVal . textToJSString
 #else
@@ -433,19 +473,19 @@ valMakeString text = do
 {-# INLINE valMakeString #-}
 
 -- | Makes a JavaScript string
-instance MakeValueRef Text where
-    makeValueRef = valMakeString
-    {-# INLINE makeValueRef #-}
+instance MakeVal Text where
+    makeVal = valMakeString
+    {-# INLINE makeVal #-}
 
 -- | Makes an argument list with just a single JavaScript string
-instance MakeArgRefs Text where
-    makeArgRefs t = valMakeString t >>= (\ref -> return [ref])
-    {-# INLINE makeArgRefs #-}
+instance MakeArgs Text where
+    makeArgs t = valMakeString t >>= (\ref -> return [ref])
+    {-# INLINE makeArgs #-}
 
 -- | Makes a JavaScript string
-instance MakeValueRef String where
-    makeValueRef = valMakeString . T.pack
-    {-# INLINE makeValueRef #-}
+instance MakeVal String where
+    makeVal = valMakeString . T.pack
+    {-# INLINE makeVal #-}
 
 -- | Derefernce a value reference.
 --
@@ -467,35 +507,34 @@ instance MakeValueRef String where
 -- ValString "1"
 -- >>> testJSaddle $ show <$> valToObject True >>= deRefVal
 -- ValObject 0x...
-deRefVal :: MakeValueRef val => val -> JSM JSValue
+deRefVal :: MakeVal val => val -> JSM JSValue
 #if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
 deRefVal val = do
-    gctxt <- ask
-    valref <- makeValueRef val
+    valref <- makeVal val
     case (jsrefGetType valref :: Int) of
         0 -> return ValUndefined
         1 -> return ValNull
         2 -> ValBool   <$> valToBool valref
         3 -> ValNumber <$> valToNumber valref
-        4 -> ValString <$> (valToStr valref >>= strToText)
+        4 -> ValString <$> valToText valref
         5 -> ValObject <$> valToObject valref
 foreign import javascript unsafe "$r = ($1 === undefined)?0:\
                                        ($1===null)?1:\
                                        (typeof $1===\"boolean\")?2:\
                                        (typeof $1===\"number\")?3:\
                                        (typeof $1===\"string\")?4:\
-                                       (typeof $1===\"object\")?5:-1;" jsrefGetType :: JSValueRef -> Int
+                                       (typeof $1===\"object\")?5:-1;" jsrefGetType :: JSVal -> Int
 #elif defined(USE_WEBKIT)
 deRefVal val = do
     gctxt <- ask
-    valref <- makeValueRef val
+    valref <- makeVal val
     t <- liftIO $ jsvaluegettype gctxt valref
     case t of
         Kjstypenull      -> return ValNull
         Kjstypeundefined -> return ValUndefined
         Kjstypeboolean   -> ValBool   <$> valToBool valref
         Kjstypenumber    -> ValNumber <$> valToNumber valref
-        Kjstypestring    -> ValString <$> (valToStr valref >>= strToText)
+        Kjstypestring    -> ValString <$> valToText valref
         Kjstypeobject    -> ValObject <$> valToObject valref
 #else
 deRefVal = undefined
@@ -513,7 +552,7 @@ deRefVal = undefined
 -- "1"
 -- >>> testJSaddle $ valMakeRef (ValString $ pack "Hello")
 -- "Hello"
-valMakeRef :: JSValue -> JSM JSValueRef
+valMakeRef :: JSValue -> JSM JSVal
 valMakeRef val =
     case val of
         ValNull              -> valMakeNull
@@ -524,14 +563,14 @@ valMakeRef val =
         ValObject (Object o) -> return o
 
 -- | Makes a JavaScript value from a 'JSValue' ADT.
-instance MakeValueRef JSValue where
-    makeValueRef = valMakeRef
-    {-# INLINE makeValueRef #-}
+instance MakeVal JSValue where
+    makeVal = valMakeRef
+    {-# INLINE makeVal #-}
 
 -- | Makes an argument list with just a single JavaScript value from a 'JSValue' ADT.
-instance MakeArgRefs JSValue where
-    makeArgRefs v = valMakeRef v >>= (\ref -> return [ref])
-    {-# INLINE makeArgRefs #-}
+instance MakeArgs JSValue where
+    makeArgs v = valMakeRef v >>= (\ref -> return [ref])
+    {-# INLINE makeArgs #-}
 
 --instance MakeObjectRef JSNull where
 --    makeObjectRef _ = Object <$> valMakeNull

@@ -13,13 +13,13 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.Types (
-    JSValueRef(..)
-  , JSValueRefRef(..)
+    JSVal(..)
+  , MutableJSArray(..)
   , Object(..)
-  , JSPropertyNameArrayRef(..)
+  , JSPropertyNameArray(..)
   , JSPropertyAttributes(..)
   , JSContextRef(..)
-  , JSStringRef(..)
+  , JSString(..)
   , Index(..)
 ) where
 
@@ -37,14 +37,15 @@ import Foreign.C (CUInt(..))
 #endif
 
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
-type JSValueRef  = JSVal
-type JSValueRefRef = MutableJSArray
-newtype JSPropertyNameArrayRef = JSPropertyNameArrayRef { unJSPropertyNameArrayRef :: JSVal }
+newtype JSPropertyNameArray = JSPropertyNameArray { unJSPropertyNameArrayRef :: JSVal }
 type JSPropertyAttributes = Word
 type JSContextRef  = ()
-type JSStringRef   = JSString
 type Index         = Int
 #else
+type JSVal = JSValueRef
+type MutableJSArray = JSValueRefRef
+type JSPropertyNameArray = JSPropertyNameArrayRef
 type Index = CUInt
 newtype Object = Object JSObjectRef
+type JSString = JSStringRef
 #endif
