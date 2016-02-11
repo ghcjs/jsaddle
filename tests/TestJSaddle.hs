@@ -13,6 +13,8 @@
 
 module Main (
     main
+  , showJSaddle
+  , listWindowProperties
 ) where
 
 import Prelude hiding((!!), catch)
@@ -30,38 +32,42 @@ import Graphics.UI.Gtk.WebKit.WebView
        (webViewGetMainFrame, webViewNew)
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Monad.Trans.Reader (runReaderT)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase (JSContextRef)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.WebFrame
        (webFrameGetGlobalContext)
 import Language.Javascript.JSaddle
-import Data.Text (Text)
 import qualified Data.Text as T
-import Control.Applicative
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (forM, when)
 import System.Log.Logger (debugM)
 import Control.Lens.Getter ((^.))
 import Data.Monoid ((<>))
+import Control.Concurrent.MVar (MVar)
 
 data TestState = TestState { jsContext :: JSContextRef, window :: Window }
 
+state :: MVar (Maybe TestState)
 state = unsafePerformIO $ newMVar Nothing
-done = unsafePerformIO $ newEmptyMVar
+{-# NOINLINE state #-}
+
+done :: MVar ()
+done = unsafePerformIO newEmptyMVar
+{-# NOINLINE done #-}
 
 -- >>> testJSaddle $ ((global ^. js "console" . js "log") # ["Hello"])
-testJSaddle :: MakeVal val => JSM val -> IO ()
+testJSaddle :: ToJSVal val => JSM val -> IO ()
 testJSaddle = testJSaddle' False
 
 -- >>> showJSaddle $ eval "document.body.innerHTML = 'Test'"
-showJSaddle :: MakeVal val => JSM val -> IO ()
+showJSaddle :: ToJSVal val => JSM val -> IO ()
 showJSaddle = testJSaddle' True
 
+debugLog :: String -> IO ()
 debugLog = debugM "jsaddle"
 
-testJSaddle' :: MakeVal val => Bool -> JSM val -> IO ()
+testJSaddle' :: ToJSVal val => Bool -> JSM val -> IO ()
 testJSaddle' showWindow f = do
     debugLog "taking done"
-    tryTakeMVar done
+    _ <- tryTakeMVar done
     debugLog "taking state"
     mbState <- takeMVar state
     TestState {..} <- case mbState of
@@ -69,22 +75,22 @@ testJSaddle' showWindow f = do
             debugLog "newState"
             newState <- newEmptyMVar
             debugLog "fork"
-            forkIO $ do
+            _ <- forkIO $ do
                 debugLog "initGUI"
-                initGUI
+                _ <- initGUI
                 debugLog "windowNew"
                 window <- windowNew
                 debugLog "timeoutAdd"
-                timeoutAddFull (yield >> return True) priorityLow 10
+                _ <- timeoutAddFull (yield >> return True) priorityLow 10
                 windowSetDefaultSize window 900 600
                 windowSetPosition window WinPosCenter
                 scrollWin <- scrolledWindowNew Nothing Nothing
                 webView <- webViewNew
                 window `containerAdd` scrollWin
                 scrollWin `containerAdd` webView
-                on window objectDestroy $ do
+                _ <- on window objectDestroy $ do
                     debugLog "onDestroy"
-                    tryTakeMVar state
+                    _ <- tryTakeMVar state
                     debugLog "put state"
                     putMVar state Nothing
                     debugLog "mainQuit"
@@ -112,12 +118,14 @@ testJSaddle' showWindow f = do
     putMVar state $ Just TestState {..}
     return x
 
+main :: IO ()
 main = do
     testJSaddle $ return ()
     Just TestState{..} <- takeMVar state
     postGUIAsync $ widgetDestroy window
     takeMVar done
 
+listWindowProperties :: IO ()
 listWindowProperties = testJSaddle $ T.pack . show <$> do
   window <- jsg "window"
   names <- propertyNames window
@@ -129,7 +137,7 @@ listWindowProperties = testJSaddle $ T.pack . show <$> do
         \(JSException e) -> do
             n <- strToText name
             msg <- valToText e
-            return (n, (T.pack $ " error ") <> msg)
+            return (n, T.pack " error " <> msg)
 
 
 

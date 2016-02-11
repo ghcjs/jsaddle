@@ -22,7 +22,6 @@ import Language.Javascript.JSaddle.Types
 import Data.Typeable (Typeable)
 import Language.Javascript.JSaddle.Monad (catchval, JSM)
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Text (Text)
 
 newtype JSException = JSException JSVal deriving (Typeable)
 

@@ -1,87 +1,114 @@
 name: jsaddle
 version: 0.3.0.0
 cabal-version: >=1.10
+build-type: Simple
 license: MIT
 license-file: LICENSE
 maintainer: Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
 synopsis: High level interface for webkit-javascriptcore
-description: This package provides an EDSL for calling JavaScript code using
-             the JavaScriptCore engine and low level Haskell bindings
-             in the webkit-javascriptcore library <https://github.com/ghcjs/webkit-javascriptcore>.
-author: Hamish Mackenzie
-data-dir: ""
+description:
+    This package provides an EDSL for calling JavaScript code using
+    the JavaScriptCore engine and low level Haskell bindings
+    in the webkit-javascriptcore library <https://github.com/ghcjs/webkit-javascriptcore>.
 category: Web, Javascript
-build-type: Simple
+author: Hamish Mackenzie
 
-Source-Repository head
-  type:         git
-  location:     https://github.com/ghcjs/jsaddle
+source-repository head
+    type: git
+    location: https://github.com/ghcjs/jsaddle
 
 flag gtk3
-    Description: Use GTK3 rather than GTK2
-    Default: True
+    description:
+        Use GTK3 rather than GTK2
 
 flag jsffi
-    description: Use JavaScriptFFI extension for GHCJS JavaScript output
-    default: True
+    description:
+        Use JavaScriptFFI extension for GHCJS JavaScript output
 
 flag webkit
-    description: Use WebKitGtk and JavaScriptCore for GHCJS output
+    description:
+        Use WebKitGtk and JavaScriptCore for GHCJS output
     default: False
 
 library
-    if impl(ghcjs) && flag(jsffi)
+
+    if (impl(ghcjs -any) && flag(jsffi))
+        build-depends:
+            ghcjs-base -any,
+            ghcjs-prim -any
         cpp-options: -DUSE_JAVASCRIPTFFI
-        build-depends: ghcjs-base,
-                       ghcjs-prim
 
-    if !impl(ghcjs) || flag(webkit)
-        cpp-options: -DUSE_WEBKIT
+    if (!impl(ghcjs -any) || flag(webkit))
+
         if flag(gtk3)
-            build-depends: webkitgtk3 >=0.13.0.0 && <0.15,
-                           webkitgtk3-javascriptcore >=0.13.0.0 && <0.14
+            build-depends:
+                gtk3 >=0.14.2 && <0.15,
+                webkitgtk3 >=0.13.0.0 && <0.15,
+                webkitgtk3-javascriptcore >=0.13.0.0 && <0.14
         else
-            build-depends: webkit >=0.13.0.0 && <0.15,
-                           webkit-javascriptcore >=0.13.0.0 && <0.14
-
-    build-depends: template-haskell -any, base <5, lens >=3.8.5 && <4.14,
-                   text >=0.11.2.3 && <1.3, transformers >=0.3.0.0 && <0.5
-
-    exposed-modules: Language.Javascript.JSaddle
-                     Language.Javascript.JSaddle.Arguments Language.Javascript.JSaddle.Classes
-                     Language.Javascript.JSaddle.Evaluate Language.Javascript.JSaddle.Exception
-                     Language.Javascript.JSaddle.Monad
-                     Language.Javascript.JSaddle.Object Language.Javascript.JSaddle.Properties
-                     Language.Javascript.JSaddle.String Language.Javascript.JSaddle.Value
-                     Language.Javascript.JSaddle.Types
-    exposed: True
-    buildable: True
+            build-depends:
+                gtk >=0.14.2 && <0.15,
+                webkit >=0.13.0.0 && <0.15,
+                webkit-javascriptcore >=0.13.0.0 && <0.14
+        cpp-options: -DUSE_WEBKIT
+    exposed-modules:
+        Language.Javascript.JSaddle
+        Language.Javascript.JSaddle.Arguments
+        Language.Javascript.JSaddle.Classes
+        Language.Javascript.JSaddle.Evaluate
+        Language.Javascript.JSaddle.Exception
+        Language.Javascript.JSaddle.Monad
+        Language.Javascript.JSaddle.Native
+        Language.Javascript.JSaddle.Object
+        Language.Javascript.JSaddle.Properties
+        Language.Javascript.JSaddle.String
+        Language.Javascript.JSaddle.Value
+        Language.Javascript.JSaddle.Types
+    build-depends:
+        template-haskell -any,
+        base <5,
+        lens >=3.8.5 && <4.14,
+        text >=0.11.2.3 && <1.3,
+        transformers >=0.3.0.0 && <0.5
     default-language: Haskell2010
     hs-source-dirs: src
     ghc-options: -ferror-spans
 
 test-suite test-tool
-    if !impl(ghcjs) || flag(webkit)
-        buildable: True
-    else
+
+    if (impl(ghcjs -any) && !flag(webkit))
         buildable: False
 
-    if impl(ghcjs) && flag(jsffi)
+    if (impl(ghcjs -any) && flag(jsffi))
+        build-depends:
+            ghcjs-base -any,
+            ghcjs-prim -any
         cpp-options: -DUSE_JAVASCRIPTFFI
-        build-depends: ghcjs-base,
-                       ghcjs-prim
 
-    if !impl(ghcjs) || flag(webkit)
-        cpp-options: -DUSE_WEBKIT
-        build-depends: glib
+    if (!impl(ghcjs -any) || flag(webkit))
+
         if flag(gtk3)
-            build-depends: gtk3, webkitgtk3, webkitgtk3-javascriptcore
+            build-depends:
+                gtk3 -any,
+                webkitgtk3 -any,
+                webkitgtk3-javascriptcore -any
         else
-            build-depends: gtk, webkit, webkit-javascriptcore
-
-    build-depends: template-haskell, base, lens, text,
-                   transformers, hslogger, jsaddle
+            build-depends:
+                gtk -any,
+                webkit -any,
+                webkit-javascriptcore -any
+        build-depends:
+            glib -any
+        cpp-options: -DUSE_WEBKIT
     type: exitcode-stdio-1.0
     main-is: TestJSaddle.hs
+    build-depends:
+        template-haskell -any,
+        base -any,
+        lens -any,
+        text -any,
+        transformers -any,
+        hslogger -any,
+        jsaddle -any
     default-language: Haskell2010
     hs-source-dirs: tests

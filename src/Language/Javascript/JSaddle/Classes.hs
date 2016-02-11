@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Classes
@@ -14,34 +16,32 @@
 
 module Language.Javascript.JSaddle.Classes (
   -- * Type classes to convert Haskell data to JavaScript
-    MakeVal(..)
-  , MakeString(..)
-  , MakeArgs(..)
+    ToJSVal(..)
+  , ToJSString(..)
   , MakeObject(..)
 ) where
 
-import Control.Monad.IO.Class (MonadIO)
 import Language.Javascript.JSaddle.Types
-       (Object(..), JSString, JSVal(..))
-import Language.Javascript.JSaddle.Monad (JSM)
+       (JSM, Object(..), JSString, JSVal)
 
 -- | Anything that can be used to make a JavaScript value reference
-class MakeVal a where
-    makeVal :: a -> JSM JSVal
+class ToJSVal a where
+    toJSVal :: a -> JSM JSVal
 
 -- | Anything that can be used to make a JavaScript string reference
-class MakeString a where
-    makeString :: a -> JSString
-
--- | Anything that can be used to make a list of JavaScript value
---   references for use as function arguments
-class MakeArgs this where
-    makeArgs :: this -> JSM [JSVal]
+class ToJSVal a => ToJSString a where
+    toJSString :: a -> JSString
 
 -- | Anything that can be used to make a JavaScript object reference
 class MakeObject this where
     makeObject :: this -> JSM Object
 
-instance MakeVal Object where
-    makeVal (Object r) = return r
-    {-# INLINE makeVal #-}
+instance ToJSVal Object where
+    toJSVal (Object r) = return r
+    {-# INLINE toJSVal #-}
+
+-- | If we already have a Object we are fine
+instance MakeObject Object where
+    makeObject = return
+    {-# INLINE makeObject #-}
+

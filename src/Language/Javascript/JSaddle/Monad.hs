@@ -13,27 +13,32 @@
 
 module Language.Javascript.JSaddle.Monad (
   -- * Types
-    JSM(..)
+    JSM
   , JSContextRef
 
   -- * Running JSaddle given a DOM Window
   , runJSaddle
-  , runJSaddle_
 
   -- * Exception Handling
   , catchval
   , catch
+  , bracket
+
+  -- * GUI thread support
+  , postGUIAsyncJS
+  , postGUISyncJS
 ) where
 
 import Prelude hiding (catch, read)
 import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
 import Language.Javascript.JSaddle.Types
-       (JSVal(..), MutableJSArray(..), JSContextRef)
+       (JSM, JSVal, MutableJSArray, JSContextRef)
 import Control.Monad.IO.Class (MonadIO(..))
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
 import GHCJS.Types (isUndefined, isNull)
 import qualified JavaScript.Array as Array (create, read)
 #else
+import Language.Javascript.JSaddle.Native (makeNewJSVal)
 import Foreign (nullPtr, alloca)
 import Foreign.Storable (Storable(..))
 import Graphics.UI.Gtk.WebKit.Types
@@ -42,19 +47,9 @@ import Graphics.UI.Gtk.WebKit.WebView
        (webViewGetMainFrame)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.WebFrame
        (webFrameGetGlobalContext)
+import Graphics.UI.Gtk.General.General (postGUIAsync, postGUISync)
 #endif
-import qualified Control.Exception as E (Exception, catch)
-import Control.Monad (void)
-
--- | The @JSM@ monad keeps track of the JavaScript context.
---
--- Given a @JSM@ function and a 'JSContextRef' you can run the
--- function like this...
---
--- > runReaderT jsmFunction javaScriptContext
---
--- For an example of how to set up WebKitGTK+ see tests/TestJSaddle.hs
-type JSM = ReaderT JSContextRef IO
+import qualified Control.Exception as E (Exception, catch, bracket)
 
 -- | Wrapped version of 'E.catch' that runs in a MonadIO that works
 --   a bit better with 'JSM'
@@ -66,6 +61,17 @@ t `catch` c = do
     r <- ask
     liftIO (runReaderT t r `E.catch` \e -> runReaderT (c e) r)
 {-# INLINE catch #-}
+
+-- | Wrapped version of 'E.bracket' that runs in a MonadIO that works
+--   a bit better with 'JSM'
+bracket :: MonadIO m => ReaderT r IO a -> (a -> ReaderT r IO b) -> (a -> ReaderT r IO c) -> ReaderT r m c
+bracket aquire release f = do
+    r <- ask
+    liftIO $ E.bracket
+        (runReaderT aquire r)
+        (\x -> runReaderT (release x) r)
+        (\x -> runReaderT (f x) r)
+{-# INLINE bracket #-}
 
 -- | Handle JavaScriptCore functions that take a MutableJSArray in order
 --   to throw exceptions.
@@ -86,7 +92,7 @@ catchval f catcher = do
         exc <- liftIO $ peek pexc
         if exc == nullPtr
             then return result
-            else catcher exc
+            else makeNewJSVal exc >>= catcher
 #endif
 
 #if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
@@ -100,5 +106,23 @@ runJSaddle webView f = do
 #endif
 {-# INLINE runJSaddle #-}
 
-runJSaddle_ w f = void $ runJSaddle w f
-{-# INLINE runJSaddle_ #-}
+postGUIAsyncJS :: JSM () -> JSM ()
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+postGUIAsyncJS = id
+#else
+postGUIAsyncJS f = do
+    r <- ask
+    liftIO . postGUIAsync $ runReaderT f r
+#endif
+{-# INLINE postGUIAsyncJS #-}
+
+postGUISyncJS :: JSM a -> JSM a
+#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+postGUISyncJS = id
+#else
+postGUISyncJS f = do
+    r <- ask
+    liftIO . postGUISync $ runReaderT f r
+#endif
+{-# INLINE postGUISyncJS #-}
+

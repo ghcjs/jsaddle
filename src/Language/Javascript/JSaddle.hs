@@ -52,6 +52,8 @@ module Language.Javascript.JSaddle (
     module JSaddle
 ) where
 
+import Language.Javascript.JSaddle.Types as JSaddle
+import Language.Javascript.JSaddle.Classes as JSaddle
 import Language.Javascript.JSaddle.Monad as JSaddle
 import Language.Javascript.JSaddle.Exception as JSaddle
 import Language.Javascript.JSaddle.Value as JSaddle
