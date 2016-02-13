@@ -89,6 +89,7 @@ module Language.Javascript.JSaddle.Object (
   , nullObject
 ) where
 
+import Control.Applicative
 import Prelude hiding ((!!))
 import Language.Javascript.JSaddle.Types
        (JSPropertyNameArray, JSString, Object(..), MutableJSArray,
@@ -104,7 +105,6 @@ import qualified JavaScript.Array as Array (toListIO, fromListIO)
 import JavaScript.Array.Internal (SomeJSArray(..))
 import qualified JavaScript.Object as Object (create)
 import Control.Monad (liftM)
-import Control.Applicative ((<$>))
 import Data.Coerce (coerce)
 #else
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef

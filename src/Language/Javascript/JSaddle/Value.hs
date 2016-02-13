@@ -70,7 +70,7 @@ module Language.Javascript.JSaddle.Value (
   , instanceOf
 ) where
 
-import Control.Applicative ((<$>))
+import Control.Applicative
 import Prelude hiding (catch)
 import Language.Javascript.JSaddle.Types
        (Object(..), JSString, JSVal)

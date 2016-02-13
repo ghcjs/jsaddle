@@ -17,6 +17,7 @@ module Language.Javascript.JSaddle.Test (
   , listWindowProperties
 ) where
 
+import Control.Applicative
 import Prelude hiding((!!), catch)
 import Graphics.UI.Gtk
        (Window, widgetDestroy, postGUIAsync, postGUISync, widgetShowAll,
