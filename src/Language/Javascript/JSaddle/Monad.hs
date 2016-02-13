@@ -34,7 +34,7 @@ import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
 import Language.Javascript.JSaddle.Types
        (JSM, JSVal, MutableJSArray, JSContextRef)
 import Control.Monad.IO.Class (MonadIO(..))
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 import GHCJS.Types (isUndefined, isNull)
 import qualified JavaScript.Array as Array (create, read)
 #else
@@ -77,7 +77,7 @@ bracket aquire release f = do
 --   to throw exceptions.
 catchval :: (MutableJSArray -> JSM a) -> (JSVal -> JSM a) -> JSM a
 catchval f catcher = do
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
     pexc   <- liftIO Array.create
     result <- f pexc
     exc    <- liftIO $ Array.read 0 pexc
@@ -95,7 +95,7 @@ catchval f catcher = do
             else makeNewJSVal exc >>= catcher
 #endif
 
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 runJSaddle :: w -> JSM a -> IO a
 runJSaddle _ f = runReaderT f ()
 #else
@@ -107,7 +107,7 @@ runJSaddle webView f = do
 {-# INLINE runJSaddle #-}
 
 postGUIAsyncJS :: JSM () -> JSM ()
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 postGUIAsyncJS = id
 #else
 postGUIAsyncJS f = do
@@ -117,7 +117,7 @@ postGUIAsyncJS f = do
 {-# INLINE postGUIAsyncJS #-}
 
 postGUISyncJS :: JSM a -> JSM a
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 postGUISyncJS = id
 #else
 postGUISyncJS f = do

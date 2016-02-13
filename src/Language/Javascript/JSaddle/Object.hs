@@ -3,7 +3,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Rank2Types #-}
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE JavaScriptFFI #-}
 #endif
@@ -94,7 +94,7 @@ import Language.Javascript.JSaddle.Types
        (JSPropertyNameArray, JSString, Object(..), MutableJSArray,
         JSVal, Index)
 import Foreign.C.Types (CSize(..), CULong(..))
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 import GHCJS.Types (nullRef, jsval)
 import GHCJS.Foreign.Callback
        (releaseCallback, syncCallback2, OnBlocked(..), Callback)
@@ -144,7 +144,13 @@ import Control.Lens (IndexPreservingGetter, to)
 import Language.Javascript.JSaddle.String (nullJSString)
 import Data.Text (Text)
 
--- | Object can be made by evaluating a function in 'JSM' as long
+-- $setup
+-- >>> import Language.Javascript.JSaddle.Test (testJSaddle)
+-- >>> import Language.Javascript.JSaddle.Evaluate (eval)
+-- >>> import Language.Javascript.JSaddle.Value (val)
+-- >>> import Control.Lens.Operators ((^.))
+
+-- | Object can be made by evaluating a fnction in 'JSM' as long
 --   as it returns something we can make into a Object.
 instance MakeObject v => MakeObject (JSM v) where
     makeObject v = v >>= makeObject
@@ -279,7 +285,8 @@ jsg name = global ! name
 --
 -- > jsgf name = jsg name . to (# args)
 --
--- >>> testJSaddle $ jsf "globalFunc" ["World"]
+-- >>> testJSaddle $ eval "globalFunc = function(x) {x.length}"
+-- >>> testJSaddle $ jsgf "globalFunc" ["World"]
 -- 6
 jsgf :: (ToJSString name, MakeArgs args) => name -> args -> JSM JSVal
 jsgf name = global # name
@@ -289,7 +296,7 @@ jsgf name = global # name
 --
 -- > jsg0 name = jsgf name ()
 --
--- >>> testJSaddle $ js0 "globalFunc"
+-- >>> testJSaddle $ jsg0 "globalFunc"
 -- hello world
 jsg0 :: (ToJSString name) => name -> JSM JSVal
 jsg0 name = jsgf name ()
@@ -396,7 +403,7 @@ infixr 1 <##
 -- If you pass more than 7 arguments to a constructor for a built in
 -- JavaScript type (like Date) then this function will fail.
 --
--- >>> testJSaddle $ new "Date" (2013, 1, 1)
+-- >>> testJSaddle $ new (jsg "Date") (2013, 1, 1)
 -- Fri Feb 01 2013 00:00:00 GMT+1300 (NZDT)
 new :: (MakeObject constructor, MakeArgs args)
     => constructor
@@ -426,12 +433,12 @@ call f this args = do
 -- >>> testJSaddle $ do { a <- obj; a ^. js "x" <# "Hello"; a ^. js "x" }
 -- Hello
 obj :: JSM Object
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 obj = liftIO Object.create
 #else
 obj = do
     gctxt <- ask
-    Object <$> ((liftIO $ jsobjectmake gctxt nullPtr nullPtr) >>= makeNewJSVal)
+    Object <$> (liftIO (jsobjectmake gctxt nullPtr nullPtr) >>= makeNewJSVal)
 #endif
 {-# INLINE obj #-}
 
@@ -456,12 +463,12 @@ fun :: JSCallAsFunction -> JSCallAsFunction
 fun = id
 {-# INLINE fun #-}
 
-#if (!defined(ghcjs_HOST_OS) || !defined(USE_JAVASCRIPTFFI)) && defined(USE_WEBKIT)
+#if !defined(ghcjs_HOST_OS)
 foreign import ccall "wrapper"
   mkJSObjectCallAsFunctionCallback :: JSObjectCallAsFunctionCallback' -> IO JSObjectCallAsFunctionCallback
 #endif
 
-#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 type HaskellCallback = Callback (JSVal -> JSVal -> IO ())
 #else
 type HaskellCallback = JSObjectCallAsFunctionCallback
@@ -475,7 +482,7 @@ function :: ToJSString name
          -> JSCallAsFunction -- ^ Haskell function to call
          -> JSM Function       -- ^ Returns a JavaScript function object that will
                              --   call the Haskell one when it is called
-#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
+#ifdef ghcjs_HOST_OS
 function name f = liftIO $ do
     callback <- syncCallback2 ContinueAsync $ \this args -> do
         rargs <- Array.toListIO (coerce args)
@@ -483,13 +490,13 @@ function name f = liftIO $ do
     Function callback <$> makeFunctionWithCallback (toJSString name) callback
 foreign import javascript unsafe "$r = function () { $2(this, arguments); }"
     makeFunctionWithCallback :: JSString -> Callback (JSVal -> JSVal -> IO ()) -> IO Object
-#elif defined(USE_WEBKIT)
+#else
 function name f = do
     gctxt <- ask
     callback <- liftIO $ mkJSObjectCallAsFunctionCallback (wrap gctxt)
     withJSString (toJSString name) $ \name' ->
         Function callback . Object <$>
-            ((liftIO $ jsobjectmakefunctionwithcallback gctxt name' callback) >>= makeNewJSVal)
+            (liftIO (jsobjectmakefunctionwithcallback gctxt name' callback) >>= makeNewJSVal)
   where
     wrap gctxt _ctx fobj' this' argc argv exception = do
             args' <- peekArray (fromIntegral argc) argv
@@ -499,17 +506,15 @@ function name f = do
                 args <- mapM makeNewJSVal args'
                 f fobj this args
                 liftIO $ jsvaluemakeundefined gctxt
-      `E.catch` \(e :: SomeException) -> do
+      `E.catch` \(e :: SomeException) ->
             (`runReaderT` gctxt) $ do
                 withToJSVal (show e) $ liftIO . poke exception
                 liftIO $ jsvaluemakeundefined gctxt
-#else
-function  = undefined
 #endif
 
 freeFunction :: MonadIO m => Function -> m ()
 freeFunction (Function callback _) = liftIO $
-#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
     releaseCallback callback
 #else
     freeHaskellFunPtr callback
@@ -533,7 +538,7 @@ instance MakeArgs JSCallAsFunction where
     {-# INLINE makeArgs #-}
 
 makeArray :: MakeArgs args => args -> MutableJSArray -> JSM Object
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 makeArray args exceptions = do
     rargs <- makeArgs args
     liftIO $ Object . jsval <$> Array.fromListIO rargs
@@ -599,23 +604,21 @@ instance ToJSVal [Bool] where
 
 -- | JavaScript's global object
 global :: JSM Object
-#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
+#ifdef ghcjs_HOST_OS
 global = liftIO js_window
 {-# INLINE global #-}
 foreign import javascript unsafe "$r = window"
     js_window :: IO Object
-#elif defined(USE_WEBKIT)
+#else
 global = do
     gctxt <- ask
     result <- liftIO $ jscontextgetglobalobject gctxt
     Object <$> makeNewJSVal result
 {-# INLINE global #-}
-#else
-global = undefined
 #endif
 
 -- | Get an array containing the property names present on a given object
-#if (!defined(ghcjs_HOST_OS) || !defined(USE_JAVASCRIPTFFI)) && defined(USE_WEBKIT)
+#if !defined(ghcjs_HOST_OS)
 copyPropertyNames :: MakeObject this => this -> JSM JSPropertyNameArray
 copyPropertyNames this = do
     gctxt <- ask
@@ -644,16 +647,14 @@ propertyNamesList names = do
 
 -- | Get a list containing the property names present on a given object
 propertyNames :: MakeObject this => this -> JSM [JSString]
-#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
+#ifdef ghcjs_HOST_OS
 propertyNames this = makeObject this >>= liftIO . js_propertyNames >>= liftIO . (fmap (map pFromJSVal)) . Array.toListIO
 {-# INLINE propertyNames #-}
 foreign import javascript unsafe "$r = []; h$forIn($1, function(n){$r.push(n);})"
     js_propertyNames :: Object -> IO JSArray
-#elif defined(USE_WEBKIT)
+#else
 propertyNames this = copyPropertyNames this >>= propertyNamesList
 {-# INLINE propertyNames #-}
-#else
-propertyNames = undefined
 #endif
 
 -- | Get a list containing references to all the  properties present on a given object
@@ -667,14 +668,14 @@ objCallAsFunction :: MakeArgs args
                   -> args
                   -> MutableJSArray
                   -> JSM JSVal
-#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
+#ifdef ghcjs_HOST_OS
 objCallAsFunction f this args exceptions = do
     rargs <- makeArgs args >>= liftIO . Array.fromListIO
     liftIO $ js_apply f this rargs exceptions
 {-# INLINE objCallAsFunction #-}
 foreign import javascript unsafe "try { $r = $1.apply($2, $3) } catch(e) { $4[0] = e }"
     js_apply :: Object -> Object -> MutableJSArray -> MutableJSArray -> IO JSVal
-#elif defined(USE_WEBKIT)
+#else
 objCallAsFunction f this args exceptions = do
     gctxt <- ask
     rargs <- makeArgs args
@@ -686,8 +687,6 @@ objCallAsFunction f this args exceptions = do
                         jsobjectcallasfunction gctxt rfunction rthis (fromIntegral largs) pargs exceptions
     makeNewJSVal result
 {-# INLINE objCallAsFunction #-}
-#else
-objCallAsFunction = undefined
 #endif
 
 -- | Call a JavaScript object as a constructor. Consider using 'new'.
@@ -699,7 +698,7 @@ objCallAsConstructor :: MakeArgs args
                      -> args
                      -> MutableJSArray
                      -> JSM JSVal
-#if defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)
+#ifdef ghcjs_HOST_OS
 objCallAsConstructor f args exceptions = do
     rargs <- makeArgs args >>= liftIO . Array.fromListIO
     liftIO $ js_new f rargs exceptions
@@ -731,7 +730,7 @@ foreign import javascript unsafe "\
         $3[0] = e;\
     }"
     js_new :: Object -> MutableJSArray -> MutableJSArray -> IO JSVal
-#elif defined(USE_WEBKIT)
+#else
 objCallAsConstructor f args exceptions = do
     gctxt <- ask
     rargs <- makeArgs args
@@ -741,12 +740,10 @@ objCallAsConstructor f args exceptions = do
                 liftIO $ withArrayLen rargs' $ \ largs pargs ->
                     jsobjectcallasconstructor gctxt rfunction (fromIntegral largs) pargs exceptions
     makeNewJSVal result
-#else
-objCallAsConstructor = undefined
 #endif
 
 nullObject :: Object
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 nullObject = Object nullRef
 #else
 nullObject = Object . unsafePerformIO $ newForeignPtr_ nullPtr

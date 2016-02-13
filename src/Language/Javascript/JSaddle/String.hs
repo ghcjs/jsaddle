@@ -26,7 +26,7 @@ module Language.Javascript.JSaddle.String (
 import Data.Text (Text)
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Types (JSString)
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 import Data.JSString.Text (textFromJSString, textToJSString)
 import GHCJS.Marshal.Internal (PFromJSVal(..))
 import GHCJS.Types (nullRef)
@@ -46,7 +46,7 @@ import Language.Javascript.JSaddle.Classes (ToJSString(..))
 
 -- | Convert a JavaScript string to a Haskell 'Text'
 strToText :: MonadIO m => JSString -> m Text
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 strToText = return . textFromJSString
 #else
 strToText jsstring' = liftIO $ withJSString jsstring' $ \jsstring -> do
@@ -58,7 +58,7 @@ strToText jsstring' = liftIO $ withJSString jsstring' $ \jsstring -> do
 
 -- | Convert a Haskell 'Text' to a JavaScript string
 textToStr :: Text -> JSString
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 textToStr = textToJSString
 #else
 textToStr text = unsafePerformIO $
@@ -68,7 +68,7 @@ textToStr text = unsafePerformIO $
 {-# INLINE textToStr #-}
 
 nullJSString :: JSString
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 nullJSString = pFromJSVal nullRef
 #else
 nullJSString = unsafePerformIO $ newForeignPtr_ nullPtr

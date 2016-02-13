@@ -12,10 +12,11 @@ matrix:
       addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.1,happy-1.19.5,alex-3.1.4,libwebkitgtk-dev,libwebkitgtk-3.0-dev], sources: [hvr-ghc]}}
     - env: CABALVER=1.22 GHCVER=7.10.2
       addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.2,happy-1.19.5,alex-3.1.4,libwebkitgtk-dev,libwebkitgtk-3.0-dev], sources: [hvr-ghc]}}
+    - env: CABALVER=1.22 GHCVER=7.10.3
+      addons: {apt: {packages: [cabal-install-1.22,ghc-7.10.3,happy-1.19.5,alex-3.1.4,libwebkitgtk-dev,libwebkitgtk-3.0-dev], sources: [hvr-ghc]}}
     - env: CABALVER=head GHCVER=head
       addons: {apt: {packages: [cabal-install-head,ghc-head,happy-1.19.5,alex-3.1.4,libwebkitgtk-dev,libwebkitgtk-3.0-dev],  sources: [hvr-ghc]}}
   allow_failures:
-    - env: CABALVER=1.22 GHCVER=7.10.2
     - env: CABALVER=head GHCVER=head
 
 before_install:

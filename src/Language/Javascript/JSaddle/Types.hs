@@ -26,7 +26,7 @@ module Language.Javascript.JSaddle.Types (
 ) where
 
 import Control.Monad.Trans.Reader (ReaderT(..))
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 import GHCJS.Types
 import JavaScript.Object.Internal (Object(..))
 import JavaScript.Array (MutableJSArray)
@@ -41,7 +41,7 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef (JSPropertyAttributes)
 import Foreign.C (CUInt(..))
 #endif
 
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 newtype JSPropertyNameArray = JSPropertyNameArray { unJSPropertyNameArrayRef :: JSVal }
 type JSPropertyAttributes = Word
 type JSContextRef  = ()

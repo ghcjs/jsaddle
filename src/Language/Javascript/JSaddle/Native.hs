@@ -12,7 +12,7 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.Native (
-#if !defined(ghcjs_HOST_OS) || !defined(USE_JAVASCRIPTFFI)
+#if !defined(ghcjs_HOST_OS)
     makeNewJSVal
   , makeNewJSString
   , wrapJSString
@@ -24,7 +24,7 @@ module Language.Javascript.JSaddle.Native (
 #endif
 ) where
 
-#if !defined(ghcjs_HOST_OS) || !defined(USE_JAVASCRIPTFFI)
+#if !defined(ghcjs_HOST_OS)
 import Control.Monad.Trans.Reader (ask)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
        (JSObjectRef, OpaqueJSString, JSStringRef, OpaqueJSContext,

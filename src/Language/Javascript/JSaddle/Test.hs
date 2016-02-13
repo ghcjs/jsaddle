@@ -11,8 +11,8 @@
 --
 -----------------------------------------------------------------------------
 
-module Main (
-    main
+module Language.Javascript.JSaddle.Test (
+    testJSaddle
   , showJSaddle
   , listWindowProperties
 ) where
@@ -38,7 +38,6 @@ import Language.Javascript.JSaddle
 import qualified Data.Text as T
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (forM, when)
-import System.Log.Logger (debugM)
 import Control.Lens.Getter ((^.))
 import Data.Monoid ((<>))
 import Control.Concurrent.MVar (MVar)
@@ -62,7 +61,7 @@ showJSaddle :: ToJSVal val => JSM val -> IO ()
 showJSaddle = testJSaddle' True
 
 debugLog :: String -> IO ()
-debugLog = debugM "jsaddle"
+debugLog = putStrLn
 
 testJSaddle' :: ToJSVal val => Bool -> JSM val -> IO ()
 testJSaddle' showWindow f = do
@@ -117,13 +116,6 @@ testJSaddle' showWindow f = do
     debugLog "put state"
     putMVar state $ Just TestState {..}
     return x
-
-main :: IO ()
-main = do
-    testJSaddle $ return ()
-    Just TestState{..} <- takeMVar state
-    postGUIAsync $ widgetDestroy window
-    takeMVar done
 
 listWindowProperties :: IO ()
 listWindowProperties = testJSaddle $ T.pack . show <$> do

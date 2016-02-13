@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI #-}
 #endif
 -----------------------------------------------------------------------------
@@ -35,7 +35,7 @@ import Language.Javascript.JSaddle.Monad (JSM)
 import Language.Javascript.JSaddle.Types
        (MutableJSArray, Object(..), JSPropertyAttributes,
         Index)
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 import Language.Javascript.JSaddle.Types (JSString)
 #else
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
@@ -56,7 +56,7 @@ objGetPropertyByName :: ToJSString name
                      -> name           -- ^ name of the property.
                      -> MutableJSArray -- ^ exception if one is raised.
                      -> JSM JSVal      -- ^ returns the property value.
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 objGetPropertyByName this name = liftIO . js_tryGetProp (toJSString name) this
 {-# INLINE objGetPropertyByName #-}
 foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
@@ -75,7 +75,7 @@ objGetPropertyAtIndex :: Object         -- ^ object to find the property on.
                       -> Index          -- ^ index of the property.
                       -> MutableJSArray -- ^ exception if one is raised.
                       -> JSM JSVal      -- ^ returns the property value.
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 objGetPropertyAtIndex this index = liftIO . js_tryIndex index this
 {-# INLINE objGetPropertyAtIndex #-}
 foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
@@ -96,7 +96,7 @@ objSetPropertyByName :: (ToJSString name, ToJSVal val)
                      -> JSPropertyAttributes -- ^ property attributes to give the property.
                      -> MutableJSArray       -- ^ exception if one is raised.
                      -> JSM ()
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 objSetPropertyByName this name val attributes exceptions = do
     vref <- toJSVal val
     liftIO $ js_trySetProp (toJSString name) this vref exceptions
@@ -120,7 +120,7 @@ objSetPropertyAtIndex :: (ToJSVal val)
                       -> val            -- ^ new value to set the property to.
                       -> MutableJSArray -- ^ exception if one is raised.
                       -> JSM ()
-#if (defined(ghcjs_HOST_OS) && defined(USE_JAVASCRIPTFFI)) || !defined(USE_WEBKIT)
+#ifdef ghcjs_HOST_OS
 objSetPropertyAtIndex this index val exceptions = do
     vref <- toJSVal val
     liftIO $ js_trySetAtIndex index this vref exceptions
