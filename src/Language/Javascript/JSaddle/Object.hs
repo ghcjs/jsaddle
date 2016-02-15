@@ -94,7 +94,7 @@ import Prelude hiding ((!!))
 import Language.Javascript.JSaddle.Types
        (JSPropertyNameArray, JSString, Object(..), MutableJSArray,
         JSVal, Index)
-import Foreign.C.Types (CSize(..), CULong(..))
+import Foreign.C.Types (CSize(..), CULong(..), CUInt(..), CULLong(..))
 #ifdef ghcjs_HOST_OS
 import GHCJS.Types (nullRef, jsval)
 import GHCJS.Foreign.Callback
