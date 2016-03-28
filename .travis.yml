@@ -28,6 +28,7 @@ install:
   - cabal update
   - cabal install Cabal cabal-install
   - cabal install gtk2hs-buildtools
+  - hash -r
   - ghc --version
   - cabal --version
 
