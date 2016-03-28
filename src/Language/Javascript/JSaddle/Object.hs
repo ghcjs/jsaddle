@@ -284,7 +284,7 @@ js5 name a0 a1 a2 a3 a4 = jsf name (a0, a1, a2, a3, a4)
 -- <BLANKLINE>
 -- undefined
 -- >>> testJSaddle $ do w <- jsg "console"; w ^. js1 "log" "Hello World"
--- ** Message: console message: ... @0: Hello World
+-- ** Message: console message:...@0: Hello World
 -- <BLANKLINE>
 -- undefined
 jsg :: ToJSString a => a -> JSM JSVal
