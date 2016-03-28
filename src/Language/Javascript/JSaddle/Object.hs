@@ -284,7 +284,7 @@ js5 name a0 a1 a2 a3 a4 = jsf name (a0, a1, a2, a3, a4)
 -- <BLANKLINE>
 -- undefined
 -- >>> testJSaddle $ do w <- jsg "console"; w ^. js1 "log" "Hello World"
--- ** Message: console message: [native code] @0: Hello World
+-- ** Message: console message: ... @0: Hello World
 -- <BLANKLINE>
 -- undefined
 jsg :: ToJSString a => a -> JSM JSVal
@@ -308,7 +308,7 @@ jsgf name = global # name
 -- > jsg0 name = jsgf name ()
 --
 -- >>> testJSaddle $ jsg0 "globalFunc"
--- TypeError: undefined is not an object (evaluating 'x.length')
+-- TypeError:...undefined...is not an objec...
 jsg0 :: (ToJSString name) => name -> JSM JSVal
 jsg0 name = jsgf name ()
 {-# INLINE jsg0 #-}

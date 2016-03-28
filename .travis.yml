@@ -28,11 +28,15 @@ install:
   - cabal update
   - cabal install Cabal cabal-install
   - cabal install gtk2hs-buildtools
+  - ghc --version
+  - cabal --version
 
 script:
   - cabal install --only-dependencies --enable-tests --force-reinstalls
   - cabal configure --enable-tests
   - cabal build
+  - xvfb-run ghc --version
+  - xvfb-run cabal --version
   - xvfb-run cabal test
   - cabal clean
   - cabal install --only-dependencies -f-gtk3 --enable-tests --force-reinstalls

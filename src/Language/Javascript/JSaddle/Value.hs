@@ -297,9 +297,9 @@ valToJSON indent value = do
 --   May throw JSException.
 --
 -- >>> testJSaddle $ (valToObject JSNull >>= valToText) `catch` \ (JSException e) -> valToText e
--- TypeError: null is not an object
+-- TypeError:...null...is not an object
 -- >>> testJSaddle $ (valToObject () >>= valToText) `catch` \ (JSException e) -> valToText e
--- TypeError: undefined is not an object
+-- TypeError:...undefined...is not an object
 -- >>> testJSaddle $ valToObject True
 -- true
 -- >>> testJSaddle $ valToObject False

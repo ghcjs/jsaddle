@@ -54,7 +54,7 @@ import Language.Javascript.JSaddle.Monad (JSM)
 --   specify a source URL and starting line number for beter error information.
 --
 -- >>> testJSaddle $ (evaluateScript "\n\n{" global "FileName" 53 >>= valToText) `catch` \(JSException e) -> array (e,e!"sourceURL", e!"line") >>= valToText
--- SyntaxError: Unexpected end of script,FileName,55
+-- SyntaxError: ...,FileName,55
 evaluateScript :: (ToJSString script, MakeObject this, ToJSString url)
                => script         -- ^ JavaScript to evaluate
                -> this
