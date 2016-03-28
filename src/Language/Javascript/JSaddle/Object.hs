@@ -420,7 +420,7 @@ infixr 1 <##
 -- JavaScript type (like Date) then this function will fail.
 --
 -- >>> testJSaddle $ new (jsg "Date") (2013, 1, 1)
--- Fri Feb 01 2013 00:00:00 GMT+1300 (NZDT)
+-- Fri Feb 01 2013 00:00:00 GMT+... (...)
 new :: (MakeObject constructor, MakeArgs args)
     => constructor
     -> args
