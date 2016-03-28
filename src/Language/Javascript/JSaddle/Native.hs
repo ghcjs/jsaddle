@@ -30,8 +30,8 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
        (JSObjectRef, OpaqueJSString, JSStringRef, OpaqueJSContext,
         OpaqueJSValue, JSValueRef)
 import Foreign.ForeignPtr
-       (touchForeignPtr, FinalizerPtr, newForeignPtr, FinalizerEnvPtr,
-        newForeignPtrEnv, ForeignPtr)
+       (newForeignPtr_, touchForeignPtr, FinalizerPtr, newForeignPtr,
+        FinalizerEnvPtr, newForeignPtrEnv, ForeignPtr)
 import Control.Monad.IO.Class (MonadIO, MonadIO(..))
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
        (jsvalueprotect)
@@ -41,6 +41,7 @@ import Language.Javascript.JSaddle.Types
        (JSM, JSString, Object(..), JSVal)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Language.Javascript.JSaddle.Classes (ToJSVal(..), ToJSVal)
+import Foreign.Ptr (nullPtr)
 
 makeNewJSVal :: JSValueRef -> JSM (ForeignPtr OpaqueJSValue)
 makeNewJSVal val = do
@@ -53,12 +54,16 @@ foreign import ccall unsafe "&JSValueUnprotect"
   jsValueUnprotect :: FinalizerEnvPtr OpaqueJSContext OpaqueJSValue
 
 makeNewJSString :: MonadIO m => JSStringRef -> m (ForeignPtr OpaqueJSString)
+makeNewJSString s | s == nullPtr =
+    liftIO $ newForeignPtr_ s
 makeNewJSString s =
     liftIO $ do
         s' <- jsstringretain s
         newForeignPtr jsStringRelease s'
 
 wrapJSString :: MonadIO m => JSStringRef -> m (ForeignPtr OpaqueJSString)
+wrapJSString s | s == nullPtr =
+    liftIO $ newForeignPtr_ s
 wrapJSString s = liftIO $ newForeignPtr jsStringRelease s
 
 foreign import ccall unsafe "&JSStringRelease"

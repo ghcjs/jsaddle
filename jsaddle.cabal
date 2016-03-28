@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.3.0.1
+version: 0.3.0.2
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -32,12 +32,12 @@ library
             build-depends:
                 gtk3 >=0.14.2 && <0.15,
                 webkitgtk3 >=0.13.0.0 && <0.15,
-                webkitgtk3-javascriptcore >=0.13.0.0 && <0.14
+                webkitgtk3-javascriptcore >=0.13.1.2 && <0.14
         else
             build-depends:
                 gtk >=0.14.2 && <0.15,
                 webkit >=0.13.0.0 && <0.15,
-                webkit-javascriptcore >=0.13.0.0 && <0.14
+                webkit-javascriptcore >=0.13.1.2 && <0.14
         build-depends:
             glib -any
     exposed-modules:

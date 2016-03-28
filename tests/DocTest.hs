@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Main (
     main
 ) where
@@ -5,7 +6,27 @@ module Main (
 import Test.DocTest
 
 main :: IO ()
-main = doctest ["-isrc",
+main = doctest [
+    "-idist/build/autgen",
+    "-optP-include",
+    "-optPdist/build/autogen/cabal_macros.h",
+    "-hide-all-packages",
+#ifdef VERSION_gtk3
+    "-package=gtk3-" ++ VERSION_gtk3,
+    "-package=webkitgtk3-" ++ VERSION_webkitgtk3,
+    "-package=webkitgtk3-javascriptcore-" ++ VERSION_webkitgtk3_javascriptcore,
+#else
+    "-package=gtk-" ++ VERSION_gtk,
+    "-package=webkit-" ++ VERSION_webkit,
+    "-package=webkit-javascriptcore-" ++ VERSION_webkit_javascriptcore,
+#endif
+    "-package=glib-" ++ VERSION_glib,
+    "-package=template-haskell-" ++ VERSION_template_haskell,
+    "-package=base-" ++ VERSION_base,
+    "-package=lens-" ++ VERSION_lens,
+    "-package=text-" ++ VERSION_text,
+    "-package=transformers-" ++ VERSION_transformers,
+    "-isrc",
     "src/Language/Javascript/JSaddle/Arguments.hs",
     "src/Language/Javascript/JSaddle/Classes.hs",
     "src/Language/Javascript/JSaddle/Evaluate.hs",

@@ -62,7 +62,7 @@ showJSaddle :: ToJSVal val => JSM val -> IO ()
 showJSaddle = testJSaddle' True
 
 debugLog :: String -> IO ()
-debugLog = putStrLn
+debugLog _ = return ()
 
 testJSaddle' :: ToJSVal val => Bool -> JSM val -> IO ()
 testJSaddle' showWindow f = do

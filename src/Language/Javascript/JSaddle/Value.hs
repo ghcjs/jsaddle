@@ -111,6 +111,8 @@ import Data.Int (Int32, Int64)
 -- >>> import Language.Javascript.JSaddle.Test (testJSaddle)
 -- >>> import Language.Javascript.JSaddle.Monad (catch)
 -- >>> import Language.Javascript.JSaddle.Exception (JSException(..))
+-- >>> import Language.Javascript.JSaddle.Object (obj)
+-- >>> import qualified Data.Text as T (pack)
 
 data JSNull      = JSNull -- ^ Type that represents a value that can only be null.
                           --   Haskell of course has no null so we are adding this type.
@@ -218,7 +220,7 @@ valToNumber value = do
 -- >>> testJSaddle $ valToStr (0.0 :: Double) >>= strToText
 -- 0
 -- >>> testJSaddle $ valToStr "" >>= strToText
---
+-- <BLANKLINE>
 -- >>> testJSaddle $ valToStr "1" >>= strToText
 -- 1
 valToStr :: ToJSVal value => value -> JSM JSString
@@ -263,7 +265,7 @@ valToText jsvar = valToStr jsvar >>= strToText
 -- >>> testJSaddle $ valToJSON 0 JSNull >>= strToText
 -- null
 -- >>> testJSaddle $ valToJSON 0 () >>= strToText
---
+-- <BLANKLINE>
 -- >>> testJSaddle $ valToJSON 0 True >>= strToText
 -- true
 -- >>> testJSaddle $ valToJSON 0 False >>= strToText
@@ -295,9 +297,9 @@ valToJSON indent value = do
 --   May throw JSException.
 --
 -- >>> testJSaddle $ (valToObject JSNull >>= valToText) `catch` \ (JSException e) -> valToText e
--- TypeError: 'null' is not an object
+-- TypeError: null is not an object
 -- >>> testJSaddle $ (valToObject () >>= valToText) `catch` \ (JSException e) -> valToText e
--- TypeError: 'undefined' is not an object
+-- TypeError: undefined is not an object
 -- >>> testJSaddle $ valToObject True
 -- true
 -- >>> testJSaddle $ valToObject False
@@ -307,7 +309,7 @@ valToJSON indent value = do
 -- >>> testJSaddle $ valToObject (0.0 :: Double)
 -- 0
 -- >>> testJSaddle $ valToObject ""
---
+-- <BLANKLINE>
 -- >>> testJSaddle $ valToObject "1"
 -- 1
 valToObject :: ToJSVal value => value -> JSM Object
@@ -578,23 +580,23 @@ instance ToJSString String where
 -- | Derefernce a value reference.
 --
 -- >>> testJSaddle $ showJSValue <$> deRefVal JSNull
--- ValNull
+-- null
 -- >>> testJSaddle $ showJSValue <$> deRefVal ()
--- ValUndefined
+-- undefined
 -- >>> testJSaddle $ showJSValue <$> deRefVal True
--- ValBool True
+-- true
 -- >>> testJSaddle $ showJSValue <$> deRefVal False
--- ValBool False
+-- false
 -- >>> testJSaddle $ showJSValue <$> deRefVal (1.0 :: Double)
--- ValNumber 1.0
+-- 1.0
 -- >>> testJSaddle $ showJSValue <$> deRefVal (0.0 :: Double)
--- ValNumber 0.0
+-- 0.0
 -- >>> testJSaddle $ showJSValue <$> deRefVal ""
--- ValString ""
+-- ""
 -- >>> testJSaddle $ showJSValue <$> deRefVal "1"
--- ValString "1"
--- >>> testJSaddle $ showJSValue <$> valToObject True >>= deRefVal
--- ValObject 0x...
+-- "1"
+-- >>> testJSaddle $ showJSValue <$> (valToObject True >>= deRefVal)
+-- object
 deRefVal :: ToJSVal value => value -> JSM JSValue
 #ifdef ghcjs_HOST_OS
 deRefVal value = do
@@ -629,15 +631,15 @@ deRefVal value = do
 -- | Make a JavaScript value out of a 'JSValue' ADT.
 --
 -- >>> testJSaddle $ valMakeRef ValNull
--- "null"
+-- null
 -- >>> testJSaddle $ valMakeRef ValUndefined
--- "undefined"
+-- undefined
 -- >>> testJSaddle $ valMakeRef (ValBool True)
--- "true"
+-- true
 -- >>> testJSaddle $ valMakeRef (ValNumber 1)
--- "1"
--- >>> testJSaddle $ valMakeRef (ValString $ pack "Hello")
--- "Hello"
+-- 1
+-- >>> testJSaddle $ valMakeRef (ValString $ T.pack "Hello")
+-- Hello
 valMakeRef :: JSValue -> JSM JSVal
 valMakeRef value =
     case value of

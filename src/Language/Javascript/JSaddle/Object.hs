@@ -112,8 +112,8 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef
         jspropertynamearraygetcount, jsobjectcopypropertynames,
         jsobjectcallasconstructor, jsobjectmakearray,
         jsobjectcallasfunction,
-        JSObjectCallAsFunctionCallback,
-        jsobjectmakefunctionwithcallback, JSObjectCallAsFunctionCallback')
+        JSObjectCallAsFunctionCallback, mkJSObjectCallAsFunctionCallback,
+        jsobjectmakefunctionwithcallback)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
        (jsvaluemakeundefined)
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSContextRef
@@ -121,8 +121,8 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSContextRef
 import Foreign (peekArray, nullPtr, withArrayLen)
 import Foreign.Ptr (freeHaskellFunPtr)
 import Language.Javascript.JSaddle.Native
-       (makeNewJSVal, wrapJSString, withJSVals, withObject, withJSString,
-        withToJSVal)
+       (makeNewJSString, makeNewJSVal, wrapJSString, withJSVals,
+        withObject, withJSString, withToJSVal)
 import System.IO.Unsafe (unsafePerformIO)
 import Foreign.ForeignPtr (newForeignPtr_)
 #endif
@@ -147,8 +147,9 @@ import Data.Text (Text)
 -- $setup
 -- >>> import Language.Javascript.JSaddle.Test (testJSaddle)
 -- >>> import Language.Javascript.JSaddle.Evaluate (eval)
--- >>> import Language.Javascript.JSaddle.Value (val)
+-- >>> import Language.Javascript.JSaddle.Value (val, valToText, JSNull(..))
 -- >>> import Control.Lens.Operators ((^.))
+-- >>> import qualified Data.Text as T (unpack)
 
 -- | Object can be made by evaluating a fnction in 'JSM' as long
 --   as it returns something we can make into a Object.
@@ -159,6 +160,7 @@ instance MakeObject v => MakeObject (JSM v) where
 -- | Lookup a property based on its name.
 --
 -- >>> testJSaddle $ eval "'Hello World'.length"
+-- 11
 -- >>> testJSaddle $ val "Hello World" ! "length"
 -- 11
 (!) :: (MakeObject this, ToJSString name)
@@ -175,6 +177,7 @@ this ! name = do
 -- | Lookup a property based on its index.
 --
 -- >>> testJSaddle $ eval "'Hello World'[6]"
+-- W
 -- >>> testJSaddle $ val "Hello World" !! 6
 -- W
 (!!) :: (MakeObject this)
@@ -191,6 +194,7 @@ this !! index = do
 -- > js name = to (!name)
 --
 -- >>> testJSaddle $ eval "'Hello World'.length"
+-- 11
 -- >>> testJSaddle $ val "Hello World" ^. js "length"
 -- 11
 js :: (MakeObject s, ToJSString name)
@@ -204,6 +208,7 @@ js name = to (!name)
 -- > jss name = to (<#name)
 --
 -- >>> testJSaddle $ eval "'Hello World'.length"
+-- 11
 -- >>> testJSaddle $ val "Hello World" ^. js "length"
 -- 11
 jss :: (ToJSString name, ToJSVal val)
@@ -275,8 +280,13 @@ js5 name a0 a1 a2 a3 a4 = jsf name (a0, a1, a2, a3, a4)
 -- | Handy way to get and hold onto a reference top level javascript
 --
 -- >>> testJSaddle $ eval "w = console; w.log('Hello World')"
--- >>> testJSaddle $ do w <- jsg "console"; w ^. js "log" # ["Hello World"]
--- 11
+-- ** Message: console message:  @1: Hello World
+-- <BLANKLINE>
+-- undefined
+-- >>> testJSaddle $ do w <- jsg "console"; w ^. js1 "log" "Hello World"
+-- ** Message: console message: [native code] @0: Hello World
+-- <BLANKLINE>
+-- undefined
 jsg :: ToJSString a => a -> JSM JSVal
 jsg name = global ! name
 {-# INLINE jsg #-}
@@ -285,9 +295,10 @@ jsg name = global ! name
 --
 -- > jsgf name = jsg name . to (# args)
 --
--- >>> testJSaddle $ eval "globalFunc = function(x) {x.length}"
+-- >>> testJSaddle $ eval "globalFunc = function (x) {return x.length;}"
+-- function (x) {return x.length;}
 -- >>> testJSaddle $ jsgf "globalFunc" ["World"]
--- 6
+-- 5
 jsgf :: (ToJSString name, MakeArgs args) => name -> args -> JSM JSVal
 jsgf name = global # name
 {-# INLINE jsgf #-}
@@ -297,7 +308,7 @@ jsgf name = global # name
 -- > jsg0 name = jsgf name ()
 --
 -- >>> testJSaddle $ jsg0 "globalFunc"
--- hello world
+-- TypeError: undefined is not an object (evaluating 'x.length')
 jsg0 :: (ToJSString name) => name -> JSM JSVal
 jsg0 name = jsgf name ()
 {-# INLINE jsg0 #-}
@@ -307,7 +318,7 @@ jsg0 name = jsgf name ()
 -- > jsg1 name a0 = jsgf name [a0]
 --
 -- >>> testJSaddle $ jsg1 "globalFunc" "World"
--- 6
+-- 5
 jsg1 :: (ToJSString name, ToJSVal a0) => name -> a0 -> JSM JSVal
 jsg1 name a0 = jsgf name [a0]
 {-# INLINE jsg1 #-}
@@ -340,6 +351,7 @@ jsg5 name a0 a1 a2 a3 a4 = jsgf name (a0, a1, a2, a3, a4)
 -- | Call a JavaScript function
 --
 -- >>> testJSaddle $ eval "'Hello World'.indexOf('World')"
+-- 6
 -- >>> testJSaddle $ val "Hello World" # "indexOf" $ ["World"]
 -- 6
 infixr 2 #
@@ -354,8 +366,10 @@ infixr 2 #
 
 -- | Call a JavaScript function
 --
--- >>> testJSaddle $ eval "something[6]('World')"
--- >>> testJSaddle $ val something ## 6 ["World"]
+-- >>> testJSaddle $ eval "something = {}; something[6]=function (x) {return x.length;}; something[6]('World')"
+-- 5
+-- >>> testJSaddle $ jsg "something" ## 6 $ ["World"]
+-- 5
 infixr 2 ##
 (##) :: (MakeObject this, MakeArgs args)
     => this -> Index -> args -> JSM JSVal
@@ -369,7 +383,8 @@ infixr 2 ##
 -- | Set a JavaScript property
 --
 -- >>> testJSaddle $ eval "var j = {}; j.x = 1; j.x"
--- >>> testJSaddle $ do {j <- eval "({})"; j <# "x" 1; j!"x"}
+-- 1
+-- >>> testJSaddle $ do {j <- obj; (j <# "x") 1; j!"x"}
 -- 1
 infixr 1 <#
 (<#) :: (MakeObject this, ToJSString name, ToJSVal val)
@@ -385,7 +400,8 @@ infixr 1 <#
 -- | Set a JavaScript property
 --
 -- >>> testJSaddle $ eval "var j = {}; j[6] = 1; j[6]"
--- >>> testJSaddle $ do {j <- eval "({})"; j <## 6 1; j!!6}
+-- 1
+-- >>> testJSaddle $ do {j <- obj; (j <## 6) 1; j!!6}
 -- 1
 infixr 1 <##
 (<##) :: (MakeObject this, ToJSVal val)
@@ -417,6 +433,7 @@ new constructor args = do
 -- | Call function with a given @this@.  In most cases you should use '#'.
 --
 -- >>> testJSaddle $ eval "(function(){return this;}).apply('Hello', [])"
+-- Hello
 -- >>> testJSaddle $ do { test <- eval "(function(){return this;})"; call test (val "Hello") () }
 -- Hello
 call :: (MakeObject f, MakeObject this, MakeArgs args)
@@ -430,7 +447,8 @@ call f this args = do
 -- | Make an empty object using the default constuctor
 --
 -- >>> testJSaddle $ eval "var a = {}; a.x = 'Hello'; a.x"
--- >>> testJSaddle $ do { a <- obj; a ^. js "x" <# "Hello"; a ^. js "x" }
+-- Hello
+-- >>> testJSaddle $ do { a <- obj; (a <# "x") "Hello"; a ^. js "x" }
 -- Hello
 obj :: JSM Object
 #ifdef ghcjs_HOST_OS
@@ -456,17 +474,15 @@ type JSCallAsFunction = JSVal      -- ^ Function object
 --   a to a JavaScipt one.
 --
 -- >>> testJSaddle $ eval "(function(f) {f('Hello');})(function (a) {console.log(a)})"
+-- ** Message: console message:  @1: Hello
+-- <BLANKLINE>
+-- undefined
 -- >>> testJSaddle $ call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ args -> valToText (head args) >>= (liftIO . putStrLn . T.unpack) ]
 -- Hello
 -- undefined
 fun :: JSCallAsFunction -> JSCallAsFunction
 fun = id
 {-# INLINE fun #-}
-
-#if !defined(ghcjs_HOST_OS)
-foreign import ccall "wrapper"
-  mkJSObjectCallAsFunctionCallback :: JSObjectCallAsFunctionCallback' -> IO JSObjectCallAsFunctionCallback
-#endif
 
 #ifdef ghcjs_HOST_OS
 type HaskellCallback = Callback (JSVal -> JSVal -> IO ())
@@ -557,9 +573,11 @@ makeArray args exceptions = do
 -- | Make an JavaScript array from a list of values
 --
 -- >>> testJSaddle $ eval "['Hello', 'World'][1]"
+-- World
 -- >>> testJSaddle $ array ["Hello", "World"] !! 1
 -- World
 -- >>> testJSaddle $ eval "['Hello', null, undefined, true, 1]"
+-- Hello,,,true,1
 -- >>> testJSaddle $ array ("Hello", JSNull, (), True, 1.0::Double)
 -- Hello,,,true,1
 array :: MakeArgs args => args -> JSM Object
@@ -634,7 +652,7 @@ propertyNamesCount names = liftIO $ jspropertynamearraygetcount names
 
 -- | Get a name out of a property name array
 propertyNamesAt :: MonadIO m => JSPropertyNameArray -> CSize -> m JSString
-propertyNamesAt names index = liftIO $ jspropertynamearraygetnameatindex names index >>= wrapJSString
+propertyNamesAt names index = liftIO $ jspropertynamearraygetnameatindex names index >>= makeNewJSString
 {-# INLINE propertyNamesAt #-}
 
 -- | Convert property array to a list

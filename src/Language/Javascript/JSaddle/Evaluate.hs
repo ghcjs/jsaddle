@@ -47,12 +47,14 @@ import Language.Javascript.JSaddle.Monad (JSM)
 -- >>> import Language.Javascript.JSaddle.Object (global, array, (!))
 -- >>> import Language.Javascript.JSaddle.Monad (catch)
 -- >>> import Language.Javascript.JSaddle.Exception (JSException(..))
+-- >>> testJSaddle $ return ()
+-- ...
 
 -- | Evaluates a script (like eval in java script).  Unlike 'eval' this function lets you
 --   specify a source URL and starting line number for beter error information.
 --
 -- >>> testJSaddle $ (evaluateScript "\n\n{" global "FileName" 53 >>= valToText) `catch` \(JSException e) -> array (e,e!"sourceURL", e!"line") >>= valToText
--- SyntaxError: Expected token '}',FileName,55
+-- SyntaxError: Unexpected end of script,FileName,55
 evaluateScript :: (ToJSString script, MakeObject this, ToJSString url)
                => script         -- ^ JavaScript to evaluate
                -> this
