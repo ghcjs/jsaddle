@@ -7,9 +7,6 @@ import Test.DocTest
 
 main :: IO ()
 main = doctest [
-    "-idist/build/autgen",
-    "-optP-include",
-    "-optPdist/build/autogen/cabal_macros.h",
     "-hide-all-packages",
 #ifdef VERSION_gtk3
     "-package=gtk3-" ++ VERSION_gtk3,
