@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE PatternSynonyms #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Monad
@@ -41,15 +42,41 @@ import qualified JavaScript.Array as Array (create, read)
 import Language.Javascript.JSaddle.Native (makeNewJSVal)
 import Foreign (nullPtr, alloca)
 import Foreign.Storable (Storable(..))
-import Graphics.UI.Gtk.WebKit.Types
+import GI.WebKit.Types
        (WebView(..))
-import Graphics.UI.Gtk.WebKit.WebView
+import GI.WebKit.Objects.WebView
        (webViewGetMainFrame)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.WebFrame
+import GI.WebKit.Objects.WebFrame
        (webFrameGetGlobalContext)
-import Graphics.UI.Gtk.General.General (postGUIAsync, postGUISync)
+import GI.GLib (idleAdd)
+import GI.GLib.Constants(pattern PRIORITY_DEFAULT)
 #endif
 import qualified Control.Exception as E (Exception, catch, bracket)
+import Control.Concurrent.MVar (takeMVar, putMVar, newEmptyMVar)
+import Foreign.Ptr (castPtr)
+import GI.JavaScriptCore.Structs.GlobalContext (GlobalContext(..))
+import Foreign.ForeignPtr (withForeignPtr)
+
+-- | Post an action to be run in the main GUI thread.
+--
+-- The current thread blocks until the action completes and the result is
+-- returned.
+--
+postGUISync :: IO a -> IO a
+postGUISync action = do
+  resultVar <- newEmptyMVar
+  idleAdd PRIORITY_DEFAULT $ action >>= putMVar resultVar >> return False
+  takeMVar resultVar
+
+-- | Post an action to be run in the main GUI thread.
+--
+-- The current thread continues and does not wait for the result of the
+-- action.
+--
+postGUIAsync :: IO () -> IO ()
+postGUIAsync action = do
+  idleAdd PRIORITY_DEFAULT $ action >> return False
+  return ()
 
 -- | Wrapped version of 'E.catch' that runs in a MonadIO that works
 --   a bit better with 'JSM'
@@ -101,8 +128,9 @@ runJSaddle _ f = runReaderT f ()
 #else
 runJSaddle :: WebView -> JSM a -> IO a
 runJSaddle webView f = do
-    gctxt <- webViewGetMainFrame webView >>= webFrameGetGlobalContext
-    runReaderT f gctxt
+    GlobalContext gctxt <- webViewGetMainFrame webView >>= webFrameGetGlobalContext
+    withForeignPtr gctxt $ \ptr ->
+        runReaderT f (castPtr ptr)
 #endif
 {-# INLINE runJSaddle #-}
 

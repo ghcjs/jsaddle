@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.3.0.3
+version: 0.4.0.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -17,10 +17,6 @@ source-repository head
     type: git
     location: https://github.com/ghcjs/jsaddle
 
-flag gtk3
-    description:
-        Use GTK3 rather than GTK2
-
 library
 
     if impl(ghcjs -any)
@@ -28,18 +24,13 @@ library
             ghcjs-base -any,
             ghcjs-prim -any
     else
-        if flag(gtk3)
-            build-depends:
-                gtk3 >=0.14.2 && <0.15,
-                webkitgtk3 >=0.13.0.0 && <0.15,
-                webkitgtk3-javascriptcore >=0.13.1.2 && <0.14
-        else
-            build-depends:
-                gtk >=0.14.2 && <0.15,
-                webkit >=0.13.0.0 && <0.15,
-                webkit-javascriptcore >=0.13.1.2 && <0.14
         build-depends:
-            glib -any
+            haskell-gi-base >= 0.13 && < 0.14,
+            gi-glib >=0.2.44 && <0.2.47,
+            gi-gtk >=0.3.16 && <0.3.19,
+            gi-webkit >=0.2.4 && <0.2.5,
+            gi-javascriptcore >=0.2.4 && <0.2.5,
+            webkitgtk3-javascriptcore >=0.14.0.0 && <0.15
     exposed-modules:
         Language.Javascript.JSaddle
         Language.Javascript.JSaddle.Arguments
@@ -69,18 +60,13 @@ test-suite test-tool
     if impl(ghcjs -any)
         buildable: False
     else
-        if flag(gtk3)
-            build-depends:
-                gtk3 -any,
-                webkitgtk3 -any,
-                webkitgtk3-javascriptcore -any
-        else
-            build-depends:
-                gtk -any,
-                webkit -any,
-                webkit-javascriptcore -any
         build-depends:
-            glib -any
+            haskell-gi-base >= 0.13 && < 0.14,
+            gi-glib >=0.2.44 && <0.2.47,
+            gi-gtk >=0.3.16 && <0.3.19,
+            gi-webkit >=0.2.4 && <0.2.5,
+            gi-javascriptcore >=0.2.4 && <0.2.5,
+            webkitgtk3-javascriptcore >=0.14.0.0 && <0.15
     type: exitcode-stdio-1.0
     main-is: DocTest.hs
     build-depends:

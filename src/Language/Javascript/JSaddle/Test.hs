@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE PatternSynonyms #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  TestJSC
@@ -19,21 +20,19 @@ module Language.Javascript.JSaddle.Test (
 
 import Control.Applicative
 import Prelude hiding((!!), catch)
-import Graphics.UI.Gtk
-       (Window, widgetDestroy, postGUIAsync, postGUISync, widgetShowAll,
-        mainGUI, mainQuit, on, objectDestroy, containerAdd, scrolledWindowNew,
-        windowSetPosition, windowSetDefaultSize, timeoutAddFull, windowNew,
-        initGUI)
+import GI.Gtk
+       (Window, widgetDestroy, widgetShowAll,
+        mainQuit, containerAdd, scrolledWindowNew,
+        windowSetPosition, windowSetDefaultSize, windowNew)
 import Control.Concurrent
        (tryTakeMVar, forkIO, newMVar, putMVar, takeMVar, newEmptyMVar,
         yield)
-import System.Glib.MainLoop (priorityLow)
-import Graphics.UI.Gtk.General.Enums (WindowPosition(..))
-import Graphics.UI.Gtk.WebKit.WebView
+import GI.Gtk.Enums (WindowType(..), WindowPosition(..))
+import GI.WebKit.Objects.WebView
        (webViewGetMainFrame, webViewNew)
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Monad.Trans.Reader (runReaderT)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.WebFrame
+import GI.WebKit.Objects.WebFrame
        (webFrameGetGlobalContext)
 import Language.Javascript.JSaddle
 import qualified Data.Text as T
@@ -42,8 +41,40 @@ import Control.Monad (forM, when)
 import Control.Lens.Getter ((^.))
 import Data.Monoid ((<>))
 import Control.Concurrent.MVar (MVar)
+import qualified GI.Gtk.Functions as Gtk (init, main)
+import GI.GLib.Functions (timeoutAdd)
+import GI.Gtk.Enums (WindowPosition(..))
+import Data.GI.Base.Signals (on)
+import GI.GLib (idleAdd)
+import GI.GLib.Constants(pattern PRIORITY_DEFAULT, pattern PRIORITY_LOW)
+import GI.Gtk.Objects.Widget (onWidgetDestroy)
+import GI.JavaScriptCore.Structs.GlobalContext (GlobalContext(..))
+import Foreign.ForeignPtr (withForeignPtr)
+import Foreign.Ptr (castPtr)
+import GI.Gtk.Objects.Adjustment (Adjustment(..))
 
-data TestState = TestState { jsContext :: JSContextRef, window :: Window }
+-- | Post an action to be run in the main GUI thread.
+--
+-- The current thread blocks until the action completes and the result is
+-- returned.
+--
+postGUISync :: IO a -> IO a
+postGUISync action = do
+  resultVar <- newEmptyMVar
+  idleAdd PRIORITY_DEFAULT $ action >>= putMVar resultVar >> return False
+  takeMVar resultVar
+
+-- | Post an action to be run in the main GUI thread.
+--
+-- The current thread continues and does not wait for the result of the
+-- action.
+--
+postGUIAsync :: IO () -> IO ()
+postGUIAsync action = do
+  idleAdd PRIORITY_DEFAULT $ action >> return False
+  return ()
+
+data TestState = TestState { jsContext :: GlobalContext, window :: Window }
 
 state :: MVar (Maybe TestState)
 state = unsafePerformIO $ newMVar Nothing
@@ -77,18 +108,18 @@ testJSaddle' showWindow f = do
             debugLog "fork"
             _ <- forkIO $ do
                 debugLog "initGUI"
-                _ <- initGUI
+                _ <- Gtk.init Nothing
                 debugLog "windowNew"
-                window <- windowNew
+                window <- windowNew WindowTypeToplevel
                 debugLog "timeoutAdd"
-                _ <- timeoutAddFull (yield >> return True) priorityLow 10
+                _ <- timeoutAdd PRIORITY_LOW 10 $ yield >> return True
                 windowSetDefaultSize window 900 600
-                windowSetPosition window WinPosCenter
-                scrollWin <- scrolledWindowNew Nothing Nothing
+                windowSetPosition window WindowPositionCenter
+                scrollWin <- scrolledWindowNew (Nothing :: Maybe Adjustment) (Nothing :: Maybe Adjustment)
                 webView <- webViewNew
                 window `containerAdd` scrollWin
                 scrollWin `containerAdd` webView
-                _ <- on window objectDestroy $ do
+                _ <- onWidgetDestroy window $ do
                     debugLog "onDestroy"
                     _ <- tryTakeMVar state
                     debugLog "put state"
@@ -105,18 +136,21 @@ testJSaddle' showWindow f = do
                 debugLog "maybe show"
                 when showWindow $ widgetShowAll window
                 debugLog "mainGUI"
-                mainGUI
+                Gtk.main
                 debugLog "mainGUI exited"
             takeMVar newState
         Just s@TestState {..} -> do
             debugLog "maybe show (2)"
             when showWindow . postGUISync $ widgetShowAll window
             return s
-    x <- postGUISync $ runReaderT ((f >>= valToText >>= liftIO . putStrLn . T.unpack)
-            `catch` \ (JSException e) -> valToText e >>= liftIO . putStrLn . T.unpack) jsContext
+    x <- postGUISync $ withContext jsContext $ runReaderT ((f >>= valToText >>= liftIO . putStrLn . T.unpack)
+            `catch` \ (JSException e) -> valToText e >>= liftIO . putStrLn . T.unpack)
     debugLog "put state"
     putMVar state $ Just TestState {..}
     return x
+
+withContext :: GlobalContext -> (JSContextRef -> IO a) -> IO a
+withContext (GlobalContext fptr) f = withForeignPtr fptr $ f . castPtr
 
 listWindowProperties :: IO ()
 listWindowProperties = testJSaddle $ T.pack . show <$> do

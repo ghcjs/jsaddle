@@ -8,16 +8,7 @@ import Test.DocTest
 main :: IO ()
 main = doctest [
     "-hide-all-packages",
-#ifdef VERSION_gtk3
-    "-package=gtk3-" ++ VERSION_gtk3,
-    "-package=webkitgtk3-" ++ VERSION_webkitgtk3,
     "-package=webkitgtk3-javascriptcore-" ++ VERSION_webkitgtk3_javascriptcore,
-#else
-    "-package=gtk-" ++ VERSION_gtk,
-    "-package=webkit-" ++ VERSION_webkit,
-    "-package=webkit-javascriptcore-" ++ VERSION_webkit_javascriptcore,
-#endif
-    "-package=glib-" ++ VERSION_glib,
     "-package=template-haskell-" ++ VERSION_template_haskell,
     "-package=base-" ++ VERSION_base,
     "-package=lens-" ++ VERSION_lens,
