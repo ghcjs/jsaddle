@@ -25,7 +25,7 @@ library
             ghcjs-prim -any
     else
         build-depends:
-            haskell-gi-base >= 0.13 && < 0.14,
+            haskell-gi-base >= 0.14 && < 0.15,
             gi-glib >=0.2.44 && <0.2.49,
             gi-gtk >=0.3.16 && <0.3.21,
             gi-webkit >=0.2.4 && <0.2.5,
