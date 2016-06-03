@@ -38,10 +38,8 @@ class MakeObject this where
 
 instance ToJSVal Object where
     toJSVal (Object r) = return r
-    {-# INLINE toJSVal #-}
 
 -- | If we already have a Object we are fine
 instance MakeObject Object where
     makeObject = return
-    {-# INLINE makeObject #-}
 

@@ -63,7 +63,6 @@ evaluateScript :: (ToJSString script, MakeObject this, ToJSString url)
                -> JSM JSVal
 #ifdef ghcjs_HOST_OS
 evaluateScript script this url line = liftIO $ js_eval (toJSString script)
-{-# INLINE evaluateScript #-}
 foreign import javascript unsafe "$r = eval($1);"
     js_eval :: JSString -> IO JSVal
 #else
@@ -76,7 +75,6 @@ evaluateScript script this url line = do
                 withJSString (toJSString url) $ \url' ->
                     rethrow $ liftIO . jsevaluatescript gctxt script' this' url' line
     makeNewJSVal result
-{-# INLINE evaluateScript #-}
 #endif
 
 -- | Evaluates a script (like eval in java script)
@@ -87,4 +85,3 @@ eval :: ToJSString script
      => script         -- ^ JavaScript to evaluate
      -> JSM JSVal
 eval script = evaluateScript script nullObject nullJSString 1
-{-# INLINE eval #-}

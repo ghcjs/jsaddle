@@ -97,6 +97,5 @@ withToJSVal :: ToJSVal val => val -> (JSValueRef -> JSM a) -> JSM a
 withToJSVal val f = do
     v <- toJSVal val
     withJSVal v f
-{-# INLINE withToJSVal #-}
 #endif
 

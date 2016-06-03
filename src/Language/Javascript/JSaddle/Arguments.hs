@@ -28,18 +28,15 @@ class MakeArgs this where
 
 instance MakeArgs arg => MakeArgs (JSM arg) where
     makeArgs arg = arg >>= makeArgs
-    {-# INLINE makeArgs #-}
 
 instance ToJSVal arg => MakeArgs [arg] where
     makeArgs = mapM toJSVal
-    {-# INLINE makeArgs #-}
 
 instance (ToJSVal arg1, ToJSVal arg2) => MakeArgs (arg1, arg2) where
     makeArgs (arg1, arg2) = do
         rarg1 <- toJSVal arg1
         rarg2 <- toJSVal arg2
         return [rarg1, rarg2]
-    {-# INLINE makeArgs #-}
 
 instance (ToJSVal arg1, ToJSVal arg2, ToJSVal arg3) => MakeArgs (arg1, arg2, arg3) where
     makeArgs (arg1, arg2, arg3) = do
@@ -47,7 +44,6 @@ instance (ToJSVal arg1, ToJSVal arg2, ToJSVal arg3) => MakeArgs (arg1, arg2, arg
         rarg2 <- toJSVal arg2
         rarg3 <- toJSVal arg3
         return [rarg1, rarg2, rarg3]
-    {-# INLINE makeArgs #-}
 
 instance (ToJSVal arg1, ToJSVal arg2, ToJSVal arg3, ToJSVal arg4) => MakeArgs (arg1, arg2, arg3, arg4) where
     makeArgs (arg1, arg2, arg3, arg4) = do
@@ -56,7 +52,6 @@ instance (ToJSVal arg1, ToJSVal arg2, ToJSVal arg3, ToJSVal arg4) => MakeArgs (a
         rarg3 <- toJSVal arg3
         rarg4 <- toJSVal arg4
         return [rarg1, rarg2, rarg3, rarg4]
-    {-# INLINE makeArgs #-}
 
 instance (ToJSVal arg1, ToJSVal arg2, ToJSVal arg3, ToJSVal arg4, ToJSVal arg5) => MakeArgs (arg1, arg2, arg3, arg4, arg5) where
     makeArgs (arg1, arg2, arg3, arg4, arg5) = do
@@ -66,7 +61,6 @@ instance (ToJSVal arg1, ToJSVal arg2, ToJSVal arg3, ToJSVal arg4, ToJSVal arg5) 
         rarg4 <- toJSVal arg4
         rarg5 <- toJSVal arg5
         return [rarg1, rarg2, rarg3, rarg4, rarg5]
-    {-# INLINE makeArgs #-}
 
 
 instance (ToJSVal arg1, ToJSVal arg2, ToJSVal arg3, ToJSVal arg4, ToJSVal arg5, ToJSVal arg6) => MakeArgs (arg1, arg2, arg3, arg4, arg5, arg6) where
@@ -78,5 +72,4 @@ instance (ToJSVal arg1, ToJSVal arg2, ToJSVal arg3, ToJSVal arg4, ToJSVal arg5, 
         rarg5 <- toJSVal arg5
         rarg6 <- toJSVal arg6
         return [rarg1, rarg2, rarg3, rarg4, rarg5, rarg6]
-    {-# INLINE makeArgs #-}
 

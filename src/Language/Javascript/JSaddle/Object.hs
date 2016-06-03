@@ -155,7 +155,6 @@ import Data.Text (Text)
 --   as it returns something we can make into a Object.
 instance MakeObject v => MakeObject (JSM v) where
     makeObject v = v >>= makeObject
-    {-# INLINE makeObject #-}
 
 -- | Lookup a property based on its name.
 --
@@ -172,7 +171,6 @@ this ! name = do
     rethrow $ objGetPropertyByName rthis rname
   where
     rname = toJSString name
-{-# INLINE (!) #-}
 
 -- | Lookup a property based on its index.
 --
@@ -187,7 +185,6 @@ this ! name = do
 this !! index = do
     rthis <- makeObject this
     rethrow $ objGetPropertyAtIndex rthis index
-{-# INLINE (!!) #-}
 
 -- | Makes a getter for a particular property name.
 --
@@ -201,7 +198,6 @@ js :: (MakeObject s, ToJSString name)
    => name          -- ^ Name of the property to find
    -> IndexPreservingGetter s (JSM JSVal)
 js name = to (!name)
-{-# INLINE js #-}
 
 -- | Makes a setter for a particular property name.
 --
@@ -216,7 +212,6 @@ jss :: (ToJSString name, ToJSVal val)
    -> val
    -> forall o . MakeObject o => IndexPreservingGetter o (JSM ())
 jss name val = to (\o -> o <# name $ val)
-{-# INLINE jss #-}
 
 -- | Handy way to call a function
 --
@@ -226,7 +221,6 @@ jss name val = to (\o -> o <# name $ val)
 -- 6
 jsf :: (ToJSString name, MakeArgs args) => name -> args -> JSF
 jsf name args = to (\o -> o # name $ args)
-{-# INLINE jsf #-}
 
 -- | Java script function applications have this type
 type JSF = forall o . MakeObject o => IndexPreservingGetter o (JSM JSVal)
@@ -239,7 +233,6 @@ type JSF = forall o . MakeObject o => IndexPreservingGetter o (JSM JSVal)
 -- hello world
 js0 :: (ToJSString name) => name -> JSF
 js0 name = jsf name ()
-{-# INLINE js0 #-}
 
 -- | Handy way to call a function that expects one argument
 --
@@ -249,32 +242,27 @@ js0 name = jsf name ()
 -- 6
 js1 :: (ToJSString name, ToJSVal a0) => name -> a0 -> JSF
 js1 name a0 = jsf name [a0]
-{-# INLINE js1 #-}
 
 -- | Handy way to call a function that expects two arguments
 js2 :: (ToJSString name, ToJSVal a0, ToJSVal a1) => name -> a0 -> a1 -> JSF
 js2 name a0 a1 = jsf name (a0, a1)
-{-# INLINE js2 #-}
 
 -- | Handy way to call a function that expects three arguments
 js3 :: (ToJSString name, ToJSVal a0, ToJSVal a1, ToJSVal a2)
     => name -> a0 -> a1 -> a2 -> JSF
 js3 name a0 a1 a2 = jsf name (a0, a1, a2)
-{-# INLINE js3 #-}
 
 -- | Handy way to call a function that expects four arguments
 js4 :: (ToJSString name, ToJSVal a0, ToJSVal a1, ToJSVal a2,
         ToJSVal a3)
     => name -> a0 -> a1 -> a2 -> a3 -> JSF
 js4 name a0 a1 a2 a3 = jsf name (a0, a1, a2, a3)
-{-# INLINE js4 #-}
 
 -- | Handy way to call a function that expects five arguments
 js5 :: (ToJSString name, ToJSVal a0, ToJSVal a1, ToJSVal a2,
         ToJSVal a3, ToJSVal a4)
     => name -> a0 -> a1 -> a2 -> a3 -> a4 -> JSF
 js5 name a0 a1 a2 a3 a4 = jsf name (a0, a1, a2, a3, a4)
-{-# INLINE js5 #-}
 
 
 -- | Handy way to get and hold onto a reference top level javascript
@@ -289,7 +277,6 @@ js5 name a0 a1 a2 a3 a4 = jsf name (a0, a1, a2, a3, a4)
 -- undefined
 jsg :: ToJSString a => a -> JSM JSVal
 jsg name = global ! name
-{-# INLINE jsg #-}
 
 -- | Handy way to call a function
 --
@@ -301,7 +288,6 @@ jsg name = global ! name
 -- 5
 jsgf :: (ToJSString name, MakeArgs args) => name -> args -> JSM JSVal
 jsgf name = global # name
-{-# INLINE jsgf #-}
 
 -- | Handy way to call a function that expects no arguments
 --
@@ -311,7 +297,6 @@ jsgf name = global # name
 -- TypeError:...undefined...is not an objec...
 jsg0 :: (ToJSString name) => name -> JSM JSVal
 jsg0 name = jsgf name ()
-{-# INLINE jsg0 #-}
 
 -- | Handy way to call a function that expects one argument
 --
@@ -321,32 +306,27 @@ jsg0 name = jsgf name ()
 -- 5
 jsg1 :: (ToJSString name, ToJSVal a0) => name -> a0 -> JSM JSVal
 jsg1 name a0 = jsgf name [a0]
-{-# INLINE jsg1 #-}
 
 -- | Handy way to call a function that expects two arguments
 jsg2 :: (ToJSString name, ToJSVal a0, ToJSVal a1) => name -> a0 -> a1 -> JSM JSVal
 jsg2 name a0 a1 = jsgf name (a0, a1)
-{-# INLINE jsg2 #-}
 
 -- | Handy way to call a function that expects three arguments
 jsg3 :: (ToJSString name, ToJSVal a0, ToJSVal a1, ToJSVal a2)
     => name -> a0 -> a1 -> a2 -> JSM JSVal
 jsg3 name a0 a1 a2 = jsgf name (a0, a1, a2)
-{-# INLINE jsg3 #-}
 
 -- | Handy way to call a function that expects four arguments
 jsg4 :: (ToJSString name, ToJSVal a0, ToJSVal a1, ToJSVal a2,
         ToJSVal a3)
     => name -> a0 -> a1 -> a2 -> a3 -> JSM JSVal
 jsg4 name a0 a1 a2 a3 = jsgf name (a0, a1, a2, a3)
-{-# INLINE jsg4 #-}
 
 -- | Handy way to call a function that expects five arguments
 jsg5 :: (ToJSString name, ToJSVal a0, ToJSVal a1, ToJSVal a2,
         ToJSVal a3, ToJSVal a4)
     => name -> a0 -> a1 -> a2 -> a3 -> a4 -> JSM JSVal
 jsg5 name a0 a1 a2 a3 a4 = jsgf name (a0, a1, a2, a3, a4)
-{-# INLINE jsg5 #-}
 
 -- | Call a JavaScript function
 --
@@ -362,7 +342,6 @@ infixr 2 #
     f <- rethrow $ objGetPropertyByName rthis name
     f' <- valToObject f
     rethrow $ objCallAsFunction f' rthis args
-{-# INLINE (#) #-}
 
 -- | Call a JavaScript function
 --
@@ -378,7 +357,6 @@ infixr 2 ##
     f <- rethrow $ objGetPropertyAtIndex rthis index
     f' <- valToObject f
     rethrow $ objCallAsFunction f' rthis args
-{-# INLINE (##) #-}
 
 -- | Set a JavaScript property
 --
@@ -395,7 +373,6 @@ infixr 1 <#
 (<#) this name val = do
     rthis <- makeObject this
     rethrow $ objSetPropertyByName rthis name val 0
-{-# INLINE (<#) #-}
 
 -- | Set a JavaScript property
 --
@@ -412,7 +389,6 @@ infixr 1 <##
 (<##) this index val = do
     rthis <- makeObject this
     rethrow $ objSetPropertyAtIndex rthis index val
-{-# INLINE (<##) #-}
 
 -- | Use this to create a new JavaScript object
 --
@@ -428,7 +404,6 @@ new :: (MakeObject constructor, MakeArgs args)
 new constructor args = do
     f <- makeObject constructor
     rethrow $ objCallAsConstructor f args
-{-# INLINE new #-}
 
 -- | Call function with a given @this@.  In most cases you should use '#'.
 --
@@ -442,7 +417,6 @@ call f this args = do
     rfunction <- makeObject f
     rthis     <- makeObject this
     rethrow $ objCallAsFunction rfunction rthis args
-{-# INLINE call #-}
 
 -- | Make an empty object using the default constuctor
 --
@@ -458,7 +432,6 @@ obj = do
     gctxt <- ask
     Object <$> (liftIO (jsobjectmake gctxt nullPtr nullPtr) >>= makeNewJSVal)
 #endif
-{-# INLINE obj #-}
 
 -- | Type used for Haskell functions called from JavaScript.
 type JSCallAsFunction = JSVal      -- ^ Function object
@@ -482,7 +455,6 @@ type JSCallAsFunction = JSVal      -- ^ Function object
 -- undefined
 fun :: JSCallAsFunction -> JSCallAsFunction
 fun = id
-{-# INLINE fun #-}
 
 #ifdef ghcjs_HOST_OS
 type HaskellCallback = Callback (JSVal -> JSVal -> IO ())
@@ -538,20 +510,17 @@ freeFunction (Function callback _) = liftIO $
 
 instance ToJSVal Function where
     toJSVal (Function _ f) = toJSVal f
-    {-# INLINE toJSVal #-}
 
 -- | A callback to Haskell can be used as a JavaScript value.  This will create
 --   an anonymous JavaScript function object.  Use 'function' to create one with
 --   a name.
 instance ToJSVal JSCallAsFunction where
     toJSVal f = functionObject <$> function nullJSString f >>= toJSVal
-    {-# INLINE toJSVal #-}
 
 instance MakeArgs JSCallAsFunction where
     makeArgs f = do
         rarg <- functionObject <$> function nullJSString f >>= toJSVal
         return [rarg]
-    {-# INLINE makeArgs #-}
 
 makeArray :: MakeArgs args => args -> MutableJSArray -> JSM Object
 #ifdef ghcjs_HOST_OS
@@ -568,7 +537,6 @@ makeArray args exceptions = do
                 jsobjectmakearray gctxt (fromIntegral len) ptr exceptions
     Object <$> makeNewJSVal result
 #endif
-{-# INLINE makeArray #-}
 
 -- | Make an JavaScript array from a list of values
 --
@@ -586,45 +554,35 @@ array = rethrow . makeArray
 -- Make an array out of various lists
 instance ToJSVal [JSVal] where
     toJSVal = toJSVal . array
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal [JSM JSVal] where
     toJSVal = toJSVal . array
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal [Double] where
     toJSVal = toJSVal . array
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal [Float] where
     toJSVal = toJSVal . array
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal [Int] where
     toJSVal = toJSVal . array
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal [JSString] where
     toJSVal = toJSVal . array
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal [String] where
     toJSVal = toJSVal . array
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal [Text] where
     toJSVal = toJSVal . array
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal [Bool] where
     toJSVal = toJSVal . array
-    {-# INLINE toJSVal #-}
 
 -- | JavaScript's global object
 global :: JSM Object
 #ifdef ghcjs_HOST_OS
 global = liftIO js_window
-{-# INLINE global #-}
 foreign import javascript unsafe "$r = window"
     js_window :: IO Object
 #else
@@ -632,7 +590,6 @@ global = do
     gctxt <- ask
     result <- liftIO $ jscontextgetglobalobject gctxt
     Object <$> makeNewJSVal result
-{-# INLINE global #-}
 #endif
 
 -- | Get an array containing the property names present on a given object
@@ -643,36 +600,30 @@ copyPropertyNames this = do
     this' <- makeObject this
     withObject this' $ \rthis ->
         liftIO $ jsobjectcopypropertynames gctxt rthis
-{-# INLINE copyPropertyNames #-}
 
 -- | Get the number of names in a property name array
 propertyNamesCount :: MonadIO m => JSPropertyNameArray -> m CSize
 propertyNamesCount names = liftIO $ jspropertynamearraygetcount names
-{-# INLINE propertyNamesCount #-}
 
 -- | Get a name out of a property name array
 propertyNamesAt :: MonadIO m => JSPropertyNameArray -> CSize -> m JSString
 propertyNamesAt names index = liftIO $ jspropertynamearraygetnameatindex names index >>= makeNewJSString
-{-# INLINE propertyNamesAt #-}
 
 -- | Convert property array to a list
 propertyNamesList :: MonadIO m => JSPropertyNameArray -> m [JSString]
 propertyNamesList names = do
     count <- propertyNamesCount names
     mapM (propertyNamesAt names) $ enumFromTo 0 (count - 1)
-{-# INLINE propertyNamesList #-}
 #endif
 
 -- | Get a list containing the property names present on a given object
 propertyNames :: MakeObject this => this -> JSM [JSString]
 #ifdef ghcjs_HOST_OS
 propertyNames this = makeObject this >>= liftIO . js_propertyNames >>= liftIO . (fmap (map pFromJSVal)) . Array.toListIO
-{-# INLINE propertyNames #-}
 foreign import javascript unsafe "$r = []; h$forIn($1, function(n){$r.push(n);})"
     js_propertyNames :: Object -> IO JSArray
 #else
 propertyNames this = copyPropertyNames this >>= propertyNamesList
-{-# INLINE propertyNames #-}
 #endif
 
 -- | Get a list containing references to all the  properties present on a given object
@@ -690,7 +641,6 @@ objCallAsFunction :: MakeArgs args
 objCallAsFunction f this args exceptions = do
     rargs <- makeArgs args >>= liftIO . Array.fromListIO
     liftIO $ js_apply f this rargs exceptions
-{-# INLINE objCallAsFunction #-}
 foreign import javascript unsafe "try { $r = $1.apply($2, $3) } catch(e) { $4[0] = e }"
     js_apply :: Object -> Object -> MutableJSArray -> MutableJSArray -> IO JSVal
 #else
@@ -704,7 +654,6 @@ objCallAsFunction f this args exceptions = do
                     liftIO $ withArrayLen rargs' $ \ largs pargs ->
                         jsobjectcallasfunction gctxt rfunction rthis (fromIntegral largs) pargs exceptions
     makeNewJSVal result
-{-# INLINE objCallAsFunction #-}
 #endif
 
 -- | Call a JavaScript object as a constructor. Consider using 'new'.

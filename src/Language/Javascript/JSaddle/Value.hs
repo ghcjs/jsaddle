@@ -170,7 +170,6 @@ valToBool value = do
     withToJSVal value $ \rval ->
         liftIO $ jsvaluetoboolean gctxt rval
 #endif
-{-# INLINE valToBool #-}
 
 -- | Given a JavaScript value get its numeric value.
 --   May throw JSException.
@@ -194,14 +193,12 @@ valToBool value = do
 valToNumber :: ToJSVal value => value -> JSM Double
 #ifdef ghcjs_HOST_OS
 valToNumber value = jsrefToNumber <$> toJSVal value
-{-# INLINE valToNumber #-}
 foreign import javascript unsafe "$r = Number($1);" jsrefToNumber :: JSVal -> Double
 #else
 valToNumber value = do
     gctxt <- ask
     withToJSVal value $ \rval ->
         rethrow $ liftIO . jsvaluetonumber gctxt rval
-{-# INLINE valToNumber #-}
 #endif
 
 -- | Given a JavaScript value get its string value (as a JavaScript string).
@@ -226,14 +223,12 @@ valToNumber value = do
 valToStr :: ToJSVal value => value -> JSM JSString
 #ifdef ghcjs_HOST_OS
 valToStr value = jsrefToString <$> toJSVal value
-{-# INLINE valToStr #-}
 foreign import javascript unsafe "$r = $1.toString();" jsrefToString :: JSVal -> JSString
 #else
 valToStr value = do
     gctxt <- ask
     withToJSVal value $ \rval ->
         rethrow (liftIO . jsvaluetostringcopy gctxt rval) >>= wrapJSString
-{-# INLINE valToStr #-}
 #endif
 
 -- | Given a JavaScript value get its string value (as a Haskell 'Text').
@@ -257,7 +252,6 @@ valToStr value = do
 -- "1"
 valToText :: ToJSVal value => value -> JSM Text
 valToText jsvar = valToStr jsvar >>= strToText
-{-# INLINE valToText #-}
 
 -- | Given a JavaScript value get a JSON string value.
 --   May throw JSException.
@@ -283,14 +277,12 @@ valToText jsvar = valToStr jsvar >>= strToText
 valToJSON :: ToJSVal value => Word -> value -> JSM JSString
 #ifdef ghcjs_HOST_OS
 valToJSON indent value = jsrefToJSON <$> toJSVal value
-{-# INLINE valToJSON #-}
 foreign import javascript unsafe "$r = JSON.stringify($1);" jsrefToJSON :: JSVal -> JSString
 #else
 valToJSON indent value = do
     gctxt <- ask
     withToJSVal value $ \rval ->
         rethrow (liftIO . jsvaluecreatejsonstring gctxt rval (fromIntegral indent)) >>= wrapJSString
-{-# INLINE valToJSON #-}
 #endif
 
 -- | Given a JavaScript value get its object value.
@@ -321,34 +313,28 @@ valToObject value = Object <$>
     withToJSVal value $ \rval ->
         rethrow (liftIO . jsvaluetoobject gctxt rval) >>= makeNewJSVal
 #endif
-{-# INLINE valToObject #-}
 
 instance MakeObject JSVal where
     makeObject = valToObject
-    {-# INLINE makeObject #-}
 
 -- | Convert to a JavaScript value (just an alias for 'toJSVal')
 val :: ToJSVal value
     => value          -- ^ value to convert to a JavaScript value
     -> JSM JSVal
 val = toJSVal
-{-# INLINE val #-}
 
 -- | If we already have a JSVal we are fine
 instance ToJSVal JSVal where
     toJSVal = return
-    {-# INLINE toJSVal #-}
 
 -- | A single JSVal can be used as the argument list
 instance MakeArgs JSVal where
     makeArgs arg = return [arg]
-    {-# INLINE makeArgs #-}
 
 -- | JSVal can be made by evaluating a function in 'JSM' as long
 --   as it returns something we can make into a JSVal.
 instance ToJSVal v => ToJSVal (JSM v) where
     toJSVal v = v >>= toJSVal
-    {-# INLINE toJSVal #-}
 
 ----------- null ---------------
 -- | Make a @null@ JavaScript value
@@ -358,23 +344,19 @@ valMakeNull = return jsNull
 #else
 valMakeNull = ask >>= (liftIO . jsvaluemakenull) >>= makeNewJSVal
 #endif
-{-# INLINE valMakeNull #-}
 
 -- | Makes a @null@ JavaScript value
 instance ToJSVal JSNull where
     toJSVal = const valMakeNull
-    {-# INLINE toJSVal #-}
 
 -- | Makes an argument list with just a single @null@ JavaScript value
 instance MakeArgs JSNull where
     makeArgs _ = valMakeNull >>= (\ref -> return [ref])
-    {-# INLINE makeArgs #-}
 
 -- | Makes a JSVal or @null@ JavaScript value
 instance ToJSVal a => ToJSVal (Maybe a) where
     toJSVal Nothing = valMakeNull
     toJSVal (Just a) = toJSVal a
-    {-# INLINE toJSVal #-}
 
 -- | Test a JavaScript value to see if it is @null@
 valIsNull :: ToJSVal value => value -> JSM Bool
@@ -386,7 +368,6 @@ valIsNull value = do
     withToJSVal value $ \rval ->
         liftIO $ jsvalueisnull gctxt rval
 #endif
-{-# INLINE valIsNull #-}
 
 ----------- undefined ---------------
 -- | Make an @undefined@ JavaScript value
@@ -396,12 +377,10 @@ valMakeUndefined = return jsUndefined
 #else
 valMakeUndefined = ask >>= (liftIO . jsvaluemakeundefined) >>= makeNewJSVal
 #endif
-{-# INLINE valMakeUndefined #-}
 
 -- | Makes an @undefined@ JavaScript value
 instance ToJSVal JSUndefined where
     toJSVal = const valMakeUndefined
-    {-# INLINE toJSVal #-}
 
 --We can't allow this if JSUndefined is () as () is no args not "(null)".
 --Use [()] instead.
@@ -411,7 +390,6 @@ instance ToJSVal JSUndefined where
 -- | This allows us to pass no arguments easily (altenative would be to use @[]::[JSVal]@).
 instance MakeArgs () where
     makeArgs _ = return []
-    {-# INLINE makeArgs #-}
 
 -- | Test a JavaScript value to see if it is @undefined@
 valIsUndefined :: ToJSVal value => value -> JSM Bool
@@ -423,7 +401,6 @@ valIsUndefined value = do
     withToJSVal value $ \rval ->
         liftIO $ jsvalueisundefined gctxt rval
 #endif
-{-# INLINE valIsUndefined #-}
 
 -- | Convert a JSVal to a Maybe JSVal (converting null and undefined to Nothing)
 maybeNullOrUndefined :: ToJSVal value => value -> JSM (Maybe JSVal)
@@ -435,7 +412,6 @@ maybeNullOrUndefined value = do
             valIsUndefined rval >>= \case
                 True -> return Nothing
                 _    -> return (Just rval)
-{-# INLINE maybeNullOrUndefined #-}
 
 maybeNullOrUndefined' :: ToJSVal value => (JSVal -> JSM a) -> value -> JSM (Maybe a)
 maybeNullOrUndefined' f value = do
@@ -446,7 +422,6 @@ maybeNullOrUndefined' f value = do
             valIsUndefined rval >>= \case
                 True -> return Nothing
                 _    -> Just <$> f rval
-{-# INLINE maybeNullOrUndefined' #-}
 
 ----------- booleans ---------------
 -- | Make a JavaScript boolean value
@@ -458,17 +433,14 @@ valMakeBool b = do
     gctxt <- ask
     liftIO (jsvaluemakeboolean gctxt b) >>= makeNewJSVal
 #endif
-{-# INLINE valMakeBool #-}
 
 -- | Make a JavaScript boolean value
 instance ToJSVal Bool where
     toJSVal = valMakeBool
-    {-# INLINE toJSVal #-}
 
 -- | Makes an argument list with just a single JavaScript boolean value
 instance MakeArgs Bool where
     makeArgs b = valMakeBool b >>= (\ref -> return [ref])
-    {-# INLINE makeArgs #-}
 
 ----------- numbers ---------------
 -- | Make a JavaScript number
@@ -480,45 +452,35 @@ valMakeNumber n = do
     gctxt <- ask
     liftIO (jsvaluemakenumber gctxt n) >>= makeNewJSVal
 #endif
-{-# INLINE valMakeNumber #-}
 
 -- | Makes a JavaScript number
 instance ToJSVal Double where
     toJSVal = valMakeNumber
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal Float where
     toJSVal = valMakeNumber . realToFrac
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal Word where
     toJSVal = valMakeNumber . fromIntegral
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal Word32 where
     toJSVal = valMakeNumber . fromIntegral
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal Word64 where
     toJSVal = valMakeNumber . fromIntegral
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal Int where
     toJSVal = valMakeNumber . fromIntegral
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal Int32 where
     toJSVal = valMakeNumber . fromIntegral
-    {-# INLINE toJSVal #-}
 
 instance ToJSVal Int64 where
     toJSVal = valMakeNumber . fromIntegral
-    {-# INLINE toJSVal #-}
 
 -- | Makes an argument list with just a single JavaScript number
 instance MakeArgs Double where
     makeArgs n = valMakeNumber n >>= (\ref -> return [ref])
-    {-# INLINE makeArgs #-}
 
 -- | Make a JavaScript string from `Text`
 valMakeText :: Text -> JSM JSVal
@@ -530,7 +492,6 @@ valMakeText text = do
     withJSString (textToStr text) $ \s ->
         liftIO (jsvaluemakestring gctxt s) >>= makeNewJSVal
 #endif
-{-# INLINE valMakeText #-}
 
 -- | Make a JavaScript string from `JSString`
 valMakeString :: JSString -> JSM JSVal
@@ -542,40 +503,32 @@ valMakeString str = do
     withJSString str $ \s ->
         liftIO (jsvaluemakestring gctxt s) >>= makeNewJSVal
 #endif
-{-# INLINE valMakeString #-}
 
 -- | Makes a JavaScript string
 instance ToJSVal Text where
     toJSVal = valMakeText
-    {-# INLINE toJSVal #-}
 
 -- | Makes an argument list with just a single JavaScript string
 instance MakeArgs Text where
     makeArgs t = valMakeText t >>= (\ref -> return [ref])
-    {-# INLINE makeArgs #-}
 
 -- | Makes a JavaScript string
 instance ToJSVal String where
     toJSVal = valMakeText . T.pack
-    {-# INLINE toJSVal #-}
 
 -- | Makes a JavaScript string
 instance ToJSVal JSString where
     toJSVal = valMakeString
-    {-# INLINE toJSVal #-}
 
 -- | If we already have a JSString we are fine
 instance ToJSString JSString where
     toJSString = id
-    {-# INLINE toJSString #-}
 
 instance ToJSString Text where
     toJSString = textToStr
-    {-# INLINE toJSString #-}
 
 instance ToJSString String where
     toJSString = textToStr . T.pack
-    {-# INLINE toJSString #-}
 
 -- | Derefernce a value reference.
 --
@@ -653,12 +606,10 @@ valMakeRef value =
 -- | Makes a JavaScript value from a 'JSValue' ADT.
 instance ToJSVal JSValue where
     toJSVal = valMakeRef
-    {-# INLINE toJSVal #-}
 
 -- | Makes an argument list with just a single JavaScript value from a 'JSValue' ADT.
 instance MakeArgs JSValue where
     makeArgs v = valMakeRef v >>= (\ref -> return [ref])
-    {-# INLINE makeArgs #-}
 
 --instance MakeObjectRef JSNull where
 --    makeObjectRef _ = Object <$> valMakeNull

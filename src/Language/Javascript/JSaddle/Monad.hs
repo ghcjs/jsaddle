@@ -87,7 +87,6 @@ catch :: (MonadIO m, E.Exception e)
 t `catch` c = do
     r <- ask
     liftIO (runReaderT t r `E.catch` \e -> runReaderT (c e) r)
-{-# INLINE catch #-}
 
 -- | Wrapped version of 'E.bracket' that runs in a MonadIO that works
 --   a bit better with 'JSM'
@@ -98,7 +97,6 @@ bracket aquire release f = do
         (runReaderT aquire r)
         (\x -> runReaderT (release x) r)
         (\x -> runReaderT (f x) r)
-{-# INLINE bracket #-}
 
 -- | Handle JavaScriptCore functions that take a MutableJSArray in order
 --   to throw exceptions.
@@ -132,7 +130,6 @@ runJSaddle webView f = do
     withForeignPtr gctxt $ \ptr ->
         runReaderT f (castPtr ptr)
 #endif
-{-# INLINE runJSaddle #-}
 
 postGUIAsyncJS :: JSM () -> JSM ()
 #ifdef ghcjs_HOST_OS
@@ -142,7 +139,6 @@ postGUIAsyncJS f = do
     r <- ask
     liftIO . postGUIAsync $ runReaderT f r
 #endif
-{-# INLINE postGUIAsyncJS #-}
 
 postGUISyncJS :: JSM a -> JSM a
 #ifdef ghcjs_HOST_OS
@@ -152,5 +148,4 @@ postGUISyncJS f = do
     r <- ask
     liftIO . postGUISync $ runReaderT f r
 #endif
-{-# INLINE postGUISyncJS #-}
 

@@ -54,7 +54,6 @@ strToText jsstring' = liftIO $ withJSString jsstring' $ \jsstring -> do
     p <- jsstringgetcharactersptr jsstring
     T.fromPtr (castPtr p) (fromIntegral l)
 #endif
-{-# INLINE strToText #-}
 
 -- | Convert a Haskell 'Text' to a JavaScript string
 textToStr :: Text -> JSString
@@ -65,7 +64,6 @@ textToStr text = unsafePerformIO $
     useAsPtr text $ \p l ->
         jsstringcreatewithcharacters (castPtr p) (fromIntegral l) >>= makeNewJSString
 #endif
-{-# INLINE textToStr #-}
 
 nullJSString :: JSString
 #ifdef ghcjs_HOST_OS
