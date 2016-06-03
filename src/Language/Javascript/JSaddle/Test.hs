@@ -108,7 +108,7 @@ testJSaddle' showWindow f = do
             debugLog "fork"
             _ <- forkIO $ do
                 debugLog "initGUI"
-                _ <- Gtk.init Nothing
+                _ <- Gtk.init mempty
                 debugLog "windowNew"
                 window <- windowNew WindowTypeToplevel
                 debugLog "timeoutAdd"
