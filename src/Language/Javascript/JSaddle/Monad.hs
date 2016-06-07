@@ -42,10 +42,8 @@ import qualified JavaScript.Array as Array (create, read)
 import Language.Javascript.JSaddle.Native (makeNewJSVal)
 import Foreign (nullPtr, alloca)
 import Foreign.Storable (Storable(..))
-import GI.WebKit.Types
-       (WebView(..))
 import GI.WebKit.Objects.WebView
-       (webViewGetMainFrame)
+       (WebView(..), webViewGetMainFrame)
 import GI.WebKit.Objects.WebFrame
        (webFrameGetGlobalContext)
 import GI.GLib (idleAdd)
