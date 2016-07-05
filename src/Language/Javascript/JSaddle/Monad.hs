@@ -48,13 +48,14 @@ import GI.WebKit.Objects.WebFrame
        (webFrameGetGlobalContext)
 import GI.GLib (idleAdd)
 import GI.GLib.Constants(pattern PRIORITY_DEFAULT)
-#endif
-import qualified Control.Exception as E (Exception, catch, bracket)
-import Control.Concurrent.MVar (takeMVar, putMVar, newEmptyMVar)
 import Foreign.Ptr (castPtr)
 import GI.JavaScriptCore.Structs.GlobalContext (GlobalContext(..))
 import Foreign.ForeignPtr (withForeignPtr)
+#endif
+import qualified Control.Exception as E (Exception, catch, bracket)
+import Control.Concurrent.MVar (takeMVar, putMVar, newEmptyMVar)
 
+#ifndef ghcjs_HOST_OS
 -- | Post an action to be run in the main GUI thread.
 --
 -- The current thread blocks until the action completes and the result is
@@ -75,6 +76,7 @@ postGUIAsync :: IO () -> IO ()
 postGUIAsync action = do
   idleAdd PRIORITY_DEFAULT $ action >> return False
   return ()
+#endif
 
 -- | Wrapped version of 'E.catch' that runs in a MonadIO that works
 --   a bit better with 'JSM'
