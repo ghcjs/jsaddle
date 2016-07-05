@@ -203,10 +203,10 @@ js name = to (!name)
 --
 -- > jss name = to (<#name)
 --
--- >>> testJSaddle $ eval "'Hello World'.length"
--- 11
--- >>> testJSaddle $ val "Hello World" ^. js "length"
--- 11
+-- >>> testJSaddle $ eval "'Hello World'.length = 12"
+-- 12
+-- >>> testJSaddle $ val "Hello World" ^. jss "length" 12
+-- 12
 jss :: (ToJSString name, ToJSVal val)
    => name          -- ^ Name of the property to find
    -> val
@@ -715,7 +715,3 @@ nullObject = Object nullRef
 #else
 nullObject = Object . unsafePerformIO $ newForeignPtr_ nullPtr
 #endif
-
-
-
-
