@@ -121,11 +121,11 @@ catchval f catcher = do
 #endif
 
 #ifdef ghcjs_HOST_OS
-runJSaddle :: w -> JSM a -> IO a
-runJSaddle _ f = runReaderT f ()
+runJSaddle :: MonadIO m => w -> JSM a -> m a
+runJSaddle _ f = liftIO $ runReaderT f ()
 #else
-runJSaddle :: WebView -> JSM a -> IO a
-runJSaddle webView f = do
+runJSaddle :: MonadIO m => WebView -> JSM a -> m a
+runJSaddle webView f = liftIO $ do
     GlobalContext gctxt <- webViewGetMainFrame webView >>= webFrameGetGlobalContext
     withForeignPtr gctxt $ \ptr ->
         runReaderT f (castPtr ptr)
