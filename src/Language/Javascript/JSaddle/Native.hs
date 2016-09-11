@@ -13,8 +13,7 @@
 
 module Language.Javascript.JSaddle.Native (
 #if !defined(ghcjs_HOST_OS)
-    makeNewJSVal
-  , makeNewJSString
+    wrapJSVal
   , wrapJSString
   , withJSVal
   , withJSVals
@@ -26,74 +25,54 @@ module Language.Javascript.JSaddle.Native (
 
 #if !defined(ghcjs_HOST_OS)
 import Control.Monad.Trans.Reader (ask)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
-       (JSObjectRef, OpaqueJSString, JSStringRef, OpaqueJSContext,
-        OpaqueJSValue, JSValueRef)
-import Foreign.ForeignPtr
-       (newForeignPtr_, touchForeignPtr, FinalizerPtr, newForeignPtr,
-        FinalizerEnvPtr, newForeignPtrEnv, ForeignPtr)
 import Control.Monad.IO.Class (MonadIO, MonadIO(..))
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
-       (jsvalueprotect)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
-       (jsstringretain)
 import Language.Javascript.JSaddle.Types
-       (JSM, JSString, Object(..), JSVal)
-import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
-import Language.Javascript.JSaddle.Classes (ToJSVal(..), ToJSVal)
-import Foreign.Ptr (nullPtr)
+       (JSM, JSString(..), Object(..), JSVal(..), JSValueReceived(..),
+        JSValueForSend(..), JSStringReceived(..), JSStringForSend(..),
+        JSObjectForSend(..))
+import Language.Javascript.JSaddle.Classes (ToJSVal(..))
+import System.Mem.Weak (addFinalizer)
+import Control.Monad.Primitive (touch)
+import Control.Monad (when)
 
-makeNewJSVal :: JSValueRef -> JSM (ForeignPtr OpaqueJSValue)
-makeNewJSVal val = do
-    ctx <- ask
-    liftIO $ do
-        jsvalueprotect ctx val
-        newForeignPtrEnv jsValueUnprotect ctx val
-
-foreign import ccall unsafe "&JSValueUnprotect"
-  jsValueUnprotect :: FinalizerEnvPtr OpaqueJSContext OpaqueJSValue
-
-makeNewJSString :: MonadIO m => JSStringRef -> m (ForeignPtr OpaqueJSString)
-makeNewJSString s | s == nullPtr =
-    liftIO $ newForeignPtr_ s
-makeNewJSString s =
-    liftIO $ do
-        s' <- jsstringretain s
-        newForeignPtr jsStringRelease s'
-
-wrapJSString :: MonadIO m => JSStringRef -> m (ForeignPtr OpaqueJSString)
-wrapJSString s | s == nullPtr =
-    liftIO $ newForeignPtr_ s
-wrapJSString s = liftIO $ newForeignPtr jsStringRelease s
-
-foreign import ccall unsafe "&JSStringRelease"
-  jsStringRelease :: FinalizerPtr OpaqueJSString
-
-withJSVal :: MonadIO m => JSVal -> (JSValueRef -> m a) -> m a
-withJSVal v f =
- do result <- f (unsafeForeignPtrToPtr v)
-    liftIO $ touchForeignPtr v
+wrapJSVal :: JSValueReceived -> JSM JSVal
+wrapJSVal (JSValueReceived ref) = do
+    -- TODO make sure this ref has not already been wrapped (perhaps only in debug version)
+    let result = JSVal ref
+    when (ref >= 5) $
+        liftIO . addFinalizer result $ return () -- TODO free value ref
     return result
 
-withJSVals :: MonadIO m => [JSVal] -> ([JSValueRef] -> m a) -> m a
+wrapJSString :: MonadIO m => JSStringReceived -> m JSString
+wrapJSString (JSStringReceived ref) = do
+    -- TODO make sure this ref has not already been wrapped (perhaps only in debug version)
+    let result = JSString ref
+    when (ref >= 5) $
+        liftIO . addFinalizer result $ return () -- TODO free string ref
+    return result
+
+withJSVal :: MonadIO m => JSVal -> (JSValueForSend -> m a) -> m a
+withJSVal v@(JSVal ref) f =
+ do result <- f (JSValueForSend ref)
+    liftIO $ touch v
+    return result
+
+withJSVals :: MonadIO m => [JSVal] -> ([JSValueForSend] -> m a) -> m a
 withJSVals v f =
- do result <- f (map unsafeForeignPtrToPtr v)
-    liftIO $ mapM_ touchForeignPtr v
+ do result <- f (map (\(JSVal ref) -> JSValueForSend ref) v)
+    liftIO $ mapM_ touch v
     return result
 
-withObject :: MonadIO m => Object -> (JSObjectRef -> m a) -> m a
-withObject (Object o) f = do
-    result <- f (unsafeForeignPtrToPtr o)
-    liftIO $ touchForeignPtr o
+withObject :: MonadIO m => Object -> (JSObjectForSend -> m a) -> m a
+withObject (Object o) f = withJSVal o (f . JSObjectForSend)
+
+withJSString :: MonadIO m => JSString -> (JSStringForSend -> m a) -> m a
+withJSString v@(JSString ref) f =
+ do result <- f (JSStringForSend ref)
+    liftIO $ touch v
     return result
 
-withJSString :: MonadIO m => JSString -> (JSStringRef -> m a) -> m a
-withJSString v f =
- do result <- f (unsafeForeignPtrToPtr v)
-    liftIO $ touchForeignPtr v
-    return result
-
-withToJSVal :: ToJSVal val => val -> (JSValueRef -> JSM a) -> JSM a
+withToJSVal :: ToJSVal val => val -> (JSValueForSend -> JSM a) -> JSM a
 withToJSVal val f = do
     v <- toJSVal val
     withJSVal v f

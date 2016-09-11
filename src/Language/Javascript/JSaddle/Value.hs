@@ -53,15 +53,15 @@ module Language.Javascript.JSaddle.Value (
 
   -- * Make JavaScript values from Haskell ones
   , val
-  , valMakeNull
+  , valNull
   , valIsNull
-  , valMakeUndefined
+  , valUndefined
   , valIsUndefined
   , maybeNullOrUndefined
   , maybeNullOrUndefined'
-  , valMakeBool
+  , valBool
   , valMakeNumber
-  , valMakeString
+  , valString
 
   -- * Convert to and from JSValue
   , deRefVal
@@ -73,7 +73,7 @@ module Language.Javascript.JSaddle.Value (
 import Control.Applicative
 import Prelude hiding (catch)
 import Language.Javascript.JSaddle.Types
-       (Object(..), JSString, JSVal)
+       (Object(..), JSString(..), JSVal(..))
 #ifdef ghcjs_HOST_OS
 import Language.Javascript.JSaddle.Types
        (MutableJSArray)
@@ -82,24 +82,18 @@ import GHCJS.Foreign (toJSBool, isTruthy, jsNull, jsUndefined)
 import qualified GHCJS.Marshal as GHCJS (toJSVal)
 import GHCJS.Marshal.Pure (pToJSVal)
 import Data.JSString.Text (textToJSString)
+import Language.Javascript.JSaddle.Exception (rethrow)
 #else
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
-       (jsvalueisinstanceofconstructor, jsvaluecreatejsonstring,
-        JSType(..), jsvaluegettype, jsvaluemakestring, jsvaluemakenumber,
-        jsvaluemakeboolean, jsvaluemakeundefined, jsvaluemakenull,
-        jsvaluetoobject, jsvaluetostringcopy, jsvaluetonumber,
-        jsvaluetoboolean, jsvalueisnull, jsvalueisundefined,
-        jsvalueisstrictequal)
 import Language.Javascript.JSaddle.Native
-       (makeNewJSVal, wrapJSString, withJSVal, withObject, withJSString,
-        withToJSVal)
+       (wrapJSString, withJSVal, withObject, withJSString,
+        withToJSVal, wrapJSVal)
+import Language.Javascript.JSaddle.WebSockets (Command(..), Result(..), sendCommand)
 #endif
 import Language.Javascript.JSaddle.Monad (JSM)
-import Language.Javascript.JSaddle.Exception (rethrow)
 import Control.Monad.Trans.Reader (ask)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Text (Text)
-import qualified Data.Text as T (pack)
+import qualified Data.Text as T (pack, unpack)
 import Language.Javascript.JSaddle.Classes
        (MakeObject(..), ToJSString(..), ToJSVal(..))
 import Language.Javascript.JSaddle.String (strToText, textToStr)
@@ -165,10 +159,16 @@ valToBool :: ToJSVal value => value -> JSM Bool
 #ifdef ghcjs_HOST_OS
 valToBool value = isTruthy <$> toJSVal value
 #else
-valToBool value = do
-    gctxt <- ask
-    withToJSVal value $ \rval ->
-        liftIO $ jsvaluetoboolean gctxt rval
+valToBool value =
+    toJSVal value >>= \case
+        (JSVal 0) -> return False -- null
+        (JSVal 1) -> return False -- undefined
+        (JSVal 2) -> return False -- false
+        (JSVal 3) -> return True  -- true
+        val ->
+            withJSVal val $ \rval -> do
+                ValueToBoolResult result <- sendCommand (ValueToBool rval)
+                return result
 #endif
 
 -- | Given a JavaScript value get its numeric value.
@@ -195,10 +195,10 @@ valToNumber :: ToJSVal value => value -> JSM Double
 valToNumber value = jsrefToNumber <$> toJSVal value
 foreign import javascript unsafe "$r = Number($1);" jsrefToNumber :: JSVal -> Double
 #else
-valToNumber value = do
-    gctxt <- ask
-    withToJSVal value $ \rval ->
-        rethrow $ liftIO . jsvaluetonumber gctxt rval
+valToNumber value =
+    withToJSVal value $ \rval -> do
+        ValueToNumberResult result <- sendCommand (ValueToNumber rval)
+        return result
 #endif
 
 -- | Given a JavaScript value get its string value (as a JavaScript string).
@@ -225,10 +225,10 @@ valToStr :: ToJSVal value => value -> JSM JSString
 valToStr value = jsrefToString <$> toJSVal value
 foreign import javascript unsafe "$r = $1.toString();" jsrefToString :: JSVal -> JSString
 #else
-valToStr value = do
-    gctxt <- ask
-    withToJSVal value $ \rval ->
-        rethrow (liftIO . jsvaluetostringcopy gctxt rval) >>= wrapJSString
+valToStr value =
+    withToJSVal value $ \rval -> do
+        ValueToStringResult result <- sendCommand (ValueToString rval)
+        wrapJSString result
 #endif
 
 -- | Given a JavaScript value get its string value (as a Haskell 'Text').
@@ -274,15 +274,15 @@ valToText jsvar = valToStr jsvar >>= strToText
 -- "1"
 -- >>> testJSaddle $ obj >>= valToJSON 0 >>= strToText
 -- {}
-valToJSON :: ToJSVal value => Word -> value -> JSM JSString
+valToJSON :: ToJSVal value => value -> JSM JSString
 #ifdef ghcjs_HOST_OS
-valToJSON indent value = jsrefToJSON <$> toJSVal value
+valToJSON value = jsrefToJSON <$> toJSVal value
 foreign import javascript unsafe "$r = JSON.stringify($1);" jsrefToJSON :: JSVal -> JSString
 #else
-valToJSON indent value = do
-    gctxt <- ask
-    withToJSVal value $ \rval ->
-        rethrow (liftIO . jsvaluecreatejsonstring gctxt rval (fromIntegral indent)) >>= wrapJSString
+valToJSON value =
+    withToJSVal value $ \rval -> do
+        ValueToJSONResult result <- sendCommand (ValueToJSON rval)
+        wrapJSString result
 #endif
 
 -- | Given a JavaScript value get its object value.
@@ -305,14 +305,7 @@ valToJSON indent value = do
 -- >>> testJSaddle $ valToObject "1"
 -- 1
 valToObject :: ToJSVal value => value -> JSM Object
-valToObject value = Object <$>
-#ifdef ghcjs_HOST_OS
-    toJSVal value
-#else
- do gctxt <- ask
-    withToJSVal value $ \rval ->
-        rethrow (liftIO . jsvaluetoobject gctxt rval) >>= makeNewJSVal
-#endif
+valToObject value = Object <$> toJSVal value
 
 instance MakeObject JSVal where
     makeObject = valToObject
@@ -337,25 +330,25 @@ instance ToJSVal v => ToJSVal (JSM v) where
     toJSVal v = v >>= toJSVal
 
 ----------- null ---------------
--- | Make a @null@ JavaScript value
-valMakeNull :: JSM JSVal
+-- | A @null@ JavaScript value
+valNull :: JSVal
 #ifdef ghcjs_HOST_OS
-valMakeNull = return jsNull
+valNull = jsNull
 #else
-valMakeNull = ask >>= (liftIO . jsvaluemakenull) >>= makeNewJSVal
+valNull = JSVal 0
 #endif
 
 -- | Makes a @null@ JavaScript value
 instance ToJSVal JSNull where
-    toJSVal = const valMakeNull
+    toJSVal = const (return valNull)
 
 -- | Makes an argument list with just a single @null@ JavaScript value
 instance MakeArgs JSNull where
-    makeArgs _ = valMakeNull >>= (\ref -> return [ref])
+    makeArgs _ = return [valNull]
 
 -- | Makes a JSVal or @null@ JavaScript value
 instance ToJSVal a => ToJSVal (Maybe a) where
-    toJSVal Nothing = valMakeNull
+    toJSVal Nothing = return valNull
     toJSVal (Just a) = toJSVal a
 
 -- | Test a JavaScript value to see if it is @null@
@@ -363,24 +356,23 @@ valIsNull :: ToJSVal value => value -> JSM Bool
 #ifdef ghcjs_HOST_OS
 valIsNull value = isNull <$> toJSVal value
 #else
-valIsNull value = do
-    gctxt <- ask
-    withToJSVal value $ \rval ->
-        liftIO $ jsvalueisnull gctxt rval
+valIsNull value = toJSVal value >>= \case
+                        JSVal 0 -> return True
+                        _       -> return False
 #endif
 
 ----------- undefined ---------------
--- | Make an @undefined@ JavaScript value
-valMakeUndefined :: JSM JSVal
+-- | An @undefined@ JavaScript value
+valUndefined :: JSVal
 #ifdef ghcjs_HOST_OS
-valMakeUndefined = return jsUndefined
+valUndefined = jsUndefined
 #else
-valMakeUndefined = ask >>= (liftIO . jsvaluemakeundefined) >>= makeNewJSVal
+valUndefined = JSVal 1
 #endif
 
 -- | Makes an @undefined@ JavaScript value
 instance ToJSVal JSUndefined where
-    toJSVal = const valMakeUndefined
+    toJSVal = const (return valUndefined)
 
 --We can't allow this if JSUndefined is () as () is no args not "(null)".
 --Use [()] instead.
@@ -396,10 +388,8 @@ valIsUndefined :: ToJSVal value => value -> JSM Bool
 #ifdef ghcjs_HOST_OS
 valIsUndefined value = isUndefined <$> toJSVal value
 #else
-valIsUndefined value = do
-    gctxt <- ask
-    withToJSVal value $ \rval ->
-        liftIO $ jsvalueisundefined gctxt rval
+valIsUndefined value = toJSVal value >>= \case
+                            JSVal ref -> return $ ref == 1
 #endif
 
 -- | Convert a JSVal to a Maybe JSVal (converting null and undefined to Nothing)
@@ -424,23 +414,21 @@ maybeNullOrUndefined' f value = do
                 _    -> Just <$> f rval
 
 ----------- booleans ---------------
--- | Make a JavaScript boolean value
-valMakeBool :: Bool -> JSM JSVal
+-- | A JavaScript boolean value
+valBool :: Bool -> JSVal
 #ifdef ghcjs_HOST_OS
-valMakeBool b = return  $ toJSBool b
+valBool b = toJSBool b
 #else
-valMakeBool b = do
-    gctxt <- ask
-    liftIO (jsvaluemakeboolean gctxt b) >>= makeNewJSVal
+valBool b = JSVal $ if b then 3 else 2
 #endif
 
 -- | Make a JavaScript boolean value
 instance ToJSVal Bool where
-    toJSVal = valMakeBool
+    toJSVal = return . valBool
 
 -- | Makes an argument list with just a single JavaScript boolean value
 instance MakeArgs Bool where
-    makeArgs b = valMakeBool b >>= (\ref -> return [ref])
+    makeArgs b = return [valBool b]
 
 ----------- numbers ---------------
 -- | Make a JavaScript number
@@ -449,8 +437,8 @@ valMakeNumber :: Double -> JSM JSVal
 valMakeNumber n = liftIO $ GHCJS.toJSVal n
 #else
 valMakeNumber n = do
-    gctxt <- ask
-    liftIO (jsvaluemakenumber gctxt n) >>= makeNewJSVal
+    NumberToValueResult result <- sendCommand (NumberToValue n)
+    wrapJSVal result
 #endif
 
 -- | Makes a JavaScript number
@@ -487,21 +475,15 @@ valMakeText :: Text -> JSM JSVal
 #ifdef ghcjs_HOST_OS
 valMakeText = return . pToJSVal . textToJSString
 #else
-valMakeText text = do
-    gctxt <- ask
-    withJSString (textToStr text) $ \s ->
-        liftIO (jsvaluemakestring gctxt s) >>= makeNewJSVal
+valMakeText text = valString <$> textToStr text
 #endif
 
 -- | Make a JavaScript string from `JSString`
-valMakeString :: JSString -> JSM JSVal
+valString :: JSString -> JSVal
 #ifdef ghcjs_HOST_OS
-valMakeString = return . pToJSVal
+valString = pToJSVal
 #else
-valMakeString str = do
-    gctxt <- ask
-    withJSString str $ \s ->
-        liftIO (jsvaluemakestring gctxt s) >>= makeNewJSVal
+valString (JSString ref) = JSVal ref
 #endif
 
 -- | Makes a JavaScript string
@@ -518,11 +500,11 @@ instance ToJSVal String where
 
 -- | Makes a JavaScript string
 instance ToJSVal JSString where
-    toJSVal = valMakeString
+    toJSVal = return . valString
 
 -- | If we already have a JSString we are fine
 instance ToJSString JSString where
-    toJSString = id
+    toJSString = return
 
 instance ToJSString Text where
     toJSString = textToStr
@@ -569,16 +551,16 @@ foreign import javascript unsafe "$r = ($1 === undefined)?0:\
                                        (typeof $1===\"object\")?5:-1;" jsrefGetType :: JSVal -> Int
 #else
 deRefVal value = do
-    gctxt <- ask
     v <- toJSVal value
     withJSVal v $ \rval ->
-        liftIO (jsvaluegettype gctxt rval) >>= \case
-            Kjstypenull      -> return ValNull
-            Kjstypeundefined -> return ValUndefined
-            Kjstypeboolean   -> ValBool   <$> valToBool v
-            Kjstypenumber    -> ValNumber <$> valToNumber v
-            Kjstypestring    -> ValString <$> valToText v
-            Kjstypeobject    -> ValObject <$> valToObject v
+        sendCommand (DeRefVal rval) >>= \case
+            DeRefValResult 0    _ -> return   ValNull
+            DeRefValResult 1    _ -> return   ValUndefined
+            DeRefValResult 2    _ -> return $ ValBool False
+            DeRefValResult 3    _ -> return $ ValBool True
+            DeRefValResult (-1) s -> return $ ValNumber (read (T.unpack s))
+            DeRefValResult (-2) s -> return $ ValString s
+            DeRefValResult ref  _ -> return $ ValObject (Object (JSVal ref))
 #endif
 
 -- | Make a JavaScript value out of a 'JSValue' ADT.
@@ -596,9 +578,9 @@ deRefVal value = do
 valMakeRef :: JSValue -> JSM JSVal
 valMakeRef value =
     case value of
-        ValNull              -> valMakeNull
-        ValUndefined         -> valMakeUndefined
-        ValBool b            -> valMakeBool b
+        ValNull              -> return valNull
+        ValUndefined         -> return valUndefined
+        ValBool b            -> return $ valBool b
         ValNumber n          -> valMakeNumber n
         ValString s          -> valMakeText s
         ValObject (Object o) -> return o
@@ -627,10 +609,10 @@ strictEqual a b = do
 #ifdef ghcjs_HOST_OS
     return $ jsvalueisstrictequal aval bval
 #else
-    gctxt <- ask
     withJSVal aval $ \aref ->
-        withJSVal bval $ \bref ->
-            liftIO $ jsvalueisstrictequal gctxt aref bref
+        withJSVal bval $ \bref -> do
+            StrictEqualResult result <- sendCommand $ StrictEqual aref bref
+            return result
 #endif
 
 #ifdef ghcjs_HOST_OS
@@ -651,10 +633,10 @@ instanceOf value constructor = do
 #ifdef ghcjs_HOST_OS
     rethrow $ return . js_isInstanceOf v c
 #else
-    gctxt <- ask
     withJSVal v $ \rval ->
-        withObject c $ \c' ->
-            rethrow $ liftIO . jsvalueisinstanceofconstructor gctxt rval c'
+        withObject c $ \c' -> do
+            InstanceOfResult result <- sendCommand $ InstanceOf rval c'
+            return result
 #endif
 
 

@@ -21,7 +21,6 @@ module Language.Javascript.JSaddle.Monad (
   , runJSaddle
 
   -- * Exception Handling
-  , catchval
   , catch
   , bracket
 
@@ -33,27 +32,19 @@ module Language.Javascript.JSaddle.Monad (
 import Prelude hiding (catch, read)
 import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
 import Language.Javascript.JSaddle.Types
-       (JSM, JSVal, MutableJSArray, JSContextRef)
+       (JSM, JSVal, MutableJSArray, JSContextRef(..))
 import Control.Monad.IO.Class (MonadIO(..))
 #ifdef ghcjs_HOST_OS
 import GHCJS.Types (isUndefined, isNull)
 import qualified JavaScript.Array as Array (create, read)
 #else
-import Language.Javascript.JSaddle.Native (makeNewJSVal)
-import Foreign (nullPtr, alloca)
-import Foreign.Storable (Storable(..))
-import GI.WebKit.Objects.WebView
-       (WebView(..), webViewGetMainFrame)
-import GI.WebKit.Objects.WebFrame
-       (webFrameGetGlobalContext)
-import GI.GLib (idleAdd)
-import GI.GLib.Constants(pattern PRIORITY_DEFAULT)
-import Foreign.Ptr (castPtr)
-import GI.JavaScriptCore.Structs.GlobalContext (GlobalContext(..))
-import Foreign.ForeignPtr (withForeignPtr)
+import Network.WebSockets (Connection)
+import Language.Javascript.JSaddle.Native (wrapJSVal)
 #endif
 import qualified Control.Exception as E (Exception, catch, bracket)
 import Control.Concurrent.MVar (takeMVar, putMVar, newEmptyMVar)
+import Control.Monad (void)
+import Control.Concurrent (forkIO)
 
 #ifndef ghcjs_HOST_OS
 -- | Post an action to be run in the main GUI thread.
@@ -62,10 +53,7 @@ import Control.Concurrent.MVar (takeMVar, putMVar, newEmptyMVar)
 -- returned.
 --
 postGUISync :: IO a -> IO a
-postGUISync action = do
-  resultVar <- newEmptyMVar
-  idleAdd PRIORITY_DEFAULT $ action >>= putMVar resultVar >> return False
-  takeMVar resultVar
+postGUISync = id
 
 -- | Post an action to be run in the main GUI thread.
 --
@@ -73,9 +61,7 @@ postGUISync action = do
 -- action.
 --
 postGUIAsync :: IO () -> IO ()
-postGUIAsync action = do
-  idleAdd PRIORITY_DEFAULT $ action >> return False
-  return ()
+postGUIAsync = void . forkIO
 #endif
 
 -- | Wrapped version of 'E.catch' that runs in a MonadIO that works
@@ -98,6 +84,7 @@ bracket aquire release f = do
         (\x -> runReaderT (release x) r)
         (\x -> runReaderT (f x) r)
 
+{-
 -- | Handle JavaScriptCore functions that take a MutableJSArray in order
 --   to throw exceptions.
 catchval :: (MutableJSArray -> JSM a) -> (JSVal -> JSM a) -> JSM a
@@ -119,16 +106,15 @@ catchval f catcher = do
             then return result
             else makeNewJSVal exc >>= catcher
 #endif
+-}
 
 #ifdef ghcjs_HOST_OS
 runJSaddle :: MonadIO m => w -> JSM a -> m a
 runJSaddle _ f = liftIO $ runReaderT f ()
 #else
-runJSaddle :: MonadIO m => WebView -> JSM a -> m a
-runJSaddle webView f = liftIO $ do
-    GlobalContext gctxt <- webViewGetMainFrame webView >>= webFrameGetGlobalContext
-    withForeignPtr gctxt $ \ptr ->
-        runReaderT f (castPtr ptr)
+runJSaddle :: MonadIO m => Connection -> JSM a -> m a
+runJSaddle connection f = liftIO $
+    runReaderT f (JSContextRef connection)
 #endif
 
 postGUIAsyncJS :: JSM () -> JSM ()

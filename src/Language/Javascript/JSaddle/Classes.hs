@@ -30,7 +30,7 @@ class ToJSVal a where
 
 -- | Anything that can be used to make a JavaScript string reference
 class ToJSVal a => ToJSString a where
-    toJSString :: a -> JSString
+    toJSString :: a -> JSM JSString
 
 -- | Anything that can be used to make a JavaScript object reference
 class MakeObject this where

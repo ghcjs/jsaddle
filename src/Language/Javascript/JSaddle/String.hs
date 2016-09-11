@@ -24,51 +24,42 @@ module Language.Javascript.JSaddle.String (
 ) where
 
 import Data.Text (Text)
-import Control.Monad.IO.Class (MonadIO(..))
-import Language.Javascript.JSaddle.Types (JSString)
+import Language.Javascript.JSaddle.Types (JSString(..))
 #ifdef ghcjs_HOST_OS
 import Data.JSString.Text (textFromJSString, textToJSString)
 import GHCJS.Marshal.Internal (PFromJSVal(..))
 import GHCJS.Types (nullRef)
 #else
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
-       (jsstringcreatewithcharacters, jsstringgetcharactersptr,
-        jsstringgetlength)
-import Language.Javascript.JSaddle.Native (makeNewJSString, withJSString)
-import System.IO.Unsafe (unsafePerformIO)
-import Foreign.ForeignPtr (newForeignPtr_)
-import Foreign.Ptr (nullPtr)
-import qualified Data.Text.Foreign as T (fromPtr)
-import Foreign (castPtr)
-import Data.Text.Foreign (useAsPtr)
+import Language.Javascript.JSaddle.Native (wrapJSString, withJSString)
+import Language.Javascript.JSaddle.WebSockets (Command(..), Result(..), sendCommand)
+import Language.Javascript.JSaddle.Monad (JSM)
 #endif
 import Language.Javascript.JSaddle.Classes (ToJSString(..))
 
 -- | Convert a JavaScript string to a Haskell 'Text'
-strToText :: MonadIO m => JSString -> m Text
+strToText :: JSString -> JSM Text
 #ifdef ghcjs_HOST_OS
 strToText = return . textFromJSString
 #else
-strToText jsstring' = liftIO $ withJSString jsstring' $ \jsstring -> do
-    l <- jsstringgetlength jsstring
-    p <- jsstringgetcharactersptr jsstring
-    T.fromPtr (castPtr p) (fromIntegral l)
+strToText jsstring' = withJSString jsstring' $ \jsstring -> do
+    JSStringToTextResult text <- sendCommand (JSStringToText jsstring)
+    return text
 #endif
 
 -- | Convert a Haskell 'Text' to a JavaScript string
-textToStr :: Text -> JSString
+textToStr :: Text -> JSM JSString
 #ifdef ghcjs_HOST_OS
-textToStr = textToJSString
+textToStr = return . textToJSString
 #else
-textToStr text = unsafePerformIO $
-    useAsPtr text $ \p l ->
-        jsstringcreatewithcharacters (castPtr p) (fromIntegral l) >>= makeNewJSString
+textToStr text = do
+    TextToJSStringResult str <- sendCommand (TextToJSString text)
+    wrapJSString str
 #endif
 
 nullJSString :: JSString
 #ifdef ghcjs_HOST_OS
 nullJSString = pFromJSVal nullRef
 #else
-nullJSString = unsafePerformIO $ newForeignPtr_ nullPtr
+nullJSString = JSString 0
 #endif
 

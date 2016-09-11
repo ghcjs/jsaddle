@@ -13,16 +13,23 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.Types (
-    JSVal
-  , MutableJSArray
+    JSVal(..)
+  , MutableJSArray(..)
   , Object(..)
-  , JSPropertyNameArray
-  , JSPropertyAttributes
-  , JSContextRef
-  , JSString
+  , JSPropertyNameArray(..)
+  , JSPropertyAttributes(..)
+  , JSContextRef(..)
+  , JSString(..)
   , Index
   , Nullable(..)
   , JSM
+#ifndef ghcjs_HOST_OS
+  , JSValueReceived(..)
+  , JSValueForSend(..)
+  , JSStringReceived(..)
+  , JSStringForSend(..)
+  , JSObjectForSend(..)
+#endif
 ) where
 
 import Control.Monad.Trans.Reader (ReaderT(..))
@@ -33,12 +40,8 @@ import JavaScript.Array (MutableJSArray)
 import Data.Word (Word(..))
 import GHCJS.Nullable (Nullable(..))
 #else
-import Foreign.ForeignPtr (ForeignPtr)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
-       (OpaqueJSString, JSValueRefRef,
-        JSContextRef, JSPropertyNameArrayRef, OpaqueJSValue)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSObjectRef (JSPropertyAttributes)
-import Foreign.C (CUInt(..))
+import Network.WebSockets (Connection)
+import Data.Text (Text)
 #endif
 
 #ifdef ghcjs_HOST_OS
@@ -47,13 +50,20 @@ type JSPropertyAttributes = Word
 type JSContextRef  = ()
 type Index         = Int
 #else
-type JSVal = ForeignPtr OpaqueJSValue
-type MutableJSArray = JSValueRefRef
-type JSPropertyNameArray = JSPropertyNameArrayRef
-type Index = CUInt
-newtype Object = Object (ForeignPtr OpaqueJSValue)
-type JSString = ForeignPtr OpaqueJSString
+newtype JSValueReceived = JSValueReceived Int
+newtype JSValueForSend = JSValueForSend Int
+newtype JSVal = JSVal Int
+newtype MutableJSArray = MutableJSArray Int
+newtype JSPropertyNameArray = JSPropertyNameArray Int
+newtype JSPropertyAttributes = JSPropertyAttributes Word
+type Index = Int
+newtype JSObjectForSend = JSObjectForSend JSValueForSend
+newtype Object = Object JSVal
+newtype JSStringReceived = JSStringReceived Int
+newtype JSStringForSend = JSStringForSend Int
+newtype JSString = JSString Int
 newtype Nullable a = Nullable a
+data JSContextRef = JSContextRef Connection
 #endif
 
 -- | The @JSM@ monad keeps track of the JavaScript context.
