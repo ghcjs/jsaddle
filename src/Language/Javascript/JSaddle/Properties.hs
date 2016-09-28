@@ -39,7 +39,7 @@ import Language.Javascript.JSaddle.Types (JSString)
 import Language.Javascript.JSaddle.Native
        (wrapJSVal, withObject, withJSString, withToJSVal)
 import Language.Javascript.JSaddle.WebSockets
-       (Command(..), AsyncCommand(..), Result(..), sendCommand, sendAsyncCommand)
+       (Command(..), AsyncCommand(..), Result(..), sendLazyCommand, sendAsyncCommand)
 #endif
 import Control.Monad.Trans.Reader (ask)
 import Language.Javascript.JSaddle.Value (JSVal)
@@ -59,9 +59,7 @@ foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
 objGetPropertyByName this name = do
     let name' = toJSString name
     withObject this $ \rthis ->
-        withJSString name' $ \rname -> do
-            GetPropertyByNameResult result <- sendCommand $ GetPropertyByName rthis rname
-            wrapJSVal result
+        withJSString name' $ sendLazyCommand . GetPropertyByName rthis
 #endif
 
 -- | Get a property value given the object and the index of the property.
@@ -74,9 +72,7 @@ foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
     js_tryIndex :: Index -> Object -> MutableJSArray -> IO JSVal
 #else
 objGetPropertyAtIndex this index =
-    withObject this $ \rthis -> do
-        GetPropertyAtIndexResult result <- sendCommand $ GetPropertyAtIndex rthis index
-        wrapJSVal result
+    withObject this $ \rthis -> sendLazyCommand $ GetPropertyAtIndex rthis index
 #endif
 
 -- | Set a property value given the object and the name of the property.

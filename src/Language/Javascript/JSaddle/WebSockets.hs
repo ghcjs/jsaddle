@@ -20,6 +20,7 @@ module Language.Javascript.JSaddle.WebSockets (
   , Command(..)
   , Result(..)
   , sendCommand
+  , sendLazyCommand
   , sendAsyncCommand
 ) where
 
@@ -32,7 +33,7 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.STM.TChan
        (tryReadTChan, TChan, readTChan, writeTChan, newTChanIO)
 import Control.Concurrent.STM.TVar
-       (readTVarIO, modifyTVar, newTVarIO)
+       (writeTVar, readTVar, readTVarIO, modifyTVar, newTVarIO)
 import Control.Concurrent.MVar
        (MVar, MVar, putMVar, takeMVar, newEmptyMVar)
 
@@ -50,7 +51,7 @@ import Network.Wai.Handler.WebSockets (websocketsOr)
 
 import Language.Javascript.JSaddle.Types
        (Command(..), AsyncCommand(..), Result(..), JSContextRef(..), JSVal(..),
-        Object(..), JSValueReceived(..), JSM, Batch(..))
+        Object(..), JSValueReceived(..), JSM, Batch(..), JSValueForSend(..))
 import Language.Javascript.JSaddle.Exception (JSException(..))
 import Language.Javascript.JSaddle.Monad (runJSaddle)
 import Language.Javascript.JSaddle.Native (wrapJSVal)
@@ -67,6 +68,17 @@ sendCommand cmd = do
     s <- asks doSendCommand
     liftIO $ s cmd
 
+sendLazyCommand :: (JSValueForSend -> AsyncCommand) -> JSM JSVal
+sendLazyCommand cmd = do
+    nextRefTVar <- asks nextRef
+    n <- liftIO . atomically $ do
+        n <- subtract 1 <$> readTVar nextRefTVar
+        writeTVar nextRefTVar n
+        return n
+    s <- asks doSendAsyncCommand
+    liftIO $ s (cmd $ JSValueForSend n)
+    wrapJSVal (JSValueReceived n)
+
 sendAsyncCommand :: AsyncCommand -> JSM ()
 sendAsyncCommand cmd = do
     s <- asks doSendAsyncCommand
@@ -81,6 +93,7 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
         recvChan <- newTChanIO
         commandChan <- newTChanIO
         callbacks <- newTVarIO M.empty
+        nextRef <- newTVarIO 0
         let ctx = JSContextRef {
             doSendCommand = \cmd -> do
                 result <- newEmptyMVar
@@ -91,6 +104,7 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
           , doSendAsyncCommand = atomically . writeTChan commandChan . Left
           , addCallback = \(Object (JSVal val)) cb -> atomically $ modifyTVar callbacks (M.insert val cb)
           , freeCallback = \(Object (JSVal val)) -> atomically $ modifyTVar callbacks (M.delete val)
+          , nextRef = nextRef
           }
         forkIO . forever $
             receiveDataMessage conn >>= \case

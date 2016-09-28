@@ -87,7 +87,9 @@ import Language.Javascript.JSaddle.Exception (rethrow)
 import Language.Javascript.JSaddle.Native
        (wrapJSString, withJSVal, withObject, withJSString,
         withToJSVal, wrapJSVal)
-import Language.Javascript.JSaddle.WebSockets (Command(..), Result(..), sendCommand)
+import Language.Javascript.JSaddle.WebSockets
+       (Command(..), AsyncCommand(..), Result(..), sendCommand,
+        sendLazyCommand)
 #endif
 import Language.Javascript.JSaddle.Monad (JSM)
 import Data.Text (Text)
@@ -442,9 +444,7 @@ valMakeNumber :: Double -> JSM JSVal
 #ifdef ghcjs_HOST_OS
 valMakeNumber n = liftIO $ GHCJS.toJSVal n
 #else
-valMakeNumber n = do
-    NumberToValueResult result <- sendCommand (NumberToValue n)
-    wrapJSVal result
+valMakeNumber = sendLazyCommand . NumberToValue
 #endif
 
 -- | Makes a JavaScript number
@@ -490,9 +490,7 @@ valMakeString :: JSString -> JSM JSVal
 valMakeString = return . pToJSVal
 #else
 valMakeString s =
-    withJSString s $ \s' -> do
-        StringToValueResult result <- sendCommand $ StringToValue s'
-        wrapJSVal result
+    withJSString s $ sendLazyCommand . StringToValue
 #endif
 
 -- | Makes a JavaScript string

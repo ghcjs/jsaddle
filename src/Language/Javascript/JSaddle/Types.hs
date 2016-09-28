@@ -45,20 +45,23 @@ import JavaScript.Array (MutableJSArray)
 import Data.Word (Word(..))
 import GHCJS.Nullable (Nullable(..))
 #else
+import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Aeson
        (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..))
 import GHC.Generics (Generic)
+import Control.Concurrent.STM.TVar (TVar)
 #endif
 
 #ifdef ghcjs_HOST_OS
 type JSContextRef  = ()
 type Index         = Int
 #else
-newtype JSValueReceived = JSValueReceived Int deriving(Show, ToJSON, FromJSON)
-newtype JSValueForSend = JSValueForSend Int deriving(Show, ToJSON, FromJSON)
-newtype JSVal = JSVal Int deriving(Show, ToJSON, FromJSON)
-newtype MutableJSArray = MutableJSArray Int deriving(Show, ToJSON, FromJSON)
+type JSRef = Int64
+newtype JSValueReceived = JSValueReceived JSRef deriving(Show, ToJSON, FromJSON)
+newtype JSValueForSend = JSValueForSend JSRef deriving(Show, ToJSON, FromJSON)
+newtype JSVal = JSVal JSRef deriving(Show, ToJSON, FromJSON)
+newtype MutableJSArray = MutableJSArray JSRef deriving(Show, ToJSON, FromJSON)
 type Index = Int
 newtype JSObjectForSend = JSObjectForSend JSValueForSend deriving(Show, ToJSON, FromJSON)
 newtype Object = Object JSVal deriving(Show, ToJSON, FromJSON)
@@ -70,6 +73,16 @@ newtype Nullable a = Nullable a
 data AsyncCommand = FreeRef JSValueForSend
                   | SetPropertyByName JSObjectForSend JSStringForSend JSValueForSend
                   | SetPropertyAtIndex JSObjectForSend Index JSValueForSend
+                  | StringToValue JSStringForSend JSValueForSend
+                  | NumberToValue Double JSValueForSend
+                  | GetPropertyByName JSObjectForSend JSStringForSend JSValueForSend
+                  | GetPropertyAtIndex JSObjectForSend Index JSValueForSend
+                  | CallAsFunction JSObjectForSend JSObjectForSend [JSValueForSend] JSValueForSend
+                  | CallAsConstructor JSObjectForSend [JSValueForSend] JSValueForSend
+                  | NewEmptyObject JSValueForSend
+                  | NewCallback JSValueForSend
+                  | NewArray [JSValueForSend] JSValueForSend
+                  | EvaluateScript JSStringForSend JSValueForSend
              deriving (Show, Generic)
 
 instance ToJSON AsyncCommand where
@@ -84,19 +97,9 @@ data Command = DeRefVal JSValueForSend
              | ValueToJSON JSValueForSend
              | IsNull JSValueForSend
              | IsUndefined JSValueForSend
-             | NumberToValue Double
-             | StringToValue JSStringForSend
              | StrictEqual JSValueForSend JSValueForSend
              | InstanceOf JSValueForSend JSObjectForSend
-             | GetPropertyByName JSObjectForSend JSStringForSend
-             | GetPropertyAtIndex JSObjectForSend Index
-             | CallAsFunction JSObjectForSend JSObjectForSend [JSValueForSend]
-             | CallAsConstructor JSObjectForSend [JSValueForSend]
-             | NewEmptyObject
-             | NewCallback
-             | NewArray [JSValueForSend]
              | PropertyNames JSObjectForSend
-             | EvaluateScript JSStringForSend
              | Sync
              deriving (Show, Generic)
 
@@ -113,27 +116,17 @@ instance ToJSON Batch where
 
 instance FromJSON Batch
 
-data Result = DeRefValResult Int Text
+data Result = DeRefValResult JSRef Text
             | ValueToBoolResult Bool
             | ValueToNumberResult Double
             | ValueToStringResult JSStringReceived
             | ValueToJSONResult JSStringReceived
             | IsNullResult Bool
             | IsUndefinedResult Bool
-            | NumberToValueResult JSValueReceived
-            | StringToValueResult JSValueReceived
             | StrictEqualResult Bool
             | InstanceOfResult Bool
-            | GetPropertyByNameResult JSValueReceived
-            | GetPropertyAtIndexResult JSValueReceived
-            | CallAsFunctionResult JSValueReceived
-            | CallAsConstructorResult JSValueReceived
-            | NewEmptyObjectResult JSValueReceived
-            | NewCallbackResult JSValueReceived
             | Callback JSValueReceived JSValueReceived [JSValueReceived]
-            | NewArrayResult JSValueReceived
             | PropertyNamesResult [JSStringReceived]
-            | EvaluateScriptResult JSValueReceived
             | ThrowJSValue JSValueReceived
             | ProtocolError Text
             | SyncResult
@@ -149,6 +142,7 @@ data JSContextRef = JSContextRef {
   , doSendAsyncCommand :: AsyncCommand -> IO ()
   , addCallback :: Object -> JSCallAsFunction -> IO ()
   , freeCallback :: Object -> IO ()
+  , nextRef :: TVar JSRef
 }
 
 #endif

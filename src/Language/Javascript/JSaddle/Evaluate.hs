@@ -20,7 +20,7 @@ module Language.Javascript.JSaddle.Evaluate (
     eval
 ) where
 
-import Language.Javascript.JSaddle.Types (JSVal)
+import Language.Javascript.JSaddle.Types (Result(..), JSVal)
 #ifdef ghcjs_HOST_OS
 import GHCJS.Types (nullRef)
 import GHCJS.Marshal.Pure (pFromJSVal)
@@ -29,7 +29,7 @@ import Language.Javascript.JSaddle.Types (JSString)
 import Language.Javascript.JSaddle.Native
        (wrapJSVal, withJSString)
 import Language.Javascript.JSaddle.WebSockets
-       (Command(..), Result(..), sendCommand)
+       (AsyncCommand(..), Result(..), sendLazyCommand)
 #endif
 import Language.Javascript.JSaddle.Classes
        (ToJSString(..))
@@ -58,7 +58,5 @@ foreign import javascript unsafe "$r = eval($1);"
 #else
 eval script = do
     let rscript = toJSString script
-    withJSString rscript $ \script' -> do
-        EvaluateScriptResult result <- sendCommand $ EvaluateScript script'
-        wrapJSVal result
+    withJSString rscript $ sendLazyCommand . EvaluateScript
 #endif

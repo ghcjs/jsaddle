@@ -108,10 +108,9 @@ import Control.Monad (liftM)
 import Data.Coerce (coerce)
 #else
 import Language.Javascript.JSaddle.Native
-       (wrapJSVal, wrapJSString, withJSVals,
-        withObject)
+       (wrapJSString, withJSVals, withObject)
 import Language.Javascript.JSaddle.WebSockets
-       (Command(..), Result(..), sendCommand)
+       (Command(..), AsyncCommand(..), Result(..), sendCommand, sendLazyCommand)
 #endif
 import Language.Javascript.JSaddle.Value (valToObject)
 import Language.Javascript.JSaddle.Classes
@@ -128,7 +127,7 @@ import Data.Text (Text)
 -- $setup
 -- >>> import Language.Javascript.JSaddle.Test (testJSaddle)
 -- >>> import Language.Javascript.JSaddle.Evaluate (eval)
--- >>> import Language.Javascript.JSaddle.Value (val, valToText, JSNull(..))
+-- >>> import Language.Javascript.JSaddle.Value (val, valToText, JSNull(..), deRefVal)
 -- >>> import Language.Javascript.JSaddle.String (strToText)
 -- >>> import Control.Lens.Operators ((^.))
 -- >>> import qualified Data.Text as T (unpack)
@@ -269,7 +268,7 @@ jsgf name = global # name
 --
 -- > jsg0 name = jsgf name ()
 --
--- >>> testJSaddle $ jsg0 "globalFunc"
+-- >>> testJSaddle $ jsg0 "globalFunc" >>= valToText
 -- TypeError:...undefine...
 jsg0 :: (ToJSString name) => name -> JSM JSVal
 jsg0 name = jsgf name ()
@@ -404,9 +403,7 @@ obj :: JSM Object
 #ifdef ghcjs_HOST_OS
 obj = liftIO Object.create
 #else
-obj = do
-    NewEmptyObjectResult result <- sendCommand NewEmptyObject
-    Object <$> wrapJSVal result
+obj = Object <$> sendLazyCommand NewEmptyObject
 #endif
 
 -- | Short hand @::JSCallAsFunction@ so a haskell function can be passed to
@@ -414,7 +411,7 @@ obj = do
 --
 -- >>> testJSaddle $ eval "(function(f) {f('Hello');})(function (a) {console.log(a)})"
 -- undefined
--- >>> testJSaddle $ call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ args -> valToText (head args) >>= (liftIO . putStrLn . T.unpack) ]
+-- >>> testJSaddle . deRefVal $ call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ args -> valToText (head args) >>= (liftIO . putStrLn . T.unpack) ]
 -- Hello
 -- undefined
 fun :: JSCallAsFunction -> JSCallAsFunction
@@ -442,8 +439,7 @@ foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
     makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
 #else
 function f = do
-    NewCallbackResult result <- sendCommand NewCallback
-    obj <- Object <$> wrapJSVal result
+    obj <- Object <$> sendLazyCommand NewCallback
     asks addCallback >>= \add -> liftIO $ add obj f
     return $ Function () obj
 #endif
@@ -488,9 +484,7 @@ array args = do
 #else
 array args = do
     rargs <- makeArgs args
-    withJSVals rargs $ \rargs' -> do
-        NewArrayResult result <- sendCommand $ NewArray rargs'
-        Object <$> wrapJSVal result
+    withJSVals rargs $ \rargs' -> Object <$> sendLazyCommand (NewArray rargs')
 #endif
 
 -- Make an array out of various lists
@@ -570,9 +564,7 @@ objCallAsFunction f this args = do
     rargs <- makeArgs args
     withObject f $ \rfunction ->
         withObject this $ \rthis ->
-            withJSVals rargs $ \rargs' -> do
-                CallAsFunctionResult result <- sendCommand $ CallAsFunction rfunction rthis rargs'
-                wrapJSVal result
+            withJSVals rargs $ sendLazyCommand . CallAsFunction rfunction rthis
 #endif
 
 -- | Call a JavaScript object as a constructor. Consider using 'new'.
@@ -620,9 +612,7 @@ foreign import javascript unsafe "\
 objCallAsConstructor f args = do
     rargs <- makeArgs args
     withObject f $ \rfunction ->
-        withJSVals rargs $ \rargs' -> do
-            CallAsConstructorResult result <- sendCommand $ CallAsConstructor rfunction rargs'
-            wrapJSVal result
+        withJSVals rargs $ sendLazyCommand . CallAsConstructor rfunction
 #endif
 
 -- >>> testJSaddle $ strictEqual nullObject (eval "null")
