@@ -61,7 +61,7 @@ module Language.Javascript.JSaddle.Value (
   , maybeNullOrUndefined'
   , valBool
   , valMakeNumber
-  , valString
+  , valMakeString
 
   -- * Convert to and from JSValue
   , deRefVal
@@ -90,8 +90,6 @@ import Language.Javascript.JSaddle.Native
 import Language.Javascript.JSaddle.WebSockets (Command(..), Result(..), sendCommand)
 #endif
 import Language.Javascript.JSaddle.Monad (JSM)
-import Control.Monad.Trans.Reader (ask)
-import Control.Monad.IO.Class (MonadIO(..))
 import Data.Text (Text)
 import qualified Data.Text as T (pack, unpack)
 import Language.Javascript.JSaddle.Classes
@@ -105,7 +103,7 @@ import Data.Int (Int32, Int64)
 -- >>> import Language.Javascript.JSaddle.Test (testJSaddle)
 -- >>> import Language.Javascript.JSaddle.Monad (catch)
 -- >>> import Language.Javascript.JSaddle.Exception (JSException(..))
--- >>> import Language.Javascript.JSaddle.Object (obj)
+-- >>> import Language.Javascript.JSaddle.Object (obj, jsg)
 -- >>> import qualified Data.Text as T (pack)
 
 data JSNull      = JSNull -- ^ Type that represents a value that can only be null.
@@ -204,21 +202,21 @@ valToNumber value =
 -- | Given a JavaScript value get its string value (as a JavaScript string).
 --   May throw JSException.
 --
--- >>> testJSaddle $ valToStr JSNull >>= strToText
+-- >>> testJSaddle $ strToText <$> valToStr JSNull
 -- null
--- >>> testJSaddle $ valToStr () >>= strToText
+-- >>> testJSaddle $ strToText <$> valToStr ()
 -- undefined
--- >>> testJSaddle $ valToStr True >>= strToText
+-- >>> testJSaddle $ strToText <$> valToStr True
 -- true
--- >>> testJSaddle $ valToStr False >>= strToText
+-- >>> testJSaddle $ strToText <$> valToStr False
 -- false
--- >>> testJSaddle $ valToStr (1.0 :: Double) >>= strToText
+-- >>> testJSaddle $ strToText <$> valToStr (1.0 :: Double)
 -- 1
--- >>> testJSaddle $ valToStr (0.0 :: Double) >>= strToText
+-- >>> testJSaddle $ strToText <$> valToStr (0.0 :: Double)
 -- 0
--- >>> testJSaddle $ valToStr "" >>= strToText
+-- >>> testJSaddle $ strToText <$> valToStr ""
 -- <BLANKLINE>
--- >>> testJSaddle $ valToStr "1" >>= strToText
+-- >>> testJSaddle $ strToText <$> valToStr "1"
 -- 1
 valToStr :: ToJSVal value => value -> JSM JSString
 #ifdef ghcjs_HOST_OS
@@ -251,33 +249,33 @@ valToStr value =
 -- >>> testJSaddle $ show <$> valToText "1"
 -- "1"
 valToText :: ToJSVal value => value -> JSM Text
-valToText jsvar = valToStr jsvar >>= strToText
+valToText jsvar = strToText <$> valToStr jsvar
 
 -- | Given a JavaScript value get a JSON string value.
 --   May throw JSException.
 --
--- >>> testJSaddle $ valToJSON 0 JSNull >>= strToText
+-- >>> testJSaddle $ strToText <$> valToJSON JSNull
 -- null
--- >>> testJSaddle $ valToJSON 0 () >>= strToText
+-- >>> testJSaddle $ strToText <$> valToJSON ()
 -- <BLANKLINE>
--- >>> testJSaddle $ valToJSON 0 True >>= strToText
+-- >>> testJSaddle $ strToText <$> valToJSON True
 -- true
--- >>> testJSaddle $ valToJSON 0 False >>= strToText
+-- >>> testJSaddle $ strToText <$> valToJSON False
 -- false
--- >>> testJSaddle $ valToJSON 0 (1.0 :: Double) >>= strToText
+-- >>> testJSaddle $ strToText <$> valToJSON (1.0 :: Double)
 -- 1
--- >>> testJSaddle $ valToJSON 0 (0.0 :: Double) >>= strToText
+-- >>> testJSaddle $ strToText <$> valToJSON (0.0 :: Double)
 -- 0
--- >>> testJSaddle $ valToJSON 0 "" >>= strToText
+-- >>> testJSaddle $ strToText <$> valToJSON ""
 -- ""
--- >>> testJSaddle $ valToJSON 0 "1" >>= strToText
+-- >>> testJSaddle $ strToText <$> valToJSON "1"
 -- "1"
--- >>> testJSaddle $ obj >>= valToJSON 0 >>= strToText
+-- >>> testJSaddle $ strToText <$> (obj >>= valToJSON)
 -- {}
 valToJSON :: ToJSVal value => value -> JSM JSString
 #ifdef ghcjs_HOST_OS
 valToJSON value = jsrefToJSON <$> toJSVal value
-foreign import javascript unsafe "$r = JSON.stringify($1);" jsrefToJSON :: JSVal -> JSString
+foreign import javascript unsafe "$r = $1 === undefined ? "" : JSON.stringify($1);" jsrefToJSON :: JSVal -> JSString
 #else
 valToJSON value =
     withToJSVal value $ \rval -> do
@@ -289,9 +287,9 @@ valToJSON value =
 --   May throw JSException.
 --
 -- >>> testJSaddle $ (valToObject JSNull >>= valToText) `catch` \ (JSException e) -> valToText e
--- TypeError:...null...is not an object
+-- null
 -- >>> testJSaddle $ (valToObject () >>= valToText) `catch` \ (JSException e) -> valToText e
--- TypeError:...undefined...is not an object
+-- undefined
 -- >>> testJSaddle $ valToObject True
 -- true
 -- >>> testJSaddle $ valToObject False
@@ -356,9 +354,13 @@ valIsNull :: ToJSVal value => value -> JSM Bool
 #ifdef ghcjs_HOST_OS
 valIsNull value = isNull <$> toJSVal value
 #else
-valIsNull value = toJSVal value >>= \case
-                        JSVal 0 -> return True
-                        _       -> return False
+valIsNull value =
+    toJSVal value >>= \case
+        JSVal 0 -> return True
+        v       ->
+            withJSVal v $ \rval -> do
+                IsNullResult result <- sendCommand $ IsNull rval
+                return result
 #endif
 
 ----------- undefined ---------------
@@ -389,7 +391,11 @@ valIsUndefined :: ToJSVal value => value -> JSM Bool
 valIsUndefined value = isUndefined <$> toJSVal value
 #else
 valIsUndefined value = toJSVal value >>= \case
-                            JSVal ref -> return $ ref == 1
+    JSVal 1 -> return True
+    v       ->
+        withJSVal v $ \rval -> do
+            IsUndefinedResult result <- sendCommand $ IsUndefined rval
+            return result
 #endif
 
 -- | Convert a JSVal to a Maybe JSVal (converting null and undefined to Nothing)
@@ -475,15 +481,18 @@ valMakeText :: Text -> JSM JSVal
 #ifdef ghcjs_HOST_OS
 valMakeText = return . pToJSVal . textToJSString
 #else
-valMakeText text = valString <$> textToStr text
+valMakeText text = valMakeString (textToStr text)
 #endif
 
 -- | Make a JavaScript string from `JSString`
-valString :: JSString -> JSVal
+valMakeString :: JSString -> JSM JSVal
 #ifdef ghcjs_HOST_OS
-valString = pToJSVal
+valMakeString = return . pToJSVal
 #else
-valString (JSString ref) = JSVal ref
+valMakeString s =
+    withJSString s $ \s' -> do
+        StringToValueResult result <- sendCommand $ StringToValue s'
+        wrapJSVal result
 #endif
 
 -- | Makes a JavaScript string
@@ -500,11 +509,11 @@ instance ToJSVal String where
 
 -- | Makes a JavaScript string
 instance ToJSVal JSString where
-    toJSVal = return . valString
+    toJSVal = valMakeString
 
 -- | If we already have a JSString we are fine
 instance ToJSString JSString where
-    toJSString = return
+    toJSString = id
 
 instance ToJSString Text where
     toJSString = textToStr
@@ -531,6 +540,8 @@ instance ToJSString String where
 -- >>> testJSaddle $ showJSValue <$> deRefVal "1"
 -- "1"
 -- >>> testJSaddle $ showJSValue <$> (valToObject True >>= deRefVal)
+-- true
+-- >>> testJSaddle $ showJSValue <$> (obj >>= deRefVal)
 -- object
 deRefVal :: ToJSVal value => value -> JSM JSValue
 #ifdef ghcjs_HOST_OS
@@ -602,6 +613,15 @@ foreign import javascript unsafe
   "$1===$2" jsvalueisstrictequal :: JSVal -> JSVal -> Bool
 #endif
 
+-- | Determine if two values are equal (JavaScripts ===)
+-- >>> testJSaddle $ strictEqual True False
+-- false
+-- >>> testJSaddle $ strictEqual True True
+-- true
+-- >>> testJSaddle $ strictEqual "Hello" ()
+-- false
+-- >>> testJSaddle $ strictEqual "Hello" "Hello"
+-- true
 strictEqual :: (ToJSVal a, ToJSVal b) => a -> b -> JSM Bool
 strictEqual a b = do
     aval <- toJSVal a
@@ -626,6 +646,9 @@ foreign import javascript unsafe "\
   js_isInstanceOf :: JSVal -> Object -> MutableJSArray -> Bool
 #endif
 
+-- | Determine if two values are equal (JavaScripts ===)
+-- >>> testJSaddle $ instanceOf obj (Object <$> jsg "Object")
+-- true
 instanceOf :: (ToJSVal value, MakeObject constructor) => value -> constructor -> JSM Bool
 instanceOf value constructor = do
     v <- toJSVal value

@@ -20,7 +20,6 @@ module Language.Javascript.JSaddle.String (
   -- * Data.Text helpers
   , strToText
   , textToStr
-  , nullJSString
 ) where
 
 import Data.Text (Text)
@@ -29,37 +28,22 @@ import Language.Javascript.JSaddle.Types (JSString(..))
 import Data.JSString.Text (textFromJSString, textToJSString)
 import GHCJS.Marshal.Internal (PFromJSVal(..))
 import GHCJS.Types (nullRef)
-#else
-import Language.Javascript.JSaddle.Native (wrapJSString, withJSString)
-import Language.Javascript.JSaddle.WebSockets (Command(..), Result(..), sendCommand)
-import Language.Javascript.JSaddle.Monad (JSM)
 #endif
 import Language.Javascript.JSaddle.Classes (ToJSString(..))
 
 -- | Convert a JavaScript string to a Haskell 'Text'
-strToText :: JSString -> JSM Text
+strToText :: JSString -> Text
 #ifdef ghcjs_HOST_OS
-strToText = return . textFromJSString
+strToText = textFromJSString
 #else
-strToText jsstring' = withJSString jsstring' $ \jsstring -> do
-    JSStringToTextResult text <- sendCommand (JSStringToText jsstring)
-    return text
+strToText (JSString text) = text
 #endif
 
 -- | Convert a Haskell 'Text' to a JavaScript string
-textToStr :: Text -> JSM JSString
+textToStr :: Text -> JSString
 #ifdef ghcjs_HOST_OS
-textToStr = return . textToJSString
+textToStr = textToJSString
 #else
-textToStr text = do
-    TextToJSStringResult str <- sendCommand (TextToJSString text)
-    wrapJSString str
-#endif
-
-nullJSString :: JSString
-#ifdef ghcjs_HOST_OS
-nullJSString = pFromJSVal nullRef
-#else
-nullJSString = JSString 0
+textToStr = JSString
 #endif
 

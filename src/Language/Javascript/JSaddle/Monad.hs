@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternSynonyms #-}
 -----------------------------------------------------------------------------
 --
@@ -17,52 +16,19 @@ module Language.Javascript.JSaddle.Monad (
     JSM
   , JSContextRef
 
-  -- * Running JSaddle given a DOM Window
+  -- * Running JSaddle given a JSContextRef
   , runJSaddle
 
   -- * Exception Handling
   , catch
   , bracket
-
-  -- * GUI thread support
-  , postGUIAsyncJS
-  , postGUISyncJS
 ) where
 
 import Prelude hiding (catch, read)
 import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
-import Language.Javascript.JSaddle.Types
-       (JSM, JSVal, MutableJSArray, JSContextRef(..))
 import Control.Monad.IO.Class (MonadIO(..))
-#ifdef ghcjs_HOST_OS
-import GHCJS.Types (isUndefined, isNull)
-import qualified JavaScript.Array as Array (create, read)
-#else
-import Network.WebSockets (Connection)
-import Language.Javascript.JSaddle.Native (wrapJSVal)
-#endif
 import qualified Control.Exception as E (Exception, catch, bracket)
-import Control.Concurrent.MVar (takeMVar, putMVar, newEmptyMVar)
-import Control.Monad (void)
-import Control.Concurrent (forkIO)
-
-#ifndef ghcjs_HOST_OS
--- | Post an action to be run in the main GUI thread.
---
--- The current thread blocks until the action completes and the result is
--- returned.
---
-postGUISync :: IO a -> IO a
-postGUISync = id
-
--- | Post an action to be run in the main GUI thread.
---
--- The current thread continues and does not wait for the result of the
--- action.
---
-postGUIAsync :: IO () -> IO ()
-postGUIAsync = void . forkIO
-#endif
+import Language.Javascript.JSaddle.Types (JSM, JSContextRef(..))
 
 -- | Wrapped version of 'E.catch' that runs in a MonadIO that works
 --   a bit better with 'JSM'
@@ -108,30 +74,6 @@ catchval f catcher = do
 #endif
 -}
 
-#ifdef ghcjs_HOST_OS
-runJSaddle :: MonadIO m => w -> JSM a -> m a
-runJSaddle _ f = liftIO $ runReaderT f ()
-#else
-runJSaddle :: MonadIO m => Connection -> JSM a -> m a
-runJSaddle connection f = liftIO $
-    runReaderT f (JSContextRef connection)
-#endif
-
-postGUIAsyncJS :: JSM () -> JSM ()
-#ifdef ghcjs_HOST_OS
-postGUIAsyncJS = id
-#else
-postGUIAsyncJS f = do
-    r <- ask
-    liftIO . postGUIAsync $ runReaderT f r
-#endif
-
-postGUISyncJS :: JSM a -> JSM a
-#ifdef ghcjs_HOST_OS
-postGUISyncJS = id
-#else
-postGUISyncJS f = do
-    r <- ask
-    liftIO . postGUISync $ runReaderT f r
-#endif
+runJSaddle :: MonadIO m => JSContextRef -> JSM a -> m a
+runJSaddle context f = liftIO $ runReaderT f context
 

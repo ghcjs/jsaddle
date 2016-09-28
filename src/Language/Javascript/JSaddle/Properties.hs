@@ -32,16 +32,14 @@ module Language.Javascript.JSaddle.Properties (
 import Language.Javascript.JSaddle.Classes
        (ToJSVal(..), ToJSString(..))
 import Language.Javascript.JSaddle.Monad (JSM)
-import Language.Javascript.JSaddle.Types
-       (MutableJSArray, Object(..), JSPropertyAttributes,
-        Index)
+import Language.Javascript.JSaddle.Types (Object(..), Index)
 #ifdef ghcjs_HOST_OS
 import Language.Javascript.JSaddle.Types (JSString)
 #else
 import Language.Javascript.JSaddle.Native
        (wrapJSVal, withObject, withJSString, withToJSVal)
 import Language.Javascript.JSaddle.WebSockets
-       (Command(..), Result(..), sendCommand, sendAsyncCommand)
+       (Command(..), AsyncCommand(..), Result(..), sendCommand, sendAsyncCommand)
 #endif
 import Control.Monad.Trans.Reader (ask)
 import Language.Javascript.JSaddle.Value (JSVal)
@@ -59,7 +57,7 @@ foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
     js_tryGetProp :: JSString -> Object -> MutableJSArray -> IO JSVal
 #else
 objGetPropertyByName this name = do
-    name' <- toJSString name
+    let name' = toJSString name
     withObject this $ \rthis ->
         withJSString name' $ \rname -> do
             GetPropertyByNameResult result <- sendCommand $ GetPropertyByName rthis rname
@@ -95,7 +93,7 @@ foreign import javascript unsafe "try { $2[$1]=$3 } catch(e) { $4[0] = e }"
     js_trySetProp :: JSString -> Object -> JSVal -> MutableJSArray -> IO ()
 #else
 objSetPropertyByName this name val = do
-    name' <- toJSString name
+    let name' = toJSString name
     withObject this $ \rthis ->
         withJSString name' $ \rname ->
             withToJSVal val $ \rval ->

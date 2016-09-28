@@ -92,9 +92,10 @@ module Language.Javascript.JSaddle.Object (
 import Control.Applicative
 import Prelude hiding ((!!))
 import Language.Javascript.JSaddle.Types
-       (JSPropertyNameArray, JSString, Object(..),
-        JSVal(..), Index)
+       (JSString, Object(..),
+        JSVal(..), Index, JSCallAsFunction, JSContextRef(..))
 #ifdef ghcjs_HOST_OS
+import Control.Monad.Trans.Reader (runReaderT)
 import GHCJS.Types (nullRef, jsval)
 import GHCJS.Foreign.Callback
        (releaseCallback, syncCallback2, OnBlocked(..), Callback)
@@ -112,27 +113,23 @@ import Language.Javascript.JSaddle.Native
 import Language.Javascript.JSaddle.WebSockets
        (Command(..), Result(..), sendCommand)
 #endif
-import Language.Javascript.JSaddle.Value
-       (JSUndefined, valToObject)
+import Language.Javascript.JSaddle.Value (valToObject)
 import Language.Javascript.JSaddle.Classes
        (ToJSVal(..), ToJSString(..), MakeObject(..))
 import Language.Javascript.JSaddle.Arguments (MakeArgs(..))
 import Language.Javascript.JSaddle.Monad
        (JSM)
-import Control.Monad.Trans.Reader (runReaderT, ask)
+import Control.Monad.Trans.Reader (asks)
 import Control.Monad.IO.Class (MonadIO(..))
-import qualified Control.Exception as E (catch)
-import Control.Exception (SomeException)
-import Foreign.Storable (Storable(..))
 import Language.Javascript.JSaddle.Properties
 import Control.Lens (IndexPreservingGetter, to)
-import Language.Javascript.JSaddle.String (nullJSString)
 import Data.Text (Text)
 
 -- $setup
 -- >>> import Language.Javascript.JSaddle.Test (testJSaddle)
 -- >>> import Language.Javascript.JSaddle.Evaluate (eval)
 -- >>> import Language.Javascript.JSaddle.Value (val, valToText, JSNull(..))
+-- >>> import Language.Javascript.JSaddle.String (strToText)
 -- >>> import Control.Lens.Operators ((^.))
 -- >>> import qualified Data.Text as T (unpack)
 
@@ -189,7 +186,7 @@ js name = to (!name)
 -- >>> testJSaddle $ eval "'Hello World'.length = 12"
 -- 12
 -- >>> testJSaddle $ val "Hello World" ^. jss "length" 12
--- 12
+-- undefined
 jss :: (ToJSString name, ToJSVal val)
    => name          -- ^ Name of the property to find
    -> val
@@ -251,12 +248,8 @@ js5 name a0 a1 a2 a3 a4 = jsf name (a0, a1, a2, a3, a4)
 -- | Handy way to get and hold onto a reference top level javascript
 --
 -- >>> testJSaddle $ eval "w = console; w.log('Hello World')"
--- ** Message: console message:  @1: Hello World
--- <BLANKLINE>
 -- undefined
 -- >>> testJSaddle $ do w <- jsg "console"; w ^. js1 "log" "Hello World"
--- ** Message: console message:...@0: Hello World
--- <BLANKLINE>
 -- undefined
 jsg :: ToJSString a => a -> JSM JSVal
 jsg name = global ! name
@@ -277,7 +270,7 @@ jsgf name = global # name
 -- > jsg0 name = jsgf name ()
 --
 -- >>> testJSaddle $ jsg0 "globalFunc"
--- TypeError:...undefined...is not an objec...
+-- TypeError:...undefine...
 jsg0 :: (ToJSString name) => name -> JSM JSVal
 jsg0 name = jsgf name ()
 
@@ -416,22 +409,10 @@ obj = do
     Object <$> wrapJSVal result
 #endif
 
--- | Type used for Haskell functions called from JavaScript.
-type JSCallAsFunction = JSVal      -- ^ Function object
-                     -> JSVal      -- ^ this
-                     -> [JSVal]    -- ^ Function arguments
-                     -> JSM JSUndefined -- ^ Only 'JSUndefined' can be returned because
-                                        --   the function may need to be executed in a
-                                        --   different thread.  If you need to get a
-                                        --   value out pass in a continuation function
-                                        --   as an argument and invoke it from haskell.
-
 -- | Short hand @::JSCallAsFunction@ so a haskell function can be passed to
 --   a to a JavaScipt one.
 --
 -- >>> testJSaddle $ eval "(function(f) {f('Hello');})(function (a) {console.log(a)})"
--- ** Message: console message:  @1: Hello
--- <BLANKLINE>
 -- undefined
 -- >>> testJSaddle $ call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ args -> valToText (head args) >>= (liftIO . putStrLn . T.unpack) ]
 -- Hello
@@ -461,9 +442,10 @@ foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
     makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
 #else
 function f = do
-    -- callback <- liftIO $ mkJSObjectCallAsFunctionCallback (wrap gctxt)
     NewCallbackResult result <- sendCommand NewCallback
-    Function () . Object <$> wrapJSVal result
+    obj <- Object <$> wrapJSVal result
+    asks addCallback >>= \add -> liftIO $ add obj f
+    return $ Function () obj
 #endif
 
 freeFunction :: Function -> JSM ()
@@ -471,7 +453,7 @@ freeFunction :: Function -> JSM ()
 freeFunction (Function callback _) = liftIO $
     releaseCallback callback
 #else
-freeFunction (Function callback obj) = return () -- TODO
+freeFunction (Function callback obj) = asks freeCallback >>= \f -> liftIO $ f obj
 #endif
 
 instance ToJSVal Function where
@@ -546,10 +528,14 @@ global = js_window
 foreign import javascript unsafe "$r = window"
     js_window :: Object
 #else
-global = Object (JSVal 5)
+global = Object (JSVal 4)
 #endif
 
 -- | Get a list containing the property names present on a given object
+-- >>> testJSaddle $ show . map strToText <$> propertyNames obj
+-- []
+-- >>> testJSaddle $ show . map strToText <$> propertyNames (eval "({x:1, y:2})")
+-- ["x","y"]
 propertyNames :: MakeObject this => this -> JSM [JSString]
 #ifdef ghcjs_HOST_OS
 propertyNames this = makeObject this >>= liftIO . js_propertyNames >>= liftIO . (fmap (map pFromJSVal)) . Array.toListIO
@@ -613,16 +599,17 @@ foreign import javascript unsafe "\
             case 6 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5]); break;\
             case 7 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5],$2[6]); break;\
             default:\
-                var ret;\
                 var temp = function() {\
                     ret = $1.apply(this, $2);\
                 };\
                 temp.prototype = $1.prototype;\
                 var i = new temp();\
                 if(ret instanceof Object)\
-                    return ret;\
-                i.constructor = $1;\
-                return i;\
+                    $r = ret;\
+                else {\
+                    i.constructor = $1;\
+                    $r = i;\
+                }\
         }\
     }\
     catch(e) {\
@@ -638,6 +625,8 @@ objCallAsConstructor f args = do
             wrapJSVal result
 #endif
 
+-- >>> testJSaddle $ strictEqual nullObject (eval "null")
+-- true
 nullObject :: Object
 #ifdef ghcjs_HOST_OS
 nullObject = Object nullRef

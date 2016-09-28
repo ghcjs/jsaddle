@@ -16,15 +16,14 @@ module Language.Javascript.JSaddle.Exception (
 --  , rethrow
 ) where
 
-import qualified Control.Exception as E (throwIO, Exception)
-import Language.Javascript.JSaddle.Types
-       (MutableJSArray, JSVal)
+import qualified Control.Exception as E (Exception)
+import Language.Javascript.JSaddle.Types (JSVal)
 import Data.Typeable (Typeable)
-import Language.Javascript.JSaddle.Monad (JSM)
-import Control.Monad.IO.Class (MonadIO(..))
 
 newtype JSException = JSException JSVal deriving (Typeable)
 
+-- | JavaScript exception
+-- >>>
 instance Show JSException where show _ = "JSException"
 instance E.Exception JSException
 

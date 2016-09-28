@@ -57,7 +57,7 @@ foreign import javascript unsafe "$r = eval($1);"
     js_eval :: JSString -> IO JSVal
 #else
 eval script = do
-    rscript <- toJSString script
+    let rscript = toJSString script
     withJSString rscript $ \script' -> do
         EvaluateScriptResult result <- sendCommand $ EvaluateScript script'
         wrapJSVal result

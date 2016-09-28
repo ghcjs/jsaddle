@@ -27,9 +27,9 @@ module Language.Javascript.JSaddle.Native (
 import Control.Monad.Trans.Reader (ask)
 import Control.Monad.IO.Class (MonadIO, MonadIO(..))
 import Language.Javascript.JSaddle.Types
-       (JSM, JSString(..), Object(..), JSVal(..), JSValueReceived(..),
-        JSValueForSend(..), JSStringReceived(..), JSStringForSend(..),
-        JSObjectForSend(..))
+       (JSContextRef(..), AsyncCommand(..), JSM, JSString(..),
+        Object(..), JSVal(..), JSValueReceived(..), JSValueForSend(..),
+        JSStringReceived(..), JSStringForSend(..), JSObjectForSend(..))
 import Language.Javascript.JSaddle.Classes (ToJSVal(..))
 import System.Mem.Weak (addFinalizer)
 import Control.Monad.Primitive (touch)
@@ -39,17 +39,13 @@ wrapJSVal :: JSValueReceived -> JSM JSVal
 wrapJSVal (JSValueReceived ref) = do
     -- TODO make sure this ref has not already been wrapped (perhaps only in debug version)
     let result = JSVal ref
-    when (ref >= 5) $
-        liftIO . addFinalizer result $ return () -- TODO free value ref
+    when (ref >= 5) $ do
+        ctx <- ask
+        liftIO . addFinalizer result $ doSendAsyncCommand ctx $ FreeRef $ JSValueForSend ref
     return result
 
 wrapJSString :: MonadIO m => JSStringReceived -> m JSString
-wrapJSString (JSStringReceived ref) = do
-    -- TODO make sure this ref has not already been wrapped (perhaps only in debug version)
-    let result = JSString ref
-    when (ref >= 5) $
-        liftIO . addFinalizer result $ return () -- TODO free string ref
-    return result
+wrapJSString (JSStringReceived ref) = return $ JSString ref
 
 withJSVal :: MonadIO m => JSVal -> (JSValueForSend -> m a) -> m a
 withJSVal v@(JSVal ref) f =
