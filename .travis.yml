@@ -16,25 +16,20 @@ cache:
 before_install:
  - travis_retry sudo add-apt-repository -y ppa:hvr/ghc
  - travis_retry sudo apt-get update
- - travis_retry sudo apt-get install -y cabal-install-$CABALVER ghc-$GHCVER happy-1.19.5 alex-3.1.7
- - travis_retry sudo apt-get install -y libwebkitgtk-dev libwebkitgtk-3.0-dev libgirepository1.0-dev
+ - travis_retry sudo apt-get install -y cabal-install-$CABALVER ghc-$GHCVER happy-1.19.5 alex-3.1.7 nodejs
  - export PATH=$HOME/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/alex/3.1.7/bin:/opt/happy/1.19.5/bin:$PATH
 
 install:
  - cabal --version
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
  - travis_retry cabal update
- - cabal install Cabal cabal-install
- - cabal install gtk2hs-buildtools
- - git clone https://github.com/haskell-gi/haskell-gi.git
- - cabal install ./haskell-gi
- - cabal install --only-dependencies --enable-tests --enable-benchmarks
 
 script:
  - cabal install --only-dependencies --enable-tests --force-reinstalls
  - cabal configure
  - cabal build
  - cabal haddock
+ - node --version
  - cabal test
  - cabal clean
  - cabal sdist
