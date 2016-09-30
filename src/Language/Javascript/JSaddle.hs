@@ -50,6 +50,7 @@ module Language.Javascript.JSaddle (
 
   -- * Modules
     module JSaddle
+  , run
 ) where
 
 import Language.Javascript.JSaddle.Types as JSaddle
@@ -62,3 +63,10 @@ import Language.Javascript.JSaddle.Properties as JSaddle
 import Language.Javascript.JSaddle.Object as JSaddle
 import Language.Javascript.JSaddle.Evaluate as JSaddle
 import Language.Javascript.JSaddle.String as JSaddle
+#ifdef ghcjs_HOST_OS
+import Control.Monad.Trans.Reader (ReaderT(..))
+run :: Int -> JSM () -> IO ()
+run _port = (`runReaderT` ())
+#else
+import Language.Javascript.JSaddle.WebSockets (run)
+#endif

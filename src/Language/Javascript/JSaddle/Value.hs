@@ -75,6 +75,7 @@ import Prelude hiding (catch)
 import Language.Javascript.JSaddle.Types
        (Object(..), JSString(..), JSVal(..))
 #ifdef ghcjs_HOST_OS
+import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Types
        (MutableJSArray)
 import GHCJS.Types (JSVal(..), isNull, isUndefined)
@@ -82,7 +83,6 @@ import GHCJS.Foreign (toJSBool, isTruthy, jsNull, jsUndefined)
 import qualified GHCJS.Marshal as GHCJS (toJSVal)
 import GHCJS.Marshal.Pure (pToJSVal)
 import Data.JSString.Text (textToJSString)
-import Language.Javascript.JSaddle.Exception (rethrow)
 #else
 import Language.Javascript.JSaddle.Native
        (wrapJSString, withJSVal, withObject, withJSString,
@@ -277,7 +277,7 @@ valToText jsvar = strToText <$> valToStr jsvar
 valToJSON :: ToJSVal value => value -> JSM JSString
 #ifdef ghcjs_HOST_OS
 valToJSON value = jsrefToJSON <$> toJSVal value
-foreign import javascript unsafe "$r = $1 === undefined ? "" : JSON.stringify($1);" jsrefToJSON :: JSVal -> JSString
+foreign import javascript unsafe "$r = $1 === undefined ? \"\" : JSON.stringify($1);" jsrefToJSON :: JSVal -> JSString
 #else
 valToJSON value =
     withToJSVal value $ \rval -> do
@@ -634,14 +634,8 @@ strictEqual a b = do
 #endif
 
 #ifdef ghcjs_HOST_OS
-foreign import javascript unsafe "\
-    try {\
-        $r = $1 instanceof $2\
-    }\
-    catch(e) {\
-        $3[0] = e;\
-    }"
-  js_isInstanceOf :: JSVal -> Object -> MutableJSArray -> Bool
+foreign import javascript unsafe "$1 instanceof $2"
+  js_isInstanceOf :: JSVal -> Object -> Bool
 #endif
 
 -- | Determine if two values are equal (JavaScripts ===)
@@ -652,7 +646,7 @@ instanceOf value constructor = do
     v <- toJSVal value
     c <- makeObject constructor
 #ifdef ghcjs_HOST_OS
-    rethrow $ return . js_isInstanceOf v c
+    return $ js_isInstanceOf v c
 #else
     withJSVal v $ \rval ->
         withObject c $ \c' -> do

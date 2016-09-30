@@ -5,6 +5,7 @@ module Main (
     main
 ) where
 
+#ifndef ghcjs_HOST_OS
 import Test.DocTest
 import System.FilePath ((</>))
 import System.Process (system)
@@ -12,10 +13,14 @@ import Control.Concurrent (forkIO)
 import Control.Monad (void)
 import Data.Monoid ((<>))
 import Paths_jsaddle (getDataDir)
-
+#endif
 
 main :: IO ()
 main = do
+#ifdef ghcjs_HOST_OS
+    putStrLn "TODO find a way to run doctest tests with GHCJS"
+    return ()
+#else
     dataDir <- getDataDir
     forkIO . void . system $ "node --harmony " <> dataDir </> "data/jsaddle.js"
     doctest [
@@ -52,4 +57,4 @@ main = do
         "src/Language/Javascript/JSaddle/Test.hs",
         "src/Language/Javascript/JSaddle/Types.hs",
         "src/Language/Javascript/JSaddle/Value.hs" ]
-
+#endif

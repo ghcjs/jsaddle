@@ -100,7 +100,7 @@ import GHCJS.Types (nullRef, jsval)
 import GHCJS.Foreign.Callback
        (releaseCallback, syncCallback2, OnBlocked(..), Callback)
 import GHCJS.Marshal.Pure (pFromJSVal)
-import JavaScript.Array (JSArray)
+import JavaScript.Array (JSArray, MutableJSArray)
 import qualified JavaScript.Array as Array (toListIO, fromListIO)
 import JavaScript.Array.Internal (SomeJSArray(..))
 import qualified JavaScript.Object as Object (create)
@@ -557,8 +557,8 @@ objCallAsFunction :: MakeArgs args
 objCallAsFunction f this args = do
     rargs <- makeArgs args >>= liftIO . Array.fromListIO
     liftIO $ js_apply f this rargs
-foreign import javascript unsafe "try { $r = $1.apply($2, $3) } catch(e) { $4[0] = e }"
-    js_apply :: Object -> Object -> MutableJSArray -> MutableJSArray -> IO JSVal
+foreign import javascript unsafe "$r = $1.apply($2, $3)"
+    js_apply :: Object -> Object -> MutableJSArray -> IO JSVal
 #else
 objCallAsFunction f this args = do
     rargs <- makeArgs args
@@ -580,7 +580,6 @@ objCallAsConstructor f args = do
     rargs <- makeArgs args >>= liftIO . Array.fromListIO
     liftIO $ js_new f rargs
 foreign import javascript unsafe "\
-    try {\
         switch($2.length) {\
             case 0 : $r = new $1(); break;\
             case 1 : $r = new $1($2[0]); break;\
@@ -596,18 +595,14 @@ foreign import javascript unsafe "\
                 };\
                 temp.prototype = $1.prototype;\
                 var i = new temp();\
-                if(ret instanceof Object)\
+                if(ret instanceof Object) {\
                     $r = ret;\
-                else {\
+                } else {\
                     i.constructor = $1;\
                     $r = i;\
                 }\
-        }\
-    }\
-    catch(e) {\
-        $3[0] = e;\
-    }"
-    js_new :: Object -> MutableJSArray -> MutableJSArray -> IO JSVal
+        }"
+    js_new :: Object -> MutableJSArray -> IO JSVal
 #else
 objCallAsConstructor f args = do
     rargs <- makeArgs args

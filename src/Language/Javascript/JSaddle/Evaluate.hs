@@ -20,8 +20,9 @@ module Language.Javascript.JSaddle.Evaluate (
     eval
 ) where
 
-import Language.Javascript.JSaddle.Types (Result(..), JSVal)
+import Language.Javascript.JSaddle.Types (JSVal)
 #ifdef ghcjs_HOST_OS
+import Control.Monad.IO.Class (MonadIO(..))
 import GHCJS.Types (nullRef)
 import GHCJS.Marshal.Pure (pFromJSVal)
 import Language.Javascript.JSaddle.Types (JSString)
@@ -30,6 +31,7 @@ import Language.Javascript.JSaddle.Native
        (wrapJSVal, withJSString)
 import Language.Javascript.JSaddle.WebSockets
        (AsyncCommand(..), Result(..), sendLazyCommand)
+import Language.Javascript.JSaddle.Types (Result(..))
 #endif
 import Language.Javascript.JSaddle.Classes
        (ToJSString(..))

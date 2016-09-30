@@ -45,6 +45,7 @@ import Control.Monad.Trans.Reader (ask)
 import Language.Javascript.JSaddle.Value (JSVal)
 import Language.Javascript.JSaddle.Arguments ()
 import Language.Javascript.JSaddle.String ()
+import Control.Monad.IO.Class (MonadIO(..))
 
 -- | Get a property value given the object and the name of the property.
 objGetPropertyByName :: ToJSString name
@@ -52,14 +53,14 @@ objGetPropertyByName :: ToJSString name
                      -> name           -- ^ name of the property.
                      -> JSM JSVal      -- ^ returns the property value.
 #ifdef ghcjs_HOST_OS
-objGetPropertyByName this name = liftIO . js_tryGetProp (toJSString name) this
-foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
-    js_tryGetProp :: JSString -> Object -> MutableJSArray -> IO JSVal
+objGetPropertyByName this name = liftIO $ js_tryGetProp (toJSString name) this
+foreign import javascript unsafe "$r=$2[$1]"
+    js_tryGetProp :: JSString -> Object -> IO JSVal
 #else
-objGetPropertyByName this name = do
-    let name' = toJSString name
+objGetPropertyByName this name =
     withObject this $ \rthis ->
-        withJSString name' $ sendLazyCommand . GetPropertyByName rthis
+        withJSString (toJSString name) $
+            sendLazyCommand . GetPropertyByName rthis
 #endif
 
 -- | Get a property value given the object and the index of the property.
@@ -67,9 +68,9 @@ objGetPropertyAtIndex :: Object         -- ^ object to find the property on.
                       -> Index          -- ^ index of the property.
                       -> JSM JSVal      -- ^ returns the property value.
 #ifdef ghcjs_HOST_OS
-objGetPropertyAtIndex this index = liftIO . js_tryIndex index this
-foreign import javascript unsafe "try { $r=$2[$1] } catch(e) { $3[0] = e }"
-    js_tryIndex :: Index -> Object -> MutableJSArray -> IO JSVal
+objGetPropertyAtIndex this index = liftIO $ js_tryIndex index this
+foreign import javascript unsafe "$r=$2[$1]"
+    js_tryIndex :: Index -> Object -> IO JSVal
 #else
 objGetPropertyAtIndex this index =
     withObject this $ \rthis -> sendLazyCommand $ GetPropertyAtIndex rthis index
@@ -85,8 +86,8 @@ objSetPropertyByName :: (ToJSString name, ToJSVal val)
 objSetPropertyByName this name val = do
     vref <- toJSVal val
     liftIO $ js_trySetProp (toJSString name) this vref
-foreign import javascript unsafe "try { $2[$1]=$3 } catch(e) { $4[0] = e }"
-    js_trySetProp :: JSString -> Object -> JSVal -> MutableJSArray -> IO ()
+foreign import javascript unsafe "$2[$1]=$3"
+    js_trySetProp :: JSString -> Object -> JSVal -> IO ()
 #else
 objSetPropertyByName this name val = do
     let name' = toJSString name
@@ -106,8 +107,8 @@ objSetPropertyAtIndex :: (ToJSVal val)
 objSetPropertyAtIndex this index val = do
     vref <- toJSVal val
     liftIO $ js_trySetAtIndex index this vref
-foreign import javascript unsafe "try { $2[$1]=$3 } catch(e) { $4[0] = e }"
-    js_trySetAtIndex :: Index -> Object -> JSVal -> MutableJSArray -> IO ()
+foreign import javascript unsafe "$2[$1]=$3"
+    js_trySetAtIndex :: Index -> Object -> JSVal -> IO ()
 #else
 objSetPropertyAtIndex this index val = do
     gctxt <- ask
