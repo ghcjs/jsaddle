@@ -71,7 +71,7 @@ import qualified GHCJS.DOM.Element as E (click)
 main = run 3708 $ do
     Just doc <- currentDocument
     Just body <- getBody doc
-    setInnerHTML body (Just "<h1>Hello World</h1>")
+    setInnerHTML body (Just "<h1>Kia ora (Hi)</h1>")
     on doc D.click $ do
         (x, y) <- mouseClientXY
         Just newParagraph <- createElement doc (Just "p")
@@ -103,11 +103,12 @@ When compiled with GHC this code will run a Warp web server you can connect to a
 ## How does it work on GHC
 
 As of version 0.5 it runs a small warp server that provides [index.html](https://github.com/ghcjs/jsaddle/blob/master/data/index.html) and
-[jsaddle.js](https://github.com/ghcjs/jsaddle/blob/master/data/jsaddle.js).  The [jsaddle.js](https://github.com/ghcjs/jsaddle/blob/master/data/jsaddle.js) code connects to the server using WebSockets and processes JSON requests from the server and sends the result back over the same WebSocket.
+[jsaddle.js](https://github.com/ghcjs/jsaddle/blob/master/data/jsaddle.js).  The [jsaddle.js](https://github.com/ghcjs/jsaddle/blob/master/data/jsaddle.js) code connects to the server using WebSockets and processes JSON commands from the server and sends the result back over the same WebSocket.
 
 ### Why use WebSockets?
-Older versions relied on WebKitGTK and JavaScriptCore, but with WekKit2 the interface used was only available to WebKit Extensions
-so most of the benefits of this interface were lost (it was no longer in process with the Gtk code and RPC would have been needed).
+
+Older versions relied on WebKitGTK and JavaScriptCore, but in WekKit2 the interface JSaddle used is only available to WebKit Extensions
+so most of the benefits of this interface are lost (extensions are not in the same process as Gtk and RPC would have been needed).
 The general advice for people migrating from WebKit1 to WebKit2 seems to be to use JavaScript.  There is an interface in WebKit2
 to send JavaScript code from the host application, but it does not seem to provide any advantages over the WebSockets approach.
 
