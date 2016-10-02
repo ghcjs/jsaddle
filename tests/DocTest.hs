@@ -1,13 +1,16 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE LambdaCase #-}
 module Main (
     main
 ) where
 
 #ifndef ghcjs_HOST_OS
 import Test.DocTest
+import System.IO (stderr, BufferMode(..), stdout, hSetBuffering)
 import System.FilePath ((</>))
+import System.Exit (exitWith, ExitCode(..))
 import System.Process (system)
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
@@ -17,12 +20,22 @@ import Paths_jsaddle (getDataDir)
 
 main :: IO ()
 main = do
+    hSetBuffering stdout LineBuffering
+    hSetBuffering stderr LineBuffering
 #ifdef ghcjs_HOST_OS
     putStrLn "TODO find a way to run doctest tests with GHCJS"
     return ()
 #else
     dataDir <- getDataDir
-    forkIO . void . system $ "node --harmony " <> dataDir </> "data/jsaddle.js"
+    node <- system "nodejs --version" >>= \case
+                ExitSuccess -> return "nodejs"
+                _           -> return "node"
+    system (node <> " --version") >>= \case
+                ExitSuccess -> putStrLn "Node.js found"
+                e           -> do
+                    putStrLn "Node.js not found"
+                    exitWith e
+    forkIO . void . system $ node <> " --harmony " <> dataDir </> "data/jsaddle.js"
     doctest [
         "-hide-all-packages",
         "-package=template-haskell-" ++ VERSION_template_haskell,
