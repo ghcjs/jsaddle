@@ -22,6 +22,8 @@ module Language.Javascript.JSaddle.WebSockets (
   , sendCommand
   , sendLazyCommand
   , sendAsyncCommand
+  , syncPoint
+  , syncAfter
 ) where
 
 import Control.Exception (throwIO)
@@ -51,9 +53,8 @@ import Network.Wai.Handler.WebSockets (websocketsOr)
 
 import Language.Javascript.JSaddle.Types
        (Command(..), AsyncCommand(..), Result(..), JSContextRef(..), JSVal(..),
-        Object(..), JSValueReceived(..), JSM, Batch(..), JSValueForSend(..))
+        Object(..), JSValueReceived(..), JSM, Batch(..), JSValueForSend(..), runJSaddle)
 import Language.Javascript.JSaddle.Exception (JSException(..))
-import Language.Javascript.JSaddle.Monad (runJSaddle)
 import Language.Javascript.JSaddle.Native (wrapJSVal)
 import Language.Javascript.JSaddle.WebSockets.Files (mkEmbedded)
 import Network.Wai.Handler.Warp
@@ -83,6 +84,17 @@ sendAsyncCommand :: AsyncCommand -> JSM ()
 sendAsyncCommand cmd = do
     s <- asks doSendAsyncCommand
     liftIO $ s cmd
+
+-- | Forces execution of pending asyncronous code 
+syncPoint :: JSM ()
+syncPoint = void $ sendCommand Sync
+
+-- | Forces execution of pending asyncronous code after performing `f` 
+syncAfter :: JSM a -> JSM a
+syncAfter f = do
+    result <- f
+    syncPoint
+    return result
 
 jsaddleOr :: ConnectionOptions -> JSM () -> Application -> Application
 jsaddleOr opts entryPoint = websocketsOr opts wsApp
@@ -127,9 +139,11 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
                     atomically (readTChan recvChan) >>= putMVar resultMVar
                 (batch, Nothing) -> do
                     sendTextData conn $ encode batch
-                    SyncResult <- atomically $ readTChan recvChan
+                    atomically (readTChan recvChan) >>= \case
+                        SyncResult -> return ()
+                        ThrowJSValue e -> atomically (discardToSyncPoint commandChan) >>= (`putMVar` ThrowJSValue e)
+                        _ -> error "Unexpected result processing batch"
                     return ()
-
         runJSaddle ctx entryPoint
 
     readBatch :: TChan (Either AsyncCommand (Command, MVar Result)) -> STM (Batch, Maybe (MVar Result))
@@ -144,6 +158,11 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
             tryReadTChan chan >>= \case
                 Nothing -> return (Batch (reverse asyncCmds) Sync, Nothing)
                 Just cmd -> loop cmd asyncCmds
+    discardToSyncPoint :: TChan (Either AsyncCommand (Command, MVar Result)) -> STM (MVar Result)
+    discardToSyncPoint chan =
+        readTChan chan >>= \case
+            Right (_, resultMVar) -> return resultMVar
+            _                     -> discardToSyncPoint chan
 
 jsaddleApp :: Application
 jsaddleApp = staticApp ($(mkSettings mkEmbedded)) {ssIndices = [unsafeToPiece "index.html"]}
@@ -151,4 +170,4 @@ jsaddleApp = staticApp ($(mkSettings mkEmbedded)) {ssIndices = [unsafeToPiece "i
 run :: Int -> JSM () -> IO ()
 run port f =
     runSettings (setPort port (setTimeout 3600 defaultSettings)) $
-        jsaddleOr defaultConnectionOptions f jsaddleApp
+        jsaddleOr defaultConnectionOptions (f >> syncPoint) jsaddleApp

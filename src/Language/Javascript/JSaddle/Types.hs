@@ -23,6 +23,7 @@ module Language.Javascript.JSaddle.Types (
   , Index
   , Nullable(..)
   , JSM
+  , runJSaddle
   , JSCallAsFunction
 #ifndef ghcjs_HOST_OS
   , JSValueReceived(..)
@@ -38,6 +39,7 @@ module Language.Javascript.JSaddle.Types (
 ) where
 
 import Control.Monad.Trans.Reader (ReaderT(..))
+import Control.Monad.IO.Class (MonadIO(..))
 #ifdef ghcjs_HOST_OS
 import GHCJS.Types
 import JavaScript.Object.Internal (Object(..))
@@ -167,4 +169,6 @@ type JSCallAsFunction = JSVal      -- ^ Function object
 -- For an example of how to set up WebKitGTK+ see tests/TestJSaddle.hs
 type JSM = ReaderT JSContextRef IO
 
+runJSaddle :: MonadIO m => JSContextRef -> JSM a -> m a
+runJSaddle context f = liftIO $ runReaderT f context
 
