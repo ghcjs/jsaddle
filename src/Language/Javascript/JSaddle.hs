@@ -7,9 +7,10 @@
 --
 -- Maintainer  :  Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
 --
--- | This package provides an EDSL for calling JavaScript code using
---   the JavaScriptCore engine and low level Haskell bindings
---   in the webkit-javascriptcore library <https://github.com/ghcjs/webkit-javascriptcore>.
+-- | This package provides an EDSL for calling JavaScript that
+--   can be used both from GHCJS and GHC.  When using GHC
+--   the application is run using Warp and WebSockets to
+--   drive a small JavaScipt helper.
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle (
@@ -44,9 +45,20 @@ module Language.Javascript.JSaddle (
 
   -- * GHCJS Support
   -- | When built with ghcjs the code works using JavaScript FFI by default.
-  --   It can also be built to use webkitgtk3-javascriptcore C FFI as there
-  --   are shims for these (but this introduces a dependancy on WebKitGTK+
-  --   and is probably not as fast).
+
+  -- * GHC Support
+  -- | When built with ghc the code runs a small Warp server that provides
+  --   index.html and jsaddle.js files.  When a browser is connected the
+  --   code in jsaddle.js will open a WebSockets connection to the server
+  --   and the server will run the Haskell code.  The JSaddle parts will
+  --   be executed by sending commands back to the browser.
+
+  --   Although the code JavaScript code is executed in the the strict order
+  --   set out by the EDSL it done asynchonously to the Haskell code.
+  --   This improves the performance by reducing the number of round trips
+  --   needed between the Haskell and JavaScript code.
+
+  --   
 
   -- * Modules
     module JSaddle

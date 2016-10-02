@@ -1,15 +1,16 @@
 name: jsaddle
-version: 0.5.0.0
+version: 0.5.0.1
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
 license-file: LICENSE
 maintainer: Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
-synopsis: High level interface for webkit-javascriptcore
+synopsis: Interface for JavaScript that works with GHCJS and GHC
 description:
-    This package provides an EDSL for calling JavaScript code using
-    the JavaScriptCore engine and low level Haskell bindings
-    in the webkit-javascriptcore library <https://github.com/ghcjs/webkit-javascriptcore>.
+    This package provides an EDSL for calling JavaScript that
+    can be used both from GHCJS and GHC.  When using GHC
+    the application is run using Warp and WebSockets to
+    drive a small JavaScipt helper.
 category: Web, Javascript
 author: Hamish Mackenzie
 data-files:
