@@ -25,6 +25,7 @@ var connect = function() {
                 var batch = JSON.parse(e.data);
                 var nAsyncLength = batch[0].length;
                 for (var nAsync = 0; nAsync != nAsyncLength; nAsync++) {
+                  var scope = function() {
                     var d = batch[0][nAsync];
                     switch (d.tag) {
                         case "FreeRef":
@@ -118,6 +119,8 @@ var connect = function() {
                             ws.send(JSON.stringify({"tag": "ProtocolError", "contents": e.data}));
                             return;
                     }
+                  };
+                  scope();
                 }
                 var d = batch[1];
                 switch (d.tag) {
