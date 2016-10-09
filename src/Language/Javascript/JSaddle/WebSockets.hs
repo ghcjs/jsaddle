@@ -194,7 +194,7 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
                                 Just cb -> void . forkIO $ runReaderT (unJSM $ cb f' this' args) ctx
                         Just m                   -> atomically $ writeTChan recvChan m
                 _ -> error "jsaddle WebSocket unexpected binary data"
-        forkIO . forever $ atomically (readBatch commandChan) >>= \case
+        forkIO . forever $ readBatch commandChan >>= \case
                 (batch, Just resultMVar) -> do
                     sendTextData conn $ encode batch
                     atomically (readTChan recvChan) >>= putMVar resultMVar
@@ -207,25 +207,25 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
                     return ()
         runReaderT (unJSM entryPoint) ctx
 
-    readBatch :: TChan (Either AsyncCommand (Command, MVar Result)) -> STM (Batch, Maybe (MVar Result))
+    readBatch :: TChan (Either AsyncCommand (Command, MVar Result)) -> IO (Batch, Maybe (MVar Result))
     readBatch chan = do
-        first <- readTChan chan -- We want at least one command to send
+        first <- atomically $ readTChan chan -- We want at least one command to send
         loop first []
       where
         loop (Left asyncCmd@(SyncWithAnimationFrame _)) asyncCmds =
-            readTChan chan >>= \cmd -> loopAnimation cmd (asyncCmd:asyncCmds)
+            atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (asyncCmd:asyncCmds)
         loop (Right (cmd, resultMVar)) asyncCmds =
             return (Batch (reverse asyncCmds) cmd False, Just resultMVar)
         loop (Left asyncCmd) asyncCmds' = do
             let asyncCmds = asyncCmd:asyncCmds'
-            tryReadTChan chan >>= \case
+            atomically (tryReadTChan chan) >>= \case
                 Nothing -> return (Batch (reverse asyncCmds) Sync False, Nothing)
                 Just cmd -> loop cmd asyncCmds
         -- When we have seen a SyncWithAnimationFrame command only a synchronous command should end the batch
         loopAnimation (Right (cmd, resultMVar)) asyncCmds =
             return (Batch (reverse asyncCmds) cmd True, Just resultMVar)
         loopAnimation (Left asyncCmd) asyncCmds =
-            readTChan chan >>= \cmd -> loopAnimation cmd (asyncCmd:asyncCmds)
+            atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (asyncCmd:asyncCmds)
     discardToSyncPoint :: TChan (Either AsyncCommand (Command, MVar Result)) -> STM (MVar Result)
     discardToSyncPoint chan =
         readTChan chan >>= \case
