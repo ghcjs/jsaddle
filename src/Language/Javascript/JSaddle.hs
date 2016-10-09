@@ -58,7 +58,7 @@ module Language.Javascript.JSaddle (
   --   This improves the performance by reducing the number of round trips
   --   needed between the Haskell and JavaScript code.
 
-  --   
+  --
 
   -- * Modules
     module JSaddle
@@ -74,3 +74,4 @@ import Language.Javascript.JSaddle.Properties as JSaddle
 import Language.Javascript.JSaddle.Object as JSaddle
 import Language.Javascript.JSaddle.Evaluate as JSaddle
 import Language.Javascript.JSaddle.String as JSaddle
+import Language.Javascript.JSaddle.WebSockets as JSaddle (run, syncPoint, syncAfter)

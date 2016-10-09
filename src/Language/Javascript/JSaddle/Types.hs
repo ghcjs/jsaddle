@@ -2,9 +2,10 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE ConstraintKinds            #-}
 -----------------------------------------------------------------------------
 --
--- Module      :  Language.Javascript.JSaddle.Properties
+-- Module      :  Language.Javascript.JSaddle.Types
 -- Copyright   :  (c) Hamish Mackenzie
 -- License     :  MIT
 --
@@ -15,16 +16,23 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.Types (
-    JSVal(..)
+  -- * JavaScript Context
+    JSContextRef(..)
+
+  -- * The JSM Monad
+  , JSM(..)
+  , MonadJSM(..)
+  , liftJSM
+
+  -- * JavaScript Value Types
+  , JSVal(..)
   , MutableJSArray(..)
   , Object(..)
-  , JSContextRef(..)
   , JSString(..)
-  , Index
   , Nullable(..)
-  , JSM
-  , runJSaddle
   , JSCallAsFunction
+
+  -- * JavaScript Context Commands
 #ifndef ghcjs_HOST_OS
   , JSValueReceived(..)
   , JSValueForSend(..)
@@ -47,38 +55,129 @@ import JavaScript.Array (MutableJSArray)
 import Data.Word (Word(..))
 import GHCJS.Nullable (Nullable(..))
 #else
+import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Aeson
        (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..))
 import GHC.Generics (Generic)
 import Control.Concurrent.STM.TVar (TVar)
+import Control.Monad.Fix (MonadFix)
 #endif
 
+-- | Identifies a JavaScript execution context.
+--   When using GHCJS this is just '()' since their is only one context.
+--   When using GHC it includes the functions JSaddle needs to communicate
+--   with the JavaScript context.
 #ifdef ghcjs_HOST_OS
-type JSContextRef  = ()
-type Index         = Int
+type JSContextRef = ()
 #else
-type JSRef = Int64
-newtype JSValueReceived = JSValueReceived JSRef deriving(Show, ToJSON, FromJSON)
-newtype JSValueForSend = JSValueForSend JSRef deriving(Show, ToJSON, FromJSON)
-newtype JSVal = JSVal JSRef deriving(Show, ToJSON, FromJSON)
-newtype MutableJSArray = MutableJSArray JSRef deriving(Show, ToJSON, FromJSON)
-type Index = Int
-newtype JSObjectForSend = JSObjectForSend JSValueForSend deriving(Show, ToJSON, FromJSON)
+data JSContextRef = JSContextRef {
+    doSendCommand      :: Command -> IO Result
+  , doSendAsyncCommand :: AsyncCommand -> IO ()
+  , addCallback        :: Object -> JSCallAsFunction -> IO ()
+  , freeCallback       :: Object -> IO ()
+  , nextRef            :: TVar JSValueRef
+}
+#endif
+
+-- | The 'JSM' monad keeps track of the JavaScript execution context.
+--
+--   When using GHCJS it is `IO`.
+--
+--   Given a 'JSM' function and a 'JSContextRef' you can run the
+--   function like this...
+--
+-- > runJSM jsmFunction javaScriptContext
+#ifdef ghcjs_HOST_OS
+type JSM = IO
+runJSM :: JSM a -> JSContextRef -> IO a
+runJSM f = const f
+#else
+newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a }
+    deriving (Functor, Applicative, Monad, MonadIO, MonadFix)
+#endif
+
+-- | The 'MonadJSM' is to 'JSM' what 'MonadIO' is to 'IO'.
+--   When using GHCJS it is 'MonadIO'.
+#ifdef ghcjs_HOST_OS
+type MonadJSM = MonadIO
+#else
+class (Applicative m, MonadIO m) => MonadJSM m where
+    liftJSM' :: JSM a -> m a
+    {-# MINIMAL liftJSM' #-}
+
+instance MonadJSM JSM where
+    liftJSM' = id
+    {-# INLINE liftJSM' #-}
+
+instance MonadJSM m => MonadJSM (ReaderT e m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+#endif
+
+-- | The 'liftJSM' is to 'JSM' what 'liftIO' is to 'IO'.
+--   When using GHCJS it is 'liftIO'.
+liftJSM :: MonadJSM m => JSM a -> m a
+#ifdef ghcjs_HOST_OS
+liftJSM = liftIO
+#else
+liftJSM = liftJSM'
+#endif
+{-# INLINE liftJSM #-}
+
+-- | Type used for Haskell functions called from JavaScript.
+type JSCallAsFunction = JSVal      -- ^ Function object
+                     -> JSVal      -- ^ this
+                     -> [JSVal]    -- ^ Function arguments
+                     -> JSM ()     -- ^ Only () (aka 'JSUndefined') can be returned because
+                                   --   the function may need to be executed in a
+                                   --   different thread.  If you need to get a
+                                   --   value out pass in a continuation function
+                                   --   as an argument and invoke it from haskell.
+
+#ifndef ghcjs_HOST_OS
+-- A reference to a particular JavaScript value inside the JavaScript context
+type JSValueRef = Int64
+
+-- | See 'GHCJS.Prim.JSVal'
+newtype JSVal = JSVal JSValueRef deriving(Show, ToJSON, FromJSON)
+
+-- | See 'JavaScript.Array.Internal.MutableJSArray'
+newtype MutableJSArray = MutableJSArray JSValueRef deriving(Show, ToJSON, FromJSON)
+
+-- | See 'JavaScript.Object.Internal.Object'
 newtype Object = Object JSVal deriving(Show, ToJSON, FromJSON)
-newtype JSStringReceived = JSStringReceived Text deriving(Show, ToJSON, FromJSON)
-newtype JSStringForSend = JSStringForSend Text deriving(Show, ToJSON, FromJSON)
-newtype JSString = JSString Text deriving(Show, ToJSON, FromJSON)
+
+-- | See 'GHCJS.Nullable.Nullable'
 newtype Nullable a = Nullable a
 
+-- | See 'Data.JSString.Internal.Type'
+newtype JSString = JSString Text deriving(Show, ToJSON, FromJSON)
+
+-- | Wrapper used when receiving a 'JSVal' from the JavaScript context
+newtype JSValueReceived = JSValueReceived JSValueRef deriving(Show, ToJSON, FromJSON)
+
+-- | Wrapper used when sending a 'JSVal' to the JavaScript context
+newtype JSValueForSend = JSValueForSend JSValueRef deriving(Show, ToJSON, FromJSON)
+
+-- | Wrapper used when sending a 'Object' to the JavaScript context
+newtype JSObjectForSend = JSObjectForSend JSValueForSend deriving(Show, ToJSON, FromJSON)
+
+-- | Wrapper used when receiving a 'JSString' from the JavaScript context
+newtype JSStringReceived = JSStringReceived Text deriving(Show, ToJSON, FromJSON)
+
+-- | Wrapper used when sending a 'JString' to the JavaScript context
+newtype JSStringForSend = JSStringForSend Text deriving(Show, ToJSON, FromJSON)
+
+-- | Command sent to a JavaScript context for execution asynchronously
 data AsyncCommand = FreeRef JSValueForSend
                   | SetPropertyByName JSObjectForSend JSStringForSend JSValueForSend
-                  | SetPropertyAtIndex JSObjectForSend Index JSValueForSend
+                  | SetPropertyAtIndex JSObjectForSend Int JSValueForSend
                   | StringToValue JSStringForSend JSValueForSend
                   | NumberToValue Double JSValueForSend
                   | GetPropertyByName JSObjectForSend JSStringForSend JSValueForSend
-                  | GetPropertyAtIndex JSObjectForSend Index JSValueForSend
+                  | GetPropertyAtIndex JSObjectForSend Int JSValueForSend
                   | CallAsFunction JSObjectForSend JSObjectForSend [JSValueForSend] JSValueForSend
                   | CallAsConstructor JSObjectForSend [JSValueForSend] JSValueForSend
                   | NewEmptyObject JSValueForSend
@@ -92,6 +191,7 @@ instance ToJSON AsyncCommand where
 
 instance FromJSON AsyncCommand
 
+-- | Command sent to a JavaScript context for execution synchronously
 data Command = DeRefVal JSValueForSend
              | ValueToBool JSValueForSend
              | ValueToNumber JSValueForSend
@@ -110,6 +210,7 @@ instance ToJSON Command where
 
 instance FromJSON Command
 
+-- | Batch of commands that can be sent together to the JavaScript context
 data Batch = Batch [AsyncCommand] Command
              deriving (Show, Generic)
 
@@ -118,7 +219,8 @@ instance ToJSON Batch where
 
 instance FromJSON Batch
 
-data Result = DeRefValResult JSRef Text
+-- | Result of a 'Command' returned from the JavaScript context
+data Result = DeRefValResult JSValueRef Text
             | ValueToBoolResult Bool
             | ValueToNumberResult Double
             | ValueToStringResult JSStringReceived
@@ -138,37 +240,7 @@ instance ToJSON Result where
     toEncoding = genericToEncoding defaultOptions
 
 instance FromJSON Result
-
-data JSContextRef = JSContextRef {
-    doSendCommand :: Command -> IO Result
-  , doSendAsyncCommand :: AsyncCommand -> IO ()
-  , addCallback :: Object -> JSCallAsFunction -> IO ()
-  , freeCallback :: Object -> IO ()
-  , nextRef :: TVar JSRef
-}
-
 #endif
 
--- | Type used for Haskell functions called from JavaScript.
-type JSCallAsFunction = JSVal      -- ^ Function object
-                     -> JSVal      -- ^ this
-                     -> [JSVal]    -- ^ Function arguments
-                     -> JSM ()     -- ^ Only () (aka 'JSUndefined') can be returned because
-                                   --   the function may need to be executed in a
-                                   --   different thread.  If you need to get a
-                                   --   value out pass in a continuation function
-                                   --   as an argument and invoke it from haskell.
 
--- | The @JSM@ monad keeps track of the JavaScript context.
---
--- Given a @JSM@ function and a 'JSContextRef' you can run the
--- function like this...
---
--- > runReaderT jsmFunction javaScriptContext
---
--- For an example of how to set up WebKitGTK+ see tests/TestJSaddle.hs
-type JSM = ReaderT JSContextRef IO
-
-runJSaddle :: MonadIO m => JSContextRef -> JSM a -> m a
-runJSaddle context f = liftIO $ runReaderT f context
 

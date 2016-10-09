@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -14,22 +15,29 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.WebSockets (
-    jsaddleOr
-  , run
+  -- * Running JSM over WebSockets
+    run
+  , syncPoint
+  , syncAfter
+#ifndef ghcjs_HOST_OS
+  , jsaddleOr
+  -- * Functions used to implement JSaddle over WebSockets
   , AsyncCommand(..)
   , Command(..)
   , Result(..)
   , sendCommand
   , sendLazyCommand
   , sendAsyncCommand
-  , syncPoint
-  , syncAfter
+#endif
 ) where
 
+#ifdef ghcjs_HOST_OS
+import Language.Javascript.JSaddle.Types (JSM)
+#else
 import Control.Exception (throwIO)
 import Control.Monad (void, forever)
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Reader (asks)
+import Control.Monad.Trans.Reader (ask, runReaderT)
 import Control.Monad.STM (STM, atomically)
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM.TChan
@@ -45,56 +53,78 @@ import qualified Data.Map as M (lookup, delete, insert, empty)
 import Data.Aeson (encode, decode)
 
 import Network.Wai (Application)
+import Network.Wai.Handler.Warp
+       (defaultSettings, setTimeout, setPort, runSettings)
+import Network.Wai.Application.Static
+       (ssIndices, staticApp)
 import Network.WebSockets
        (ConnectionOptions(..), sendTextData, receiveDataMessage,
         acceptRequest, defaultConnectionOptions, ServerApp)
 import qualified Network.WebSockets as WS (DataMessage(..))
 import Network.Wai.Handler.WebSockets (websocketsOr)
 
-import Language.Javascript.JSaddle.Types
-       (Command(..), AsyncCommand(..), Result(..), JSContextRef(..), JSVal(..),
-        Object(..), JSValueReceived(..), JSM, Batch(..), JSValueForSend(..), runJSaddle)
-import Language.Javascript.JSaddle.Exception (JSException(..))
-import Language.Javascript.JSaddle.Native (wrapJSVal)
-import Language.Javascript.JSaddle.WebSockets.Files (mkEmbedded)
-import Network.Wai.Handler.Warp
-       (defaultSettings, setTimeout, setPort, runSettings)
-import Network.Wai.Application.Static
-       (ssIndices, staticApp)
 import WaiAppStatic.Storage.Embedded (mkSettings)
 import WaiAppStatic.Types (unsafeToPiece)
 
+import Language.Javascript.JSaddle.Types
+       (Command(..), AsyncCommand(..), Result(..), JSContextRef(..), JSVal(..),
+        Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..))
+import Language.Javascript.JSaddle.Exception (JSException(..))
+import Language.Javascript.JSaddle.Native (wrapJSVal)
+import Language.Javascript.JSaddle.WebSockets.Files (mkEmbedded)
+#endif
+
+-- | Run the given 'JSM' action as the main entry point.  Either directly
+--   in GHCJS or as a Warp server on the given port on GHC.
+run :: Int -> JSM () -> IO ()
+#ifdef ghcjs_HOST_OS
+run _port = id
+#else
+run port f =
+    runSettings (setPort port (setTimeout 3600 defaultSettings)) $
+        jsaddleOr defaultConnectionOptions (f >> syncPoint) jsaddleApp
+#endif
+
+-- | Forces execution of pending asyncronous code
+syncPoint :: JSM ()
+#ifdef ghcjs_HOST_OS
+syncPoint = return ()
+#else
+syncPoint = void $ sendCommand Sync
+#endif
+
+-- | Forces execution of pending asyncronous code after performing `f`
+syncAfter :: JSM a -> JSM a
+#ifdef ghcjs_HOST_OS
+syncAfter = id
+#else
+syncAfter f = do
+    result <- f
+    syncPoint
+    return result
+#endif
+
+#ifndef ghcjs_HOST_OS
 sendCommand :: Command -> JSM Result
 sendCommand cmd = do
-    s <- asks doSendCommand
+    s <- doSendCommand <$> JSM ask
     liftIO $ s cmd
 
 sendLazyCommand :: (JSValueForSend -> AsyncCommand) -> JSM JSVal
 sendLazyCommand cmd = do
-    nextRefTVar <- asks nextRef
+    nextRefTVar <- nextRef <$> JSM ask
     n <- liftIO . atomically $ do
         n <- subtract 1 <$> readTVar nextRefTVar
         writeTVar nextRefTVar n
         return n
-    s <- asks doSendAsyncCommand
+    s <- doSendAsyncCommand <$> JSM ask
     liftIO $ s (cmd $ JSValueForSend n)
     wrapJSVal (JSValueReceived n)
 
 sendAsyncCommand :: AsyncCommand -> JSM ()
 sendAsyncCommand cmd = do
-    s <- asks doSendAsyncCommand
+    s <- doSendAsyncCommand <$> JSM ask
     liftIO $ s cmd
-
--- | Forces execution of pending asyncronous code 
-syncPoint :: JSM ()
-syncPoint = void $ sendCommand Sync
-
--- | Forces execution of pending asyncronous code after performing `f` 
-syncAfter :: JSM a -> JSM a
-syncAfter f = do
-    result <- f
-    syncPoint
-    return result
 
 jsaddleOr :: ConnectionOptions -> JSM () -> Application -> Application
 jsaddleOr opts entryPoint = websocketsOr opts wsApp
@@ -125,12 +155,12 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
                         Nothing                  -> error $ "jsaddle WebSocket decode failed : " <> show t
                         Just (ProtocolError err) -> error $ "Protocol error : " <> T.unpack err
                         Just (Callback f this a) -> do
-                            f'@(JSVal fNumber) <- runJSaddle ctx $ wrapJSVal f
-                            this' <- runJSaddle ctx $ wrapJSVal this
-                            args <- runJSaddle ctx $ mapM wrapJSVal a
+                            f'@(JSVal fNumber) <- runReaderT (unJSM $ wrapJSVal f) ctx
+                            this' <- runReaderT  (unJSM $ wrapJSVal this) ctx
+                            args <- runReaderT (unJSM $ mapM wrapJSVal a) ctx
                             (M.lookup fNumber <$> liftIO (readTVarIO callbacks)) >>= \case
                                 Nothing -> liftIO $ putStrLn "Callback called after it was freed"
-                                Just cb -> void . forkIO . runJSaddle ctx $ cb f' this' args
+                                Just cb -> void . forkIO $ runReaderT (unJSM $ cb f' this' args) ctx
                         Just m                   -> atomically $ writeTChan recvChan m
                 _ -> error "jsaddle WebSocket unexpected binary data"
         forkIO . forever $ atomically (readBatch commandChan) >>= \case
@@ -144,7 +174,7 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
                         ThrowJSValue e -> atomically (discardToSyncPoint commandChan) >>= (`putMVar` ThrowJSValue e)
                         _ -> error "Unexpected result processing batch"
                     return ()
-        runJSaddle ctx entryPoint
+        runReaderT (unJSM entryPoint) ctx
 
     readBatch :: TChan (Either AsyncCommand (Command, MVar Result)) -> STM (Batch, Maybe (MVar Result))
     readBatch chan = do
@@ -167,7 +197,4 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
 jsaddleApp :: Application
 jsaddleApp = staticApp ($(mkSettings mkEmbedded)) {ssIndices = [unsafeToPiece "index.html"]}
 
-run :: Int -> JSM () -> IO ()
-run port f =
-    runSettings (setPort port (setTimeout 3600 defaultSettings)) $
-        jsaddleOr defaultConnectionOptions (f >> syncPoint) jsaddleApp
+#endif

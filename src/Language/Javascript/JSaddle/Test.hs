@@ -46,7 +46,7 @@ startServer =
     tryTakeMVar server >>= maybe (forkIO $
         run 3709 $ do
             liftIO $ tryTakeMVar context
-            liftIO . putMVar context =<< ask
+            liftIO . putMVar context =<< askJSM
             liftIO . forever $ threadDelay 1000000
         ) return >>= putMVar server
 
@@ -55,7 +55,7 @@ testJSaddle :: ToJSVal val => JSM val -> IO ()
 testJSaddle f = do
     startServer
     c <- takeMVar context
-    runReaderT ((f >>= valToText >>= liftIO . putStrLn . T.unpack)
+    runReaderT (unJSM $ (f >>= valToText >>= liftIO . putStrLn . T.unpack)
         `catch` \ (JSException e) -> valToText e >>= liftIO . putStrLn . T.unpack) c
     putMVar context c
 

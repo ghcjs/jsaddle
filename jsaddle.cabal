@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.5.0.2
+version: 0.5.1.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -72,11 +72,7 @@ library
 
 test-suite test-tool
 
-    type: exitcode-stdio-1.0
-    main-is: DocTest.hs
-    build-depends:
-        base -any
-    if !impl(ghcjs)
+    if !impl(ghcjs -any)
         build-depends:
             QuickCheck -any,
             bytestring >=0.10.6.0 && <0.11,
@@ -92,6 +88,10 @@ test-suite test-tool
             wai-websockets >=3.0.0.6 && <3.1,
             warp >=3.1.2 && <3.3,
             websockets >=0.9.5.0 && <0.10
+    type: exitcode-stdio-1.0
+    main-is: DocTest.hs
+    build-depends:
+        base -any
     default-language: Haskell2010
     hs-source-dirs: tests
     ghc-options: -ferror-spans -threaded

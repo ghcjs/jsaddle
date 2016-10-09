@@ -93,7 +93,7 @@ import Control.Applicative
 import Prelude hiding ((!!))
 import Language.Javascript.JSaddle.Types
        (JSString, Object(..),
-        JSVal(..), Index, JSCallAsFunction, JSContextRef(..))
+        JSVal(..), JSCallAsFunction, JSContextRef(..))
 #ifdef ghcjs_HOST_OS
 import Control.Monad.Trans.Reader (runReaderT)
 import GHCJS.Types (nullRef, jsval)
@@ -116,8 +116,7 @@ import Language.Javascript.JSaddle.Value (valToObject)
 import Language.Javascript.JSaddle.Classes
        (ToJSVal(..), ToJSString(..), MakeObject(..))
 import Language.Javascript.JSaddle.Arguments (MakeArgs(..))
-import Language.Javascript.JSaddle.Monad
-       (JSM)
+import Language.Javascript.JSaddle.Monad (askJSM, JSM)
 import Control.Monad.Trans.Reader (asks)
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Properties
@@ -158,8 +157,8 @@ this ! name = do
 -- >>> testJSaddle $ val "Hello World" !! 6
 -- W
 (!!) :: (MakeObject this)
-     => this           -- ^ Object to look on
-     -> Index          -- ^ Index of the property to lookup
+     => this      -- ^ Object to look on
+     -> Int       -- ^ Index of the property to lookup
      -> JSM JSVal -- ^ Property reference
 this !! index = do
     rthis <- makeObject this
@@ -326,7 +325,7 @@ infixr 2 #
 -- 5
 infixr 2 ##
 (##) :: (MakeObject this, MakeArgs args)
-    => this -> Index -> args -> JSM JSVal
+    => this -> Int -> args -> JSM JSVal
 (##) this index args = do
     rthis <- makeObject this
     f <- objGetPropertyAtIndex rthis index
@@ -357,9 +356,9 @@ infixr 1 <#
 -- 1
 infixr 1 <##
 (<##) :: (MakeObject this, ToJSVal val)
-     => this           -- ^ Object to set the property on
-     -> Index          -- ^ Index of the property to set
-     -> val            -- ^ Value to set it to
+     => this   -- ^ Object to set the property on
+     -> Int    -- ^ Index of the property to set
+     -> val    -- ^ Value to set it to
      -> JSM ()
 (<##) this index val = do
     rthis <- makeObject this
@@ -430,17 +429,18 @@ function :: JSCallAsFunction -- ^ Haskell function to call
          -> JSM Function       -- ^ Returns a JavaScript function object that will
                              --   call the Haskell one when it is called
 #ifdef ghcjs_HOST_OS
-function f = liftIO $ do
+function f = do
     callback <- syncCallback2 ContinueAsync $ \this args -> do
         rargs <- Array.toListIO (coerce args)
-        runReaderT (f this this rargs) () -- TODO pass function object through
+        f this this rargs -- TODO pass function object through
     Function callback <$> makeFunctionWithCallback callback
 foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
     makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
 #else
 function f = do
     obj <- Object <$> sendLazyCommand NewCallback
-    asks addCallback >>= \add -> liftIO $ add obj f
+    add <- addCallback <$> askJSM
+    liftIO $ add obj f
     return $ Function () obj
 #endif
 
@@ -449,7 +449,9 @@ freeFunction :: Function -> JSM ()
 freeFunction (Function callback _) = liftIO $
     releaseCallback callback
 #else
-freeFunction (Function callback obj) = asks freeCallback >>= \f -> liftIO $ f obj
+freeFunction (Function callback obj) = do
+    free <- freeCallback <$> askJSM
+    liftIO $ free obj
 #endif
 
 instance ToJSVal Function where

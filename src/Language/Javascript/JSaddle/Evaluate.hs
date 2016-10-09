@@ -28,10 +28,9 @@ import GHCJS.Marshal.Pure (pFromJSVal)
 import Language.Javascript.JSaddle.Types (JSString)
 #else
 import Language.Javascript.JSaddle.Native
-       (wrapJSVal, withJSString)
+       (withJSString)
 import Language.Javascript.JSaddle.WebSockets
-       (AsyncCommand(..), Result(..), sendLazyCommand)
-import Language.Javascript.JSaddle.Types (Result(..))
+       (AsyncCommand(..), sendLazyCommand)
 #endif
 import Language.Javascript.JSaddle.Classes
        (ToJSString(..))

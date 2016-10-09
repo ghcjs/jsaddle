@@ -25,9 +25,9 @@ module Language.Javascript.JSaddle.Native (
 
 #if !defined(ghcjs_HOST_OS)
 import Control.Monad.Trans.Reader (ask)
-import Control.Monad.IO.Class (MonadIO, MonadIO(..))
+import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Types
-       (JSContextRef(..), AsyncCommand(..), JSM, JSString(..),
+       (JSContextRef(..), AsyncCommand(..), JSM(..), JSString(..),
         Object(..), JSVal(..), JSValueReceived(..), JSValueForSend(..),
         JSStringReceived(..), JSStringForSend(..), JSObjectForSend(..))
 import Language.Javascript.JSaddle.Classes (ToJSVal(..))
@@ -40,7 +40,7 @@ wrapJSVal (JSValueReceived ref) = do
     -- TODO make sure this ref has not already been wrapped (perhaps only in debug version)
     let result = JSVal ref
     when (ref >= 5) $ do
-        ctx <- ask
+        ctx <- JSM ask
         liftIO . addFinalizer result $ doSendAsyncCommand ctx $ FreeRef $ JSValueForSend ref
     return result
 

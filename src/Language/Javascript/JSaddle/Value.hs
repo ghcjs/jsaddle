@@ -86,7 +86,7 @@ import Data.JSString.Text (textToJSString)
 #else
 import Language.Javascript.JSaddle.Native
        (wrapJSString, withJSVal, withObject, withJSString,
-        withToJSVal, wrapJSVal)
+        withToJSVal)
 import Language.Javascript.JSaddle.WebSockets
        (Command(..), AsyncCommand(..), Result(..), sendCommand,
         sendLazyCommand)

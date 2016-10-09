@@ -20,12 +20,11 @@ import Paths_jsaddle (getDataDir)
 
 main :: IO ()
 main = do
-    hSetBuffering stdout LineBuffering
-    hSetBuffering stderr LineBuffering
 #ifdef ghcjs_HOST_OS
     putStrLn "TODO find a way to run doctest tests with GHCJS"
-    return ()
 #else
+    hSetBuffering stdout LineBuffering
+    hSetBuffering stderr LineBuffering
     dataDir <- getDataDir
     node <- system "nodejs --version" >>= \case
                 ExitSuccess -> return "nodejs"
