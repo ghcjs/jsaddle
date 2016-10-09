@@ -21,12 +21,15 @@ module Language.Javascript.JSaddle.Monad (
 
   -- * Running JavaScript in a JavaScript context
   , askJSM
+  , run
   , runJSM
   , runJSaddle
 
   -- * Syncronizing with the JavaScript context
   , syncPoint
   , syncAfter
+  , waitForAnimationFrame
+  , nextAnimationFrame
 
   -- * Exception Handling
   , catch
@@ -38,7 +41,7 @@ import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Control.Exception as E (Exception, catch, bracket)
 import Language.Javascript.JSaddle.Types (JSM(..), MonadJSM, liftJSM, JSContextRef(..))
-import Language.Javascript.JSaddle.WebSockets (syncPoint, syncAfter)
+import Language.Javascript.JSaddle.WebSockets (run, syncPoint, syncAfter, waitForAnimationFrame, nextAnimationFrame)
 
 -- | Gets the JavaScript context from the monad
 askJSM :: MonadJSM m => m JSContextRef

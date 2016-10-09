@@ -53,6 +53,7 @@ main = do
         "-package=warp-" ++ VERSION_warp,
         "-package=http-types-" ++ VERSION_http_types,
         "-package=stm-" ++ VERSION_stm,
+        "-package=time-" ++ VERSION_time,
         "-package=containers-" ++ VERSION_containers,
         "-package=process-" ++ VERSION_process,
         "-package=filepath-" ++ VERSION_filepath,

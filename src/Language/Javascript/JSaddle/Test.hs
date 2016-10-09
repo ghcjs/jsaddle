@@ -19,7 +19,7 @@ module Language.Javascript.JSaddle.Test (
 
 import Control.Applicative
 import Prelude hiding((!!), catch)
-import Control.Monad.Trans.Reader (ask, runReaderT)
+import Control.Monad.Trans.Reader (runReaderT)
 import Language.Javascript.JSaddle
 import qualified Data.Text as T
 import Control.Monad.IO.Class (MonadIO(..))

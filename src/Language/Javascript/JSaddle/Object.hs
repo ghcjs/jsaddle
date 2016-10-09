@@ -117,7 +117,6 @@ import Language.Javascript.JSaddle.Classes
        (ToJSVal(..), ToJSString(..), MakeObject(..))
 import Language.Javascript.JSaddle.Arguments (MakeArgs(..))
 import Language.Javascript.JSaddle.Monad (askJSM, JSM)
-import Control.Monad.Trans.Reader (asks)
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Properties
 import Control.Lens (IndexPreservingGetter, to)

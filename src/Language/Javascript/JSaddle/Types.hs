@@ -58,6 +58,7 @@ import GHCJS.Nullable (Nullable(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Data.Int (Int64)
 import Data.Text (Text)
+import Data.Time.Clock (UTCTime(..))
 import Data.Aeson
        (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..))
 import GHC.Generics (Generic)
@@ -73,7 +74,8 @@ import Control.Monad.Fix (MonadFix)
 type JSContextRef = ()
 #else
 data JSContextRef = JSContextRef {
-    doSendCommand      :: Command -> IO Result
+    startTime          :: UTCTime
+  , doSendCommand      :: Command -> IO Result
   , doSendAsyncCommand :: AsyncCommand -> IO ()
   , addCallback        :: Object -> JSCallAsFunction -> IO ()
   , freeCallback       :: Object -> IO ()
@@ -184,6 +186,7 @@ data AsyncCommand = FreeRef JSValueForSend
                   | NewCallback JSValueForSend
                   | NewArray [JSValueForSend] JSValueForSend
                   | EvaluateScript JSStringForSend JSValueForSend
+                  | SyncWithAnimationFrame JSValueForSend
              deriving (Show, Generic)
 
 instance ToJSON AsyncCommand where
@@ -211,7 +214,7 @@ instance ToJSON Command where
 instance FromJSON Command
 
 -- | Batch of commands that can be sent together to the JavaScript context
-data Batch = Batch [AsyncCommand] Command
+data Batch = Batch [AsyncCommand] Command Bool
              deriving (Show, Generic)
 
 instance ToJSON Batch where

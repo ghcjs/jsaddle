@@ -19,6 +19,8 @@ module Language.Javascript.JSaddle.WebSockets (
     run
   , syncPoint
   , syncAfter
+  , waitForAnimationFrame
+  , nextAnimationFrame
 #ifndef ghcjs_HOST_OS
   , jsaddleOr
   -- * Functions used to implement JSaddle over WebSockets
@@ -33,6 +35,8 @@ module Language.Javascript.JSaddle.WebSockets (
 
 #ifdef ghcjs_HOST_OS
 import Language.Javascript.JSaddle.Types (JSM)
+import qualified JavaScript.Web.AnimationFrame as GHCJS
+       (waitForAnimationFrame)
 #else
 import Control.Exception (throwIO)
 import Control.Monad (void, forever)
@@ -51,6 +55,7 @@ import Data.Monoid ((<>))
 import qualified Data.Text as T (unpack)
 import qualified Data.Map as M (lookup, delete, insert, empty)
 import Data.Aeson (encode, decode)
+import Data.Time.Clock (getCurrentTime,diffUTCTime)
 
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp
@@ -104,6 +109,30 @@ syncAfter f = do
     return result
 #endif
 
+-- | On GHCJS this is 'JavaScript.Web.AnimationFrame.waitForAnimationFrame'.
+--   On GHC it will delay the execution of the current batch of asynchronous
+--   command when they are sent to JavaScript.  It will not delay the Haskell
+--   code execution.  The time returned will be based on the Haskell clock
+--   (not the JavaScript clock).
+waitForAnimationFrame :: JSM Double
+#ifdef ghcjs_HOST_OS
+waitForAnimationFrame = GHCJS.waitForAnimationFrame
+#else
+waitForAnimationFrame = do
+    -- We can't get the timestamp from requestAnimationFrame so this will have to do
+    start <- startTime <$> JSM ask
+    now <- liftIO getCurrentTime
+    void $ sendLazyCommand SyncWithAnimationFrame
+    return $ realToFrac (diffUTCTime now start)
+#endif
+
+-- | Tries to executes the given code in the next animation frame callback.
+--   Avoid synchronous opperations where possible.
+nextAnimationFrame :: (Double -> JSM a) -> JSM a
+nextAnimationFrame f = do
+    t <- waitForAnimationFrame
+    syncAfter (f t)
+
 #ifndef ghcjs_HOST_OS
 sendCommand :: Command -> JSM Result
 sendCommand cmd = do
@@ -131,13 +160,15 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
   where
     wsApp :: ServerApp
     wsApp pending_conn = do
+        startTime <- getCurrentTime
         conn <- acceptRequest pending_conn
         recvChan <- newTChanIO
         commandChan <- newTChanIO
         callbacks <- newTVarIO M.empty
         nextRef <- newTVarIO 0
         let ctx = JSContextRef {
-            doSendCommand = \cmd -> do
+            startTime = startTime
+          , doSendCommand = \cmd -> do
                 result <- newEmptyMVar
                 atomically $ writeTChan commandChan (Right (cmd, result))
                 takeMVar result >>= \case
@@ -181,13 +212,20 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
         first <- readTChan chan -- We want at least one command to send
         loop first []
       where
+        loop (Left asyncCmd@(SyncWithAnimationFrame _)) asyncCmds =
+            readTChan chan >>= \cmd -> loopAnimation cmd (asyncCmd:asyncCmds)
         loop (Right (cmd, resultMVar)) asyncCmds =
-            return (Batch (reverse asyncCmds) cmd, Just resultMVar)
+            return (Batch (reverse asyncCmds) cmd False, Just resultMVar)
         loop (Left asyncCmd) asyncCmds' = do
             let asyncCmds = asyncCmd:asyncCmds'
             tryReadTChan chan >>= \case
-                Nothing -> return (Batch (reverse asyncCmds) Sync, Nothing)
+                Nothing -> return (Batch (reverse asyncCmds) Sync False, Nothing)
                 Just cmd -> loop cmd asyncCmds
+        -- When we have seen a SyncWithAnimationFrame command only a synchronous command should end the batch
+        loopAnimation (Right (cmd, resultMVar)) asyncCmds =
+            return (Batch (reverse asyncCmds) cmd True, Just resultMVar)
+        loopAnimation (Left asyncCmd) asyncCmds =
+            readTChan chan >>= \cmd -> loopAnimation cmd (asyncCmd:asyncCmds)
     discardToSyncPoint :: TChan (Either AsyncCommand (Command, MVar Result)) -> STM (MVar Result)
     discardToSyncPoint chan =
         readTChan chan >>= \case
