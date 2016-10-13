@@ -1,8 +1,12 @@
 {-# LANGUAGE CPP                        #-}
-{-# LANGUAGE FlexibleInstances          #-}
+#ifdef ghcjs_HOST_OS
+{-# LANGUAGE ConstraintKinds            #-}
+#else
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE ConstraintKinds            #-}
+#endif
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Types
@@ -46,7 +50,6 @@ module Language.Javascript.JSaddle.Types (
 #endif
 ) where
 
-import Control.Monad.Trans.Reader (ReaderT(..))
 import Control.Monad.IO.Class (MonadIO(..))
 #ifdef ghcjs_HOST_OS
 import GHCJS.Types
@@ -55,15 +58,16 @@ import JavaScript.Array (MutableJSArray)
 import Data.Word (Word(..))
 import GHCJS.Nullable (Nullable(..))
 #else
+import Control.Monad.Trans.Reader (ReaderT(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
+import Control.Monad.Fix (MonadFix)
+import Control.Concurrent.STM.TVar (TVar)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime(..))
 import Data.Aeson
        (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..))
 import GHC.Generics (Generic)
-import Control.Concurrent.STM.TVar (TVar)
-import Control.Monad.Fix (MonadFix)
 #endif
 
 -- | Identifies a JavaScript execution context.
