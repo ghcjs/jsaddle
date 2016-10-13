@@ -59,8 +59,12 @@ import Data.Word (Word(..))
 import GHCJS.Nullable (Nullable(..))
 #else
 import Control.Monad.Trans.Reader (ReaderT(..))
+import Control.Monad.Trans.State.Lazy (StateT(..))
+import qualified Control.Monad.Trans.State.Strict as Strict
+       (StateT(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Fix (MonadFix)
+import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..))
 import Control.Concurrent.STM.TVar (TVar)
 import Data.Int (Int64)
 import Data.Text (Text)
@@ -120,6 +124,23 @@ instance MonadJSM JSM where
 instance MonadJSM m => MonadJSM (ReaderT e m) where
     liftJSM' = lift . liftJSM'
     {-# INLINE liftJSM' #-}
+
+instance MonadJSM m => MonadJSM (StateT r m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance MonadJSM m => MonadJSM (Strict.StateT r m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance MonadRef JSM where
+    type Ref JSM = Ref IO
+    newRef = liftIO . newRef
+    readRef = liftIO . readRef
+    writeRef r = liftIO . writeRef r
+
+instance MonadAtomicRef JSM where
+    atomicModifyRef r = liftIO . atomicModifyRef r
 #endif
 
 -- | The 'liftJSM' is to 'JSM' what 'liftIO' is to 'IO'.
