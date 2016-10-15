@@ -416,12 +416,11 @@ fun :: JSCallAsFunction -> JSCallAsFunction
 fun = id
 
 #ifdef ghcjs_HOST_OS
-type HaskellCallback = Callback (JSVal -> JSVal -> IO ())
+data Function = Function {functionCallback :: Callback (JSVal -> JSVal -> IO ()), functionObject :: Object}
 #else
-type HaskellCallback = ()
+newtype Function = Function {functionObject :: Object}
 #endif
 
-data Function = Function {functionCallback :: HaskellCallback, functionObject :: Object}
 
 -- ^ Make a JavaScript function object that wraps a Haskell function.
 function :: JSCallAsFunction -- ^ Haskell function to call
@@ -440,7 +439,7 @@ function f = do
     obj <- Object <$> sendLazyCommand NewCallback
     add <- addCallback <$> askJSM
     liftIO $ add obj f
-    return $ Function () obj
+    return $ Function obj
 #endif
 
 freeFunction :: Function -> JSM ()
@@ -448,13 +447,13 @@ freeFunction :: Function -> JSM ()
 freeFunction (Function callback _) = liftIO $
     releaseCallback callback
 #else
-freeFunction (Function callback obj) = do
+freeFunction (Function obj) = do
     free <- freeCallback <$> askJSM
     liftIO $ free obj
 #endif
 
 instance ToJSVal Function where
-    toJSVal (Function _ f) = toJSVal f
+    toJSVal = toJSVal . functionObject
 
 -- | A callback to Haskell can be used as a JavaScript value.  This will create
 --   an anonymous JavaScript function object.  Use 'function' to create one with
