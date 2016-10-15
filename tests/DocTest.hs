@@ -57,6 +57,7 @@ main = do
         "-package=containers-" ++ VERSION_containers,
         "-package=process-" ++ VERSION_process,
         "-package=filepath-" ++ VERSION_filepath,
+        "-package=ref-tf-" ++ VERSION_ref_tf,
         "-isrc",
         "src/Language/Javascript/JSaddle/Arguments.hs",
         "src/Language/Javascript/JSaddle/Classes.hs",
