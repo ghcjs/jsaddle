@@ -123,6 +123,7 @@ import Control.Lens (IndexPreservingGetter, to)
 import Data.Text (Text)
 
 -- $setup
+-- >>> import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
 -- >>> import Language.Javascript.JSaddle.Test (testJSaddle)
 -- >>> import Language.Javascript.JSaddle.Evaluate (eval)
 -- >>> import Language.Javascript.JSaddle.Value (val, valToText, JSNull(..), deRefVal)
@@ -409,9 +410,15 @@ obj = Object <$> sendLazyCommand NewEmptyObject
 --
 -- >>> testJSaddle $ eval "(function(f) {f('Hello');})(function (a) {console.log(a)})"
 -- undefined
--- >>> testJSaddle . deRefVal $ call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ args -> valToText (head args) >>= (liftIO . putStrLn . T.unpack) ]
+-- >>> :{
+--  testJSaddle $ do
+--    result <- liftIO newEmptyMVar
+--    deRefVal $ call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ [arg1] -> do
+--         valToText arg1 >>= (liftIO . putMVar result)
+--         ]
+--    liftIO $ takeMVar result
+-- :}
 -- Hello
--- undefined
 fun :: JSCallAsFunction -> JSCallAsFunction
 fun = id
 
