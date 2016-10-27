@@ -30,7 +30,7 @@ library
     else
         exposed-modules:
             Language.Javascript.JSaddle.WebSockets
-            Language.Javascript.JSaddle.WebSockets.Files
+-           Language.Javascript.JSaddle.WebSockets.Files
             Language.Javascript.JSaddle.Test
         build-depends:
             aeson >=0.8.0.2 && <1.1,
@@ -43,7 +43,6 @@ library
             stm >=2.4.4 && <2.5,
             time >=1.5.0.1 && <1.7,
             wai >=3.0.3.0 && <3.3,
-            wai-app-static >=3.1.1 && <3.2,
             wai-websockets >=3.0.0.6 && <3.1,
             warp >=3.1.2 && <3.3,
             websockets >=0.9.5.0 && <0.10
@@ -63,7 +62,7 @@ library
         Paths_jsaddle
     build-depends:
         base <5,
-        lens >=3.8.5 && <4.15,
+        lens >=3.8.5 && <4.16,
         primitive >=0.6.1.0 && <0.7,
         template-haskell -any,
         text >=1.2.1.3 && <1.3,
@@ -86,7 +85,6 @@ test-suite test-tool
             text >=1.2.1.3 && <1.3,
             vector >=0.10.12.3 && <0.12,
             wai >=3.0.3.0 && <3.3,
-            wai-app-static >=3.1.1 && <3.2,
             wai-websockets >=3.0.0.6 && <3.1,
             warp >=3.1.2 && <3.3,
             websockets >=0.9.5.0 && <0.10

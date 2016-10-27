@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 -----------------------------------------------------------------------------
@@ -60,23 +59,23 @@ import Data.Time.Clock (getCurrentTime,diffUTCTime)
 import Network.Wai (Application)
 import Network.Wai.Handler.Warp
        (defaultSettings, setTimeout, setPort, runSettings)
-import Network.Wai.Application.Static
-       (ssIndices, staticApp)
 import Network.WebSockets
        (ConnectionOptions(..), sendTextData, receiveDataMessage,
         acceptRequest, defaultConnectionOptions, ServerApp)
 import qualified Network.WebSockets as WS (DataMessage(..))
 import Network.Wai.Handler.WebSockets (websocketsOr)
 
-import WaiAppStatic.Storage.Embedded (mkSettings)
-import WaiAppStatic.Types (unsafeToPiece)
-
 import Language.Javascript.JSaddle.Types
        (Command(..), AsyncCommand(..), Result(..), JSContextRef(..), JSVal(..),
         Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..))
 import Language.Javascript.JSaddle.Exception (JSException(..))
 import Language.Javascript.JSaddle.Native (wrapJSVal)
-import Language.Javascript.JSaddle.WebSockets.Files (mkEmbedded)
+import Language.Javascript.JSaddle.WebSockets.Files (indexHtml, jsaddleJs)
+import qualified Network.Wai as W
+       (responseLBS, requestMethod, Application, pathInfo)
+import Data.Text (Text)
+import qualified Network.HTTP.Types as H
+       (status403, status200, status405)
 #endif
 
 -- | Run the given 'JSM' action as the main entry point.  Either directly
@@ -233,6 +232,17 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
             _                     -> discardToSyncPoint chan
 
 jsaddleApp :: Application
-jsaddleApp = staticApp ($(mkSettings mkEmbedded)) {ssIndices = [unsafeToPiece "index.html"]}
+jsaddleApp req = jsaddleAppPieces (W.pathInfo req) req
 
+jsaddleAppPieces :: [Text] -> W.Application
+jsaddleAppPieces _ req sendResponse
+    | notElem (W.requestMethod req) ["GET", "HEAD"] = sendResponse $ W.responseLBS
+        H.status405
+        [("Content-Type", "text/plain")]
+        "Only GET or HEAD is supported"
+jsaddleAppPieces [] req sendResponse = sendResponse $ W.responseLBS H.status200 [("Content-Type", "image/png")] indexHtml
+jsaddleAppPieces ["jsaddle.js"] req sendResponse = sendResponse $ W.responseLBS H.status200 [("Content-Type", "image/png")] jsaddleJs
+jsaddleAppPieces rawPieces req sendResponse = sendResponse $ W.responseLBS H.status403
+            [ ("Content-Type", "text/plain")
+            ] "Forbidden"
 #endif

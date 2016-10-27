@@ -49,7 +49,6 @@ main = do
         "-package=websockets-" ++ VERSION_websockets,
         "-package=wai-" ++ VERSION_wai,
         "-package=wai-websockets-" ++ VERSION_wai_websockets,
-        "-package=wai-app-static-" ++ VERSION_wai_app_static,
         "-package=warp-" ++ VERSION_warp,
         "-package=http-types-" ++ VERSION_http_types,
         "-package=stm-" ++ VERSION_stm,
