@@ -30,7 +30,7 @@ library
     else
         exposed-modules:
             Language.Javascript.JSaddle.WebSockets
--           Language.Javascript.JSaddle.WebSockets.Files
+            Language.Javascript.JSaddle.WebSockets.Files
             Language.Javascript.JSaddle.Test
         build-depends:
             aeson >=0.8.0.2 && <1.1,
