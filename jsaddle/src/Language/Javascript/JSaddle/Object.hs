@@ -109,7 +109,7 @@ import Data.Coerce (coerce)
 #else
 import Language.Javascript.JSaddle.Native
        (wrapJSString, withJSVals, withObject)
-import Language.Javascript.JSaddle.WebSockets
+import Language.Javascript.JSaddle.Run
        (Command(..), AsyncCommand(..), Result(..), sendCommand, sendLazyCommand)
 #endif
 import Language.Javascript.JSaddle.Value (valToObject)
@@ -443,10 +443,10 @@ foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
     makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
 #else
 function f = do
-    obj <- Object <$> sendLazyCommand NewCallback
+    object <- Object <$> sendLazyCommand NewCallback
     add <- addCallback <$> askJSM
-    liftIO $ add obj f
-    return $ Function obj
+    liftIO $ add object f
+    return $ Function object
 #endif
 
 freeFunction :: Function -> JSM ()
@@ -454,9 +454,9 @@ freeFunction :: Function -> JSM ()
 freeFunction (Function callback _) = liftIO $
     releaseCallback callback
 #else
-freeFunction (Function obj) = do
+freeFunction (Function object) = do
     free <- freeCallback <$> askJSM
-    liftIO $ free obj
+    liftIO $ free object
 #endif
 
 instance ToJSVal Function where

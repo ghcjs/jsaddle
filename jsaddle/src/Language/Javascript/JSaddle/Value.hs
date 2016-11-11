@@ -70,8 +70,6 @@ module Language.Javascript.JSaddle.Value (
   , instanceOf
 ) where
 
-import Control.Applicative
-import Prelude hiding (catch)
 import Language.Javascript.JSaddle.Types
        (Object(..), JSString(..), JSVal(..))
 #ifdef ghcjs_HOST_OS
@@ -87,7 +85,7 @@ import Data.JSString.Text (textToJSString)
 import Language.Javascript.JSaddle.Native
        (wrapJSString, withJSVal, withObject, withJSString,
         withToJSVal)
-import Language.Javascript.JSaddle.WebSockets
+import Language.Javascript.JSaddle.Run
        (Command(..), AsyncCommand(..), Result(..), sendCommand,
         sendLazyCommand)
 #endif
@@ -165,8 +163,8 @@ valToBool value =
         (JSVal 1) -> return False -- undefined
         (JSVal 2) -> return False -- false
         (JSVal 3) -> return True  -- true
-        val ->
-            withJSVal val $ \rval -> do
+        v ->
+            withJSVal v $ \rval -> do
                 ValueToBoolResult result <- sendCommand (ValueToBool rval)
                 return result
 #endif
@@ -570,6 +568,7 @@ deRefVal value = do
             DeRefValResult (-1) s -> return $ ValNumber (read (T.unpack s))
             DeRefValResult (-2) s -> return $ ValString s
             DeRefValResult ref  _ -> return $ ValObject (Object (JSVal ref))
+            _                     -> error "Unexpected result dereferencing JSaddle value"
 #endif
 
 -- | Make a JavaScript value out of a 'JSValue' ADT.

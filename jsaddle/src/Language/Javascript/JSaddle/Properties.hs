@@ -31,14 +31,14 @@ module Language.Javascript.JSaddle.Properties (
 
 import Language.Javascript.JSaddle.Classes
        (ToJSVal(..), ToJSString(..))
-import Language.Javascript.JSaddle.Monad (askJSM, JSM)
+import Language.Javascript.JSaddle.Monad (JSM)
 import Language.Javascript.JSaddle.Types (Object(..))
 #ifdef ghcjs_HOST_OS
 import Language.Javascript.JSaddle.Types (JSString)
 #else
 import Language.Javascript.JSaddle.Native
        (withObject, withJSString, withToJSVal)
-import Language.Javascript.JSaddle.WebSockets
+import Language.Javascript.JSaddle.Run
        (AsyncCommand(..), sendLazyCommand, sendAsyncCommand)
 #endif
 import Language.Javascript.JSaddle.Value (JSVal)
@@ -108,8 +108,7 @@ objSetPropertyAtIndex this index val = do
 foreign import javascript unsafe "$2[$1]=$3"
     js_trySetAtIndex :: Int -> Object -> JSVal -> IO ()
 #else
-objSetPropertyAtIndex this index val = do
-    gctxt <- askJSM
+objSetPropertyAtIndex this index val =
     withObject this $ \rthis ->
         withToJSVal val $ \rval ->
             sendAsyncCommand $ SetPropertyAtIndex rthis index rval

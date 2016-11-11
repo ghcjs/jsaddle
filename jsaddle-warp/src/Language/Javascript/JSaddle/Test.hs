@@ -31,7 +31,7 @@ import Control.Concurrent.MVar
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Concurrent (threadDelay, forkIO, ThreadId)
 import Data.Text (Text)
-import Language.Javascript.JSaddle.WebSockets (run)
+import Language.Javascript.JSaddle.Warp (run)
 
 context :: MVar JSContextRef
 context = unsafePerformIO newEmptyMVar

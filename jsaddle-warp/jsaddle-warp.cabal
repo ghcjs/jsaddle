@@ -1,0 +1,67 @@
+name: jsaddle-warp
+version: 0.6.0.0
+cabal-version: >=1.10
+build-type: Simple
+license: MIT
+license-file: LICENSE
+maintainer: Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
+synopsis: Interface for JavaScript that works with GHCJS and GHC
+description:
+    This package provides an EDSL for calling JavaScript that
+    can be used both from GHCJS and GHC.  When using GHC
+    the application is run using Warp and WebSockets to
+    drive a small JavaScipt helper.
+category: Web, Javascript
+author: Hamish Mackenzie
+
+source-repository head
+    type: git
+    location: https://github.com/ghcjs/jsaddle
+
+library
+
+    if !impl(ghcjs -any)
+        exposed-modules:
+            Language.Javascript.JSaddle.WebSockets
+        build-depends:
+            aeson >=0.8.0.2 && <1.1,
+            containers >=0.5.6.2 && <0.6,
+            http-types >=0.8.6 && <0.10,
+            jsaddle >=0.6.0.0 && <0.7,
+            stm >=2.4.4 && <2.5,
+            text >=1.2.1.3 && <1.3,
+            time >=1.5.0.1 && <1.7,
+            transformers >=0.4.2.0 && <0.6,
+            wai >=3.0.3.0 && <3.3,
+            wai-websockets >=3.0.0.6 && <3.1,
+            warp >=3.1.2 && <3.3,
+            websockets >=0.9.5.0 && <0.10
+    exposed-modules:
+        Language.Javascript.JSaddle.Warp
+    build-depends:
+        base <5
+    default-language: Haskell2010
+    hs-source-dirs: src
+    ghc-options: -ferror-spans -Wall
+
+test-suite test-tool
+
+    if !impl(ghcjs -any)
+        build-depends:
+            QuickCheck -any,
+            bytestring -any,
+            doctest >=0.10.1 && <0.12,
+            filepath >=1.4.0.0 && <1.5,
+            jsaddle -any,
+            jsaddle-warp -any,
+            lens -any,
+            ref-tf -any,
+            primitive -any,
+            process >=1.2.3.0 && <1.5
+    type: exitcode-stdio-1.0
+    main-is: DocTest.hs
+    build-depends:
+        base -any
+    default-language: Haskell2010
+    hs-source-dirs: tests
+    ghc-options: -ferror-spans -threaded

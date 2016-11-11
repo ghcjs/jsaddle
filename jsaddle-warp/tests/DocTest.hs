@@ -6,26 +6,27 @@ module Main (
     main
 ) where
 
-#ifndef ghcjs_HOST_OS
 import Test.DocTest
 import System.IO (stderr, BufferMode(..), stdout, hSetBuffering)
 import System.FilePath ((</>))
-import System.Exit (exitWith, ExitCode(..))
-import System.Process (system)
+import System.Exit (exitFailure, exitWith, ExitCode(..))
+import System.Process (readProcess, system)
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
 import Data.Monoid ((<>))
-import Paths_jsaddle (getDataDir)
-#endif
+import System.Environment (getArgs)
+import Language.Javascript.JSaddle.Run.Files (jsaddleJs)
+import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
 
 main :: IO ()
 main = do
-#ifdef ghcjs_HOST_OS
-    putStrLn "TODO find a way to run doctest tests with GHCJS"
-#else
+    jsaddlePath <- getArgs >>= \case
+        [arg] -> return arg
+        _ -> do
+            putStrLn "Please give the path to the jsaddle package source"
+            exitFailure
     hSetBuffering stdout LineBuffering
     hSetBuffering stderr LineBuffering
-    dataDir <- getDataDir
     node <- system "nodejs --version" >>= \case
                 ExitSuccess -> return "nodejs"
                 _           -> return "node"
@@ -34,10 +35,9 @@ main = do
                 e           -> do
                     putStrLn "Node.js not found"
                     exitWith e
-    forkIO . void . system $ node <> " --harmony " <> dataDir </> "data/jsaddle.js"
+    forkIO . void $ readProcess node ["--harmony"] (BS.unpack jsaddleJs) >>= putStr
     doctest [
         "-hide-all-packages",
-        "-package=template-haskell-" ++ VERSION_template_haskell,
         "-package=base-" ++ VERSION_base,
         "-package=lens-" ++ VERSION_lens,
         "-package=text-" ++ VERSION_text,
@@ -57,17 +57,20 @@ main = do
         "-package=process-" ++ VERSION_process,
         "-package=filepath-" ++ VERSION_filepath,
         "-package=ref-tf-" ++ VERSION_ref_tf,
-        "-isrc",
-        "src/Language/Javascript/JSaddle/Arguments.hs",
-        "src/Language/Javascript/JSaddle/Classes.hs",
-        "src/Language/Javascript/JSaddle/Evaluate.hs",
-        "src/Language/Javascript/JSaddle/Exception.hs",
-        "src/Language/Javascript/JSaddle/Monad.hs",
-        "src/Language/Javascript/JSaddle/Native.hs",
-        "src/Language/Javascript/JSaddle/Object.hs",
-        "src/Language/Javascript/JSaddle/Properties.hs",
-        "src/Language/Javascript/JSaddle/String.hs",
-        "src/Language/Javascript/JSaddle/Test.hs",
-        "src/Language/Javascript/JSaddle/Types.hs",
-        "src/Language/Javascript/JSaddle/Value.hs" ]
-#endif
+        "-i" <> jsaddlePath </> "jsaddle-warp/src",
+        jsaddlePath </> "jsaddle-warp/src/Language/Javascript/JSaddle/Test.hs",
+        "-i" <> jsaddlePath </> "jsaddle",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Arguments.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Classes.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Evaluate.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Exception.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Monad.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Native.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Object.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Properties.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Run.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Run/Files.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/String.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Types.hs",
+        jsaddlePath </> "jsaddle/src/Language/Javascript/JSaddle/Value.hs" ]

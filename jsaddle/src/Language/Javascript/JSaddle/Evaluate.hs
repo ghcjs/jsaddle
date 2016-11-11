@@ -29,7 +29,7 @@ import Language.Javascript.JSaddle.Types (JSString)
 #else
 import Language.Javascript.JSaddle.Native
        (withJSString)
-import Language.Javascript.JSaddle.WebSockets
+import Language.Javascript.JSaddle.Run
        (AsyncCommand(..), sendLazyCommand)
 #endif
 import Language.Javascript.JSaddle.Classes

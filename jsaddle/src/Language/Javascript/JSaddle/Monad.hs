@@ -21,7 +21,6 @@ module Language.Javascript.JSaddle.Monad (
 
   -- * Running JavaScript in a JavaScript context
   , askJSM
-  , run
   , runJSM
   , runJSaddle
 
@@ -36,12 +35,12 @@ module Language.Javascript.JSaddle.Monad (
   , bracket
 ) where
 
-import Prelude hiding (catch, read)
+import Prelude hiding (read)
 import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Control.Exception as E (Exception, catch, bracket)
 import Language.Javascript.JSaddle.Types (JSM(..), MonadJSM, liftJSM, JSContextRef(..))
-import Language.Javascript.JSaddle.WebSockets (run, syncPoint, syncAfter, waitForAnimationFrame, nextAnimationFrame)
+import Language.Javascript.JSaddle.Run (syncPoint, syncAfter, waitForAnimationFrame, nextAnimationFrame)
 
 -- | Gets the JavaScript context from the monad
 askJSM :: MonadJSM m => m JSContextRef

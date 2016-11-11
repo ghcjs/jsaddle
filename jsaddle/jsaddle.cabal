@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.5.2.0
+version: 0.6.0.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -13,9 +13,6 @@ description:
     drive a small JavaScipt helper.
 category: Web, Javascript
 author: Hamish Mackenzie
-data-files:
-    data/index.html
-    data/jsaddle.js
 
 source-repository head
     type: git
@@ -28,10 +25,6 @@ library
             ghcjs-base -any,
             ghcjs-prim -any
     else
-        exposed-modules:
-            Language.Javascript.JSaddle.WebSockets
-            Language.Javascript.JSaddle.WebSockets.Files
-            Language.Javascript.JSaddle.Test
         build-depends:
             aeson >=0.8.0.2 && <1.1,
             bytestring >=0.10.6.0 && <0.11,
@@ -41,11 +34,7 @@ library
             process >=1.2.3.0 && <1.5,
             ref-tf >=0.4.0.1 && <0.5,
             stm >=2.4.4 && <2.5,
-            time >=1.5.0.1 && <1.7,
-            wai >=3.0.3.0 && <3.3,
-            wai-websockets >=3.0.0.6 && <3.1,
-            warp >=3.1.2 && <3.3,
-            websockets >=0.9.5.0 && <0.10
+            time >=1.5.0.1 && <1.7
     exposed-modules:
         Language.Javascript.JSaddle
         Language.Javascript.JSaddle.Arguments
@@ -56,10 +45,11 @@ library
         Language.Javascript.JSaddle.Native
         Language.Javascript.JSaddle.Object
         Language.Javascript.JSaddle.Properties
+        Language.Javascript.JSaddle.Run
+        Language.Javascript.JSaddle.Run.Files
         Language.Javascript.JSaddle.String
         Language.Javascript.JSaddle.Value
         Language.Javascript.JSaddle.Types
-        Paths_jsaddle
     build-depends:
         base <5,
         lens >=3.8.5 && <4.16,
@@ -69,29 +59,6 @@ library
         transformers >=0.4.2.0 && <0.6
     default-language: Haskell2010
     hs-source-dirs: src
-    ghc-options: -ferror-spans
+    ghc-options: -ferror-spans -Wall
 
-test-suite test-tool
 
-    if !impl(ghcjs -any)
-        build-depends:
-            QuickCheck -any,
-            bytestring >=0.10.6.0 && <0.11,
-            doctest >=0.10.1 && <0.12,
-            filepath >=1.4.0.0 && <1.5,
-            http-types >=0.8.6 && <0.10,
-            jsaddle -any,
-            process >=1.2.3.0 && <1.5,
-            text >=1.2.1.3 && <1.3,
-            vector >=0.10.12.3 && <0.12,
-            wai >=3.0.3.0 && <3.3,
-            wai-websockets >=3.0.0.6 && <3.1,
-            warp >=3.1.2 && <3.3,
-            websockets >=0.9.5.0 && <0.10
-    type: exitcode-stdio-1.0
-    main-is: DocTest.hs
-    build-depends:
-        base -any
-    default-language: Haskell2010
-    hs-source-dirs: tests
-    ghc-options: -ferror-spans -threaded

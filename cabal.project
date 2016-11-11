@@ -2,6 +2,8 @@ flags: -overloaded-methods -overloaded-signals -overloaded-properties
 
 packages:
  jsaddle/
+ jsaddle-warp/
+ jsaddle-wkwebview/
 
 package gi-atk
  flags: -overloaded-methods -overloaded-signals -overloaded-properties

@@ -11,12 +11,15 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSaddle.WebSockets.Files (
+module Language.Javascript.JSaddle.Run.Files (
     indexHtml
   , jsaddleJs
+  , initState
+  , runBatch
 ) where
 
 import Data.ByteString.Lazy (ByteString)
+import Data.Monoid ((<>))
 
 indexHtml :: ByteString
 indexHtml =
@@ -30,24 +33,8 @@ indexHtml =
     \<script src=\"jsaddle.js\"></script>\n\
     \</html>"
 
--- Use this to generate this string for embedding
--- sed -e 's|\\|\\\\|g' -e 's|^|    \\|' -e 's|$|\\n\\|' -e 's|"|\\"|g' data/jsaddle.js | pbcopy
-jsaddleJs :: ByteString
-jsaddleJs = "\
-    \if(typeof global !== \"undefined\") {\n\
-    \    global.window = global;\n\
-    \    global.WebSocket = require('ws');\n\
-    \}\n\
-    \\n\
-    \var connect = function() {\n\
-    \    var wsaddress =\n\
-    \            typeof window.location === \"undefined\"\n\
-    \                ? \"ws://localhost:3709/\"\n\
-    \                : window.location.protocol.replace('http', 'ws')+\"//\"+window.location.hostname+(window.location.port?(\":\"+window.location.port):\"\");\n\
-    \\n\
-    \    var ws = new WebSocket(wsaddress);\n\
-    \\n\
-    \    ws.onopen = function(e) {\n\
+initState :: ByteString
+initState = "\
     \        var jsaddle_values = new Map();\n\
     \        jsaddle_values.set(0, null);\n\
     \        jsaddle_values.set(1, undefined);\n\
@@ -55,10 +42,10 @@ jsaddleJs = "\
     \        jsaddle_values.set(3, true);\n\
     \        jsaddle_values.set(4, window);\n\
     \        var jsaddle_index = 100;\n\
-    \\n\
-    \        ws.onmessage = function(e) {\n\
-    \            var batch = JSON.parse(e.data);\n\
-    \\n\
+    \"
+
+runBatch :: (ByteString -> ByteString) -> ByteString
+runBatch send = "\
     \            var processBatch = function(timestamp) {\n\
     \                try {\n\
     \                    var nAsyncLength = batch[0].length;\n\
@@ -110,7 +97,7 @@ jsaddleJs = "\
     \                                            jsaddle_values.set(nArg, arguments[i]);\n\
     \                                            args[i] = nArg;\n\
     \                                        }\n\
-    \                                        ws.send(JSON.stringify({\"tag\": \"Callback\", \"contents\": [nFunction, nThis, args]}));\n\
+    \                                        " <> send "{\"tag\": \"Callback\", \"contents\": [nFunction, nThis, args]}" <> "\n\
     \                                    })})();\n\
     \                                break;\n\
     \                            case \"CallAsFunction\":\n\
@@ -158,7 +145,7 @@ jsaddleJs = "\
     \                                jsaddle_values.set(n, timestamp);\n\
     \                                break;\n\
     \                            default:\n\
-    \                                ws.send(JSON.stringify({\"tag\": \"ProtocolError\", \"contents\": e.data}));\n\
+    \                                " <> send "{\"tag\": \"ProtocolError\", \"contents\": e.data}" <> "\n\
     \                                return;\n\
     \                        }\n\
     \                    }\n\
@@ -167,17 +154,17 @@ jsaddleJs = "\
     \                        case \"ValueToString\":\n\
     \                            var val = jsaddle_values.get(d.contents);\n\
     \                            var s = val === null ? \"null\" : val === undefined ? \"undefined\" : val.toString();\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"ValueToStringResult\", \"contents\": s}));\n\
+    \                            " <> send "{\"tag\": \"ValueToStringResult\", \"contents\": s}" <> "\n\
     \                            break;\n\
     \                        case \"ValueToBool\":\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"ValueToBoolResult\", \"contents\": jsaddle_values.get(d.contents) ? true : false}));\n\
+    \                            " <> send "{\"tag\": \"ValueToBoolResult\", \"contents\": jsaddle_values.get(d.contents) ? true : false}" <> "\n\
     \                            break;\n\
     \                        case \"ValueToNumber\":\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"ValueToNumberResult\", \"contents\": Number(jsaddle_values.get(d.contents))}));\n\
+    \                            " <> send "{\"tag\": \"ValueToNumberResult\", \"contents\": Number(jsaddle_values.get(d.contents))}" <> "\n\
     \                            break;\n\
     \                        case \"ValueToJSON\":\n\
     \                            var s = jsaddle_values.get(d.contents) === undefined ? \"\" : JSON.stringify(jsaddle_values.get(d.contents));\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"ValueToJSONResult\", \"contents\": s}));\n\
+    \                            " <> send "{\"tag\": \"ValueToJSONResult\", \"contents\": s}" <> "\n\
     \                            break;\n\
     \                        case \"DeRefVal\":\n\
     \                            var n = d.contents;\n\
@@ -189,36 +176,36 @@ jsaddleJs = "\
     \                                    (typeof v === \"number\") ? [-1, v.toString()] :\n\
     \                                    (typeof v === \"string\") ? [-2, v]\n\
     \                                                            : [n, \"\"];\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"DeRefValResult\", \"contents\": c}));\n\
+    \                            " <> send "{\"tag\": \"DeRefValResult\", \"contents\": c}" <> "\n\
     \                            break;\n\
     \                        case \"IsNull\":\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"IsNullResult\", \"contents\": jsaddle_values.get(d.contents) === null}));\n\
+    \                            " <> send "{\"tag\": \"IsNullResult\", \"contents\": jsaddle_values.get(d.contents) === null}" <> "\n\
     \                            break;\n\
     \                        case \"IsUndefined\":\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"IsUndefinedResult\", \"contents\": jsaddle_values.get(d.contents) === undefined}));\n\
+    \                            " <> send "{\"tag\": \"IsUndefinedResult\", \"contents\": jsaddle_values.get(d.contents) === undefined}" <> "\n\
     \                            break;\n\
     \                        case \"InstanceOf\":\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"InstanceOfResult\", \"contents\": jsaddle_values.get(d.contents[0]) instanceof jsaddle_values.get(d.contents[1])}));\n\
+    \                            " <> send "{\"tag\": \"InstanceOfResult\", \"contents\": jsaddle_values.get(d.contents[0]) instanceof jsaddle_values.get(d.contents[1])}" <> "\n\
     \                            break;\n\
     \                        case \"StrictEqual\":\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"StrictEqualResult\", \"contents\": jsaddle_values.get(d.contents[0]) === jsaddle_values.get(d.contents[1])}));\n\
+    \                            " <> send "{\"tag\": \"StrictEqualResult\", \"contents\": jsaddle_values.get(d.contents[0]) === jsaddle_values.get(d.contents[1])}" <> "\n\
     \                            break;\n\
     \                        case \"PropertyNames\":\n\
     \                            var result = [];\n\
     \                            for (name in jsaddle_values.get(d.contents)) { result.push(name); }\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"PropertyNamesResult\", \"contents\": result}));\n\
+    \                            " <> send "{\"tag\": \"PropertyNamesResult\", \"contents\": result}" <> "\n\
     \                            break;\n\
     \                        case \"Sync\":\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"SyncResult\", \"contents\": []}));\n\
+    \                            " <> send "{\"tag\": \"SyncResult\", \"contents\": []}" <> "\n\
     \                            break;\n\
     \                        default:\n\
-    \                            ws.send(JSON.stringify({\"tag\": \"ProtocolError\", \"contents\": e.data}));\n\
+    \                            " <> send "{\"tag\": \"ProtocolError\", \"contents\": e.data}" <> "\n\
     \                    }\n\
     \                }\n\
     \                catch (err) {\n\
     \                    var n = ++jsaddle_index;\n\
     \                    jsaddle_values.set(n, err);\n\
-    \                    ws.send(JSON.stringify({\"tag\": \"ThrowJSValue\", \"contents\": n}));\n\
+    \                    " <> send "{\"tag\": \"ThrowJSValue\", \"contents\": n}" <> "\n\
     \                }\n\
     \            };\n\
     \            if(batch[2]) {\n\
@@ -227,6 +214,32 @@ jsaddleJs = "\
     \            else {\n\
     \                processBatch(window.performance ? window.performance.now() : null);\n\
     \            }\n\
+    \"
+
+-- Use this to generate this string for embedding
+-- sed -e 's|\\|\\\\|g' -e 's|^|    \\|' -e 's|$|\\n\\|' -e 's|"|\\"|g' data/jsaddle.js | pbcopy
+jsaddleJs :: ByteString
+jsaddleJs = "\
+    \if(typeof global !== \"undefined\") {\n\
+    \    global.window = global;\n\
+    \    global.WebSocket = require('ws');\n\
+    \}\n\
+    \\n\
+    \var connect = function() {\n\
+    \    var wsaddress =\n\
+    \            typeof window.location === \"undefined\"\n\
+    \                ? \"ws://localhost:3709/\"\n\
+    \                : window.location.protocol.replace('http', 'ws')+\"//\"+window.location.hostname+(window.location.port?(\":\"+window.location.port):\"\");\n\
+    \\n\
+    \    var ws = new WebSocket(wsaddress);\n\
+    \\n\
+    \    ws.onopen = function(e) {\n\
+    \ " <> initState <> "\
+    \\n\
+    \        ws.onmessage = function(e) {\n\
+    \            var batch = JSON.parse(e.data);\n\
+    \\n\
+    \ " <> runBatch (\a -> "ws.send(JSON.stringify(" <> a <> "));") <> "\
     \        };\n\
     \    };\n\
     \    ws.onerror = function() {\n\
