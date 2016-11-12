@@ -1,6 +1,9 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+#ifdef ghcjs_HOST_OS
+{-# OPTIONS_GHC -Wno-dodgy-imports #-}
+#endif
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.String
@@ -26,8 +29,6 @@ import Data.Text (Text)
 import Language.Javascript.JSaddle.Types (JSString(..))
 #ifdef ghcjs_HOST_OS
 import Data.JSString.Text (textFromJSString, textToJSString)
-import GHCJS.Marshal.Internal (PFromJSVal(..))
-import GHCJS.Types (nullRef)
 #endif
 import Language.Javascript.JSaddle.Classes (ToJSString(..))
 

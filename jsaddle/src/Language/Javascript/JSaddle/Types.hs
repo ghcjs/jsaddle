@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP                        #-}
 #ifdef ghcjs_HOST_OS
 {-# LANGUAGE ConstraintKinds            #-}
+{-# OPTIONS_GHC -Wno-dodgy-exports      #-}
 #else
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
@@ -55,7 +56,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import GHCJS.Types
 import JavaScript.Object.Internal (Object(..))
 import JavaScript.Array (MutableJSArray)
-import Data.Word (Word(..))
 import GHCJS.Nullable (Nullable(..))
 #else
 import Control.Monad.Trans.Reader (ReaderT(..))
@@ -101,8 +101,6 @@ data JSContextRef = JSContextRef {
 -- > runJSM jsmFunction javaScriptContext
 #ifdef ghcjs_HOST_OS
 type JSM = IO
-runJSM :: JSM a -> JSContextRef -> IO a
-runJSM f = const f
 #else
 newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadFix)

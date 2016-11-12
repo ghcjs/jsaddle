@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.6.0.0
+version: 0.6.0.1
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -27,7 +27,6 @@ library
     else
         build-depends:
             aeson >=0.8.0.2 && <1.1,
-            bytestring >=0.10.6.0 && <0.11,
             containers >=0.5.6.2 && <0.6,
             filepath >=1.4.0.0 && <1.5,
             http-types >=0.8.6 && <0.10,
@@ -52,6 +51,7 @@ library
         Language.Javascript.JSaddle.Types
     build-depends:
         base <5,
+        bytestring >=0.10.6.0 && <0.11,
         lens >=3.8.5 && <4.16,
         primitive >=0.6.1.0 && <0.7,
         template-haskell -any,

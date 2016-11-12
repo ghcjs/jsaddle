@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 #ifdef ghcjs_HOST_OS
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI #-}
+{-# OPTIONS_GHC -Wno-dodgy-exports -Wno-dodgy-imports #-}
 #endif
 -----------------------------------------------------------------------------
 --
@@ -23,8 +24,6 @@ module Language.Javascript.JSaddle.Evaluate (
 import Language.Javascript.JSaddle.Types (JSVal)
 #ifdef ghcjs_HOST_OS
 import Control.Monad.IO.Class (MonadIO(..))
-import GHCJS.Types (nullRef)
-import GHCJS.Marshal.Pure (pFromJSVal)
 import Language.Javascript.JSaddle.Types (JSString)
 #else
 import Language.Javascript.JSaddle.Native

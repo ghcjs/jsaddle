@@ -15,13 +15,13 @@
 
 module Language.Javascript.JSaddle.Run (
   -- * Running JSM
-    runJavaScript
-  , syncPoint
+    syncPoint
   , syncAfter
   , waitForAnimationFrame
   , nextAnimationFrame
 #ifndef ghcjs_HOST_OS
   -- * Functions used to implement JSaddle using JSON messaging
+  , runJavaScript
   , AsyncCommand(..)
   , Command(..)
   , Result(..)

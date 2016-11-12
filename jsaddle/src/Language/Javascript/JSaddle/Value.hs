@@ -5,6 +5,7 @@
 {-# LANGUAGE LambdaCase #-}
 #ifdef ghcjs_HOST_OS
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI #-}
+{-# OPTIONS_GHC -Wno-dodgy-exports -Wno-dodgy-imports #-}
 #endif
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
@@ -74,14 +75,14 @@ import Language.Javascript.JSaddle.Types
        (Object(..), JSString(..), JSVal(..))
 #ifdef ghcjs_HOST_OS
 import Control.Monad.IO.Class (MonadIO(..))
-import Language.Javascript.JSaddle.Types
-       (MutableJSArray)
-import GHCJS.Types (JSVal(..), isNull, isUndefined)
+import GHCJS.Types (isNull, isUndefined)
 import GHCJS.Foreign (toJSBool, isTruthy, jsNull, jsUndefined)
 import qualified GHCJS.Marshal as GHCJS (toJSVal)
 import GHCJS.Marshal.Pure (pToJSVal)
 import Data.JSString.Text (textToJSString)
+import qualified Data.Text as T (pack)
 #else
+import qualified Data.Text as T (pack, unpack)
 import Language.Javascript.JSaddle.Native
        (wrapJSString, withJSVal, withObject, withJSString,
         withToJSVal)
@@ -91,7 +92,6 @@ import Language.Javascript.JSaddle.Run
 #endif
 import Language.Javascript.JSaddle.Monad (JSM)
 import Data.Text (Text)
-import qualified Data.Text as T (pack, unpack)
 import Language.Javascript.JSaddle.Classes
        (MakeObject(..), ToJSString(..), ToJSVal(..))
 import Language.Javascript.JSaddle.String (strToText, textToStr)
@@ -550,6 +550,7 @@ deRefVal value = do
         3 -> ValNumber <$> valToNumber valref
         4 -> ValString <$> valToText valref
         5 -> ValObject <$> valToObject valref
+        _ -> error "Unexpected result dereferencing JSaddle value"
 foreign import javascript unsafe "$r = ($1 === undefined)?0:\
                                        ($1===null)?1:\
                                        (typeof $1===\"boolean\")?2:\

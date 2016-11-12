@@ -1,5 +1,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternSynonyms #-}
+#ifdef ghcjs_HOST_OS
+{-# OPTIONS_GHC -Wno-dodgy-exports -Wno-dodgy-imports #-}
+#endif
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Monad
@@ -36,7 +39,9 @@ module Language.Javascript.JSaddle.Monad (
 ) where
 
 import Prelude hiding (read)
+#ifndef ghcjs_HOST_OS
 import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
+#endif
 import Control.Monad.IO.Class (MonadIO(..))
 import qualified Control.Exception as E (Exception, catch, bracket)
 import Language.Javascript.JSaddle.Types (JSM(..), MonadJSM, liftJSM, JSContextRef(..))

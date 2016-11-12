@@ -6,6 +6,7 @@
 #ifdef ghcjs_HOST_OS
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE JavaScriptFFI #-}
+{-# OPTIONS_GHC -Wno-dodgy-exports -Wno-dodgy-imports #-}
 #endif
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
@@ -91,11 +92,7 @@ module Language.Javascript.JSaddle.Object (
 
 import Control.Applicative
 import Prelude hiding ((!!))
-import Language.Javascript.JSaddle.Types
-       (JSString, Object(..),
-        JSVal(..), JSCallAsFunction, JSContextRef(..))
 #ifdef ghcjs_HOST_OS
-import Control.Monad.Trans.Reader (runReaderT)
 import GHCJS.Types (nullRef, jsval)
 import GHCJS.Foreign.Callback
        (releaseCallback, syncCallback2, OnBlocked(..), Callback)
@@ -104,19 +101,25 @@ import JavaScript.Array (JSArray, MutableJSArray)
 import qualified JavaScript.Array as Array (toListIO, fromListIO)
 import JavaScript.Array.Internal (SomeJSArray(..))
 import qualified JavaScript.Object as Object (create)
-import Control.Monad (liftM)
 import Data.Coerce (coerce)
+import Language.Javascript.JSaddle.Monad (JSM)
+import Language.Javascript.JSaddle.Types
+       (JSString, Object(..),
+        JSVal(..), JSCallAsFunction)
 #else
 import Language.Javascript.JSaddle.Native
        (wrapJSString, withJSVals, withObject)
 import Language.Javascript.JSaddle.Run
        (Command(..), AsyncCommand(..), Result(..), sendCommand, sendLazyCommand)
+import Language.Javascript.JSaddle.Monad (askJSM, JSM)
+import Language.Javascript.JSaddle.Types
+       (JSString, Object(..),
+        JSVal(..), JSCallAsFunction, JSContextRef(..))
 #endif
 import Language.Javascript.JSaddle.Value (valToObject)
 import Language.Javascript.JSaddle.Classes
        (ToJSVal(..), ToJSString(..), MakeObject(..))
 import Language.Javascript.JSaddle.Arguments (MakeArgs(..))
-import Language.Javascript.JSaddle.Monad (askJSM, JSM)
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Properties
 import Control.Lens (IndexPreservingGetter, to)
