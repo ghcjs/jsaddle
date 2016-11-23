@@ -50,8 +50,10 @@ test-suite test-tool
         build-depends:
             QuickCheck -any,
             bytestring -any,
+            deepseq -any,
             doctest >=0.10.1 && <0.12,
             filepath >=1.4.0.0 && <1.5,
+            ghc-prim -any,
             jsaddle -any,
             jsaddle-warp -any,
             lens -any,
