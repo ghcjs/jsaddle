@@ -18,9 +18,10 @@
 
 module Language.Javascript.JSaddle.String (
     JSString
-  , ToJSString(..)
 
   -- * Data.Text helpers
+  , textFromJSString
+  , textToJSString
   , strToText
   , textToStr
 ) where
@@ -30,21 +31,19 @@ import Language.Javascript.JSaddle.Types (JSString(..))
 #ifdef ghcjs_HOST_OS
 import Data.JSString.Text (textFromJSString, textToJSString)
 #endif
-import Language.Javascript.JSaddle.Classes (ToJSString(..))
+
+#ifndef ghcjs_HOST_OS
+textFromJSString :: JSString -> Text
+textFromJSString (JSString text) = text
+
+textToJSString :: Text -> JSString
+textToJSString = JSString
+#endif
 
 -- | Convert a JavaScript string to a Haskell 'Text'
 strToText :: JSString -> Text
-#ifdef ghcjs_HOST_OS
 strToText = textFromJSString
-#else
-strToText (JSString text) = text
-#endif
 
 -- | Convert a Haskell 'Text' to a JavaScript string
 textToStr :: Text -> JSString
-#ifdef ghcjs_HOST_OS
 textToStr = textToJSString
-#else
-textToStr = JSString
-#endif
-

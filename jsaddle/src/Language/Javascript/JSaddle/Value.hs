@@ -45,6 +45,7 @@ module Language.Javascript.JSaddle.Value (
   , showJSValue
 
   -- * Converting JavaScript values
+  , isTruthyIO
   , valToBool
   , valToNumber
   , valToStr
@@ -54,15 +55,24 @@ module Language.Javascript.JSaddle.Value (
 
   -- * Make JavaScript values from Haskell ones
   , val
+  , jsNull
   , valNull
+  , isNullIO
   , valIsNull
+  , jsUndefined
   , valUndefined
+  , isUndefinedIO
   , valIsUndefined
   , maybeNullOrUndefined
   , maybeNullOrUndefined'
+  , toJSBool
+  , jsTrue
+  , jsFalse
   , valBool
   , valMakeNumber
   , valMakeString
+  , valMakeText
+  , valMakeJSON
 
   -- * Convert to and from JSValue
   , deRefVal
@@ -71,33 +81,35 @@ module Language.Javascript.JSaddle.Value (
   , instanceOf
 ) where
 
+import Data.Text (Text)
+import qualified Data.Text as T (pack, unpack)
+import Data.Aeson (Value)
+
+#ifdef ghcjs_HOST_OS
 import Language.Javascript.JSaddle.Types
        (Object(..), JSString(..), JSVal(..))
-#ifdef ghcjs_HOST_OS
-import Control.Monad.IO.Class (MonadIO(..))
-import GHCJS.Types (isNull, isUndefined)
-import GHCJS.Foreign (toJSBool, isTruthy, jsNull, jsUndefined)
-import qualified GHCJS.Marshal as GHCJS (toJSVal)
+import GHCJS.Marshal (ToJSVal(..))
 import GHCJS.Marshal.Pure (pToJSVal)
 import Data.JSString.Text (textToJSString)
-import qualified Data.Text as T (pack)
 #else
-import qualified Data.Text as T (pack, unpack)
+import Data.Char (chr, ord)
+import Data.Word (Word, Word8, Word16, Word32)
+import Data.Int (Int8, Int16, Int32)
+import GHCJS.Marshal.Internal (ToJSVal(..), FromJSVal(..))
+import Language.Javascript.JSaddle.Types
+       (Object(..), JSString(..), JSVal(..), JSValueForSend(..))
 import Language.Javascript.JSaddle.Native
-       (wrapJSString, withJSVal, withObject, withJSString,
-        withToJSVal)
+       (wrapJSString, withJSVal, withObject, withJSString, withToJSVal)
 import Language.Javascript.JSaddle.Run
        (Command(..), AsyncCommand(..), Result(..), sendCommand,
         sendLazyCommand)
 #endif
 import Language.Javascript.JSaddle.Monad (JSM)
-import Data.Text (Text)
 import Language.Javascript.JSaddle.Classes
-       (MakeObject(..), ToJSString(..), ToJSVal(..))
+       (MakeObject(..), MakeArgs(..))
+import Language.Javascript.JSaddle.Marshal.String (ToJSString(..), FromJSString(..))
 import Language.Javascript.JSaddle.String (strToText, textToStr)
-import Language.Javascript.JSaddle.Arguments (MakeArgs(..))
-import Data.Word (Word32, Word, Word64)
-import Data.Int (Int32, Int64)
+import Language.Javascript.JSaddle.Foreign (jsTrue, jsFalse, jsNull, toJSBool, jsUndefined, isTruthyIO, isNullIO, isUndefinedIO)
 
 -- $setup
 -- >>> import Language.Javascript.JSaddle.Test (testJSaddle)
@@ -154,20 +166,7 @@ showJSValue (ValObject _)   = "object"
 -- >>> testJSaddle $ valToBool "1"
 -- true
 valToBool :: ToJSVal value => value -> JSM Bool
-#ifdef ghcjs_HOST_OS
-valToBool value = isTruthy <$> toJSVal value
-#else
-valToBool value =
-    toJSVal value >>= \case
-        (JSVal 0) -> return False -- null
-        (JSVal 1) -> return False -- undefined
-        (JSVal 2) -> return False -- false
-        (JSVal 3) -> return True  -- true
-        v ->
-            withJSVal v $ \rval -> do
-                ValueToBoolResult result <- sendCommand (ValueToBool rval)
-                return result
-#endif
+valToBool value = toJSVal value >>= isTruthyIO
 
 -- | Given a JavaScript value get its numeric value.
 --   May throw JSException.
@@ -308,15 +307,21 @@ valToObject value = Object <$> toJSVal value
 instance MakeObject JSVal where
     makeObject = valToObject
 
+instance ToJSVal Object where
+    toJSVal (Object r) = return r
+
 -- | Convert to a JavaScript value (just an alias for 'toJSVal')
 val :: ToJSVal value
     => value          -- ^ value to convert to a JavaScript value
     -> JSM JSVal
 val = toJSVal
 
+#ifndef ghcjs_HOST_OS
 -- | If we already have a JSVal we are fine
 instance ToJSVal JSVal where
     toJSVal = return
+    {-# INLINE toJSVal #-}
+#endif
 
 -- | A single JSVal can be used as the argument list
 instance MakeArgs JSVal where
@@ -326,55 +331,68 @@ instance MakeArgs JSVal where
 --   as it returns something we can make into a JSVal.
 instance ToJSVal v => ToJSVal (JSM v) where
     toJSVal v = v >>= toJSVal
+    {-# INLINE toJSVal #-}
 
 ----------- null ---------------
 -- | A @null@ JavaScript value
 valNull :: JSVal
-#ifdef ghcjs_HOST_OS
 valNull = jsNull
-#else
-valNull = JSVal 0
-#endif
+{-# INLINE valNull #-}
 
 -- | Makes a @null@ JavaScript value
 instance ToJSVal JSNull where
-    toJSVal = const (return valNull)
+    toJSVal = const (return jsNull)
+    {-# INLINE toJSVal #-}
 
 -- | Makes an argument list with just a single @null@ JavaScript value
 instance MakeArgs JSNull where
-    makeArgs _ = return [valNull]
+    makeArgs _ = return [jsNull]
 
+#ifndef ghcjs_HOST_OS
 -- | Makes a JSVal or @null@ JavaScript value
 instance ToJSVal a => ToJSVal (Maybe a) where
-    toJSVal Nothing = return valNull
+    toJSVal Nothing = return jsNull
     toJSVal (Just a) = toJSVal a
+    {-# INLINE toJSVal #-}
+instance FromJSVal a => FromJSVal (Maybe a) where
+    fromJSValUnchecked x =
+        isUndefinedIO x >>= \case
+            True  -> return Nothing
+            False -> isNullIO x >>= \case
+                    True  -> return Nothing
+                    False -> fromJSVal x
+    {-# INLINE fromJSValUnchecked #-}
+    fromJSVal x =
+        isUndefinedIO x >>= \case
+            True  -> return (Just Nothing)
+            False -> isNullIO x >>= \case
+                    True  -> return (Just Nothing)
+                    False -> fmap (fmap Just) fromJSVal x
+    {-# INLINE fromJSVal #-}
+
+-- Make an array out of various lists
+instance ToJSVal a => ToJSVal [a] where
+    toJSVal = toJSValListOf
+    {-# INLINE toJSVal #-}
+
+instance FromJSVal a => FromJSVal [a] where
+    fromJSVal = fromJSValListOf
+    {-# INLINE fromJSVal #-}
+#endif
 
 -- | Test a JavaScript value to see if it is @null@
 valIsNull :: ToJSVal value => value -> JSM Bool
-#ifdef ghcjs_HOST_OS
-valIsNull value = isNull <$> toJSVal value
-#else
-valIsNull value =
-    toJSVal value >>= \case
-        JSVal 0 -> return True
-        v       ->
-            withJSVal v $ \rval -> do
-                IsNullResult result <- sendCommand $ IsNull rval
-                return result
-#endif
+valIsNull value = toJSVal value >>= isNullIO
 
 ----------- undefined ---------------
 -- | An @undefined@ JavaScript value
 valUndefined :: JSVal
-#ifdef ghcjs_HOST_OS
 valUndefined = jsUndefined
-#else
-valUndefined = JSVal 1
-#endif
+{-# INLINE valUndefined #-}
 
 -- | Makes an @undefined@ JavaScript value
 instance ToJSVal JSUndefined where
-    toJSVal = const (return valUndefined)
+    toJSVal = const (return jsUndefined)
 
 --We can't allow this if JSUndefined is () as () is no args not "(null)".
 --Use [()] instead.
@@ -387,16 +405,7 @@ instance MakeArgs () where
 
 -- | Test a JavaScript value to see if it is @undefined@
 valIsUndefined :: ToJSVal value => value -> JSM Bool
-#ifdef ghcjs_HOST_OS
-valIsUndefined value = isUndefined <$> toJSVal value
-#else
-valIsUndefined value = toJSVal value >>= \case
-    JSVal 1 -> return True
-    v       ->
-        withJSVal v $ \rval -> do
-            IsUndefinedResult result <- sendCommand $ IsUndefined rval
-            return result
-#endif
+valIsUndefined value = toJSVal value >>= isUndefinedIO
 
 -- | Convert a JSVal to a Maybe JSVal (converting null and undefined to Nothing)
 maybeNullOrUndefined :: ToJSVal value => value -> JSM (Maybe JSVal)
@@ -422,15 +431,15 @@ maybeNullOrUndefined' f value = do
 ----------- booleans ---------------
 -- | A JavaScript boolean value
 valBool :: Bool -> JSVal
-#ifdef ghcjs_HOST_OS
-valBool b = toJSBool b
-#else
-valBool b = JSVal $ if b then 3 else 2
-#endif
+valBool = toJSBool
+{-# INLINE valBool #-}
 
+#ifndef ghcjs_HOST_OS
 -- | Make a JavaScript boolean value
 instance ToJSVal Bool where
     toJSVal = return . valBool
+    {-# INLINE toJSVal #-}
+#endif
 
 -- | Makes an argument list with just a single JavaScript boolean value
 instance MakeArgs Bool where
@@ -440,35 +449,53 @@ instance MakeArgs Bool where
 -- | Make a JavaScript number
 valMakeNumber :: Double -> JSM JSVal
 #ifdef ghcjs_HOST_OS
-valMakeNumber n = liftIO $ GHCJS.toJSVal n
+valMakeNumber n = toJSVal n
 #else
 valMakeNumber = sendLazyCommand . NumberToValue
 #endif
 
+#ifndef ghcjs_HOST_OS
 -- | Makes a JavaScript number
 instance ToJSVal Double where
     toJSVal = valMakeNumber
+    {-# INLINE toJSVal #-}
 
 instance ToJSVal Float where
     toJSVal = valMakeNumber . realToFrac
+    {-# INLINE toJSVal #-}
 
 instance ToJSVal Word where
     toJSVal = valMakeNumber . fromIntegral
+    {-# INLINE toJSVal #-}
+
+instance ToJSVal Word8 where
+    toJSVal = valMakeNumber . fromIntegral
+    {-# INLINE toJSVal #-}
+
+instance ToJSVal Word16 where
+    toJSVal = valMakeNumber . fromIntegral
+    {-# INLINE toJSVal #-}
 
 instance ToJSVal Word32 where
     toJSVal = valMakeNumber . fromIntegral
-
-instance ToJSVal Word64 where
-    toJSVal = valMakeNumber . fromIntegral
+    {-# INLINE toJSVal #-}
 
 instance ToJSVal Int where
     toJSVal = valMakeNumber . fromIntegral
+    {-# INLINE toJSVal #-}
+
+instance ToJSVal Int8 where
+    toJSVal = valMakeNumber . fromIntegral
+    {-# INLINE toJSVal #-}
+
+instance ToJSVal Int16 where
+    toJSVal = valMakeNumber . fromIntegral
+    {-# INLINE toJSVal #-}
 
 instance ToJSVal Int32 where
     toJSVal = valMakeNumber . fromIntegral
-
-instance ToJSVal Int64 where
-    toJSVal = valMakeNumber . fromIntegral
+    {-# INLINE toJSVal #-}
+#endif
 
 -- | Makes an argument list with just a single JavaScript number
 instance MakeArgs Double where
@@ -491,21 +518,33 @@ valMakeString s =
     withJSString s $ sendLazyCommand . StringToValue
 #endif
 
+#ifndef ghcjs_HOST_OS
 -- | Makes a JavaScript string
 instance ToJSVal Text where
     toJSVal = valMakeText
+    {-# INLINE toJSVal #-}
+instance FromJSVal Text where
+    fromJSValUnchecked = valToText
+    {-# INLINE fromJSValUnchecked #-}
+    fromJSVal = fmap Just . valToText
+    {-# INLINE fromJSVal #-}
+#endif
 
 -- | Makes an argument list with just a single JavaScript string
 instance MakeArgs Text where
     makeArgs t = valMakeText t >>= (\ref -> return [ref])
 
--- | Makes a JavaScript string
-instance ToJSVal String where
-    toJSVal = valMakeText . T.pack
-
+#ifndef ghcjs_HOST_OS
 -- | Makes a JavaScript string
 instance ToJSVal JSString where
     toJSVal = valMakeString
+    {-# INLINE toJSVal #-}
+instance FromJSVal JSString where
+    fromJSValUnchecked = valToStr
+    {-# INLINE fromJSValUnchecked #-}
+    fromJSVal = fmap Just . valToStr
+    {-# INLINE fromJSVal #-}
+#endif
 
 -- | If we already have a JSString we are fine
 instance ToJSString JSString where
@@ -516,6 +555,51 @@ instance ToJSString Text where
 
 instance ToJSString String where
     toJSString = textToStr . T.pack
+
+instance FromJSString Text where
+    fromJSString = strToText
+
+instance FromJSString String where
+    fromJSString v = T.unpack $ strToText v
+
+instance FromJSString JSString where
+    fromJSString = id
+
+#ifndef ghcjs_HOST_OS
+instance ToJSVal Char where
+    toJSVal = valMakeNumber . fromIntegral . ord
+    {-# INLINE toJSVal #-}
+    toJSValListOf = valMakeText . T.pack
+    {-# INLINE toJSValListOf #-}
+instance FromJSVal Char where
+    fromJSValUnchecked = fmap (chr . round) . valToNumber
+    {-# INLINE fromJSValUnchecked #-}
+    fromJSVal = fmap (Just . chr . round) . valToNumber
+    {-# INLINE fromJSVal #-}
+    fromJSValUncheckedListOf = fmap (T.unpack . strToText) . valToStr
+    {-# INLINE fromJSValListOf #-}
+    fromJSValListOf = fmap (Just . T.unpack . strToText) . valToStr
+    {-# INLINE fromJSValUncheckedListOf #-}
+#endif
+
+-- | Make a JavaScript string from AESON `Value`
+valMakeJSON :: Value -> JSM JSVal
+#ifdef ghcjs_HOST_OS
+valMakeJSON = toJSVal
+#else
+valMakeJSON = sendLazyCommand . JSONValueToValue
+#endif
+
+#ifndef ghcjs_HOST_OS
+-- | Makes a JSON value
+instance ToJSVal Value where
+    toJSVal = valMakeJSON
+    {-# INLINE toJSVal #-}
+#endif
+
+-- | Makes an argument list with just a single JSON value
+instance MakeArgs Value where
+    makeArgs t = valMakeJSON t >>= (\ref -> return [ref])
 
 -- | Derefernce a value reference.
 --
@@ -597,6 +681,7 @@ valMakeRef value =
 -- | Makes a JavaScript value from a 'JSValue' ADT.
 instance ToJSVal JSValue where
     toJSVal = valMakeRef
+    {-# INLINE toJSVal #-}
 
 -- | Makes an argument list with just a single JavaScript value from a 'JSValue' ADT.
 instance MakeArgs JSValue where
@@ -653,7 +738,6 @@ instanceOf value constructor = do
             InstanceOfResult result <- sendCommand $ InstanceOf rval c'
             return result
 #endif
-
 
 
 

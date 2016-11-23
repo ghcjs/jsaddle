@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Arguments
@@ -16,18 +17,8 @@ module Language.Javascript.JSaddle.Arguments (
     MakeArgs(..)
 ) where
 
-import Language.Javascript.JSaddle.Classes
-       (ToJSVal(..))
-import Language.Javascript.JSaddle.Monad (JSM)
-import Language.Javascript.JSaddle.Types (JSVal)
-
--- | Anything that can be used to make a list of JavaScript value
---   references for use as function arguments
-class MakeArgs this where
-    makeArgs :: this -> JSM [JSVal]
-
-instance MakeArgs arg => MakeArgs (JSM arg) where
-    makeArgs arg = arg >>= makeArgs
+import Language.Javascript.JSaddle.Classes (MakeArgs(..))
+import GHCJS.Marshal.Internal (ToJSVal(..))
 
 instance ToJSVal arg => MakeArgs [arg] where
     makeArgs = mapM toJSVal
@@ -61,7 +52,6 @@ instance (ToJSVal arg1, ToJSVal arg2, ToJSVal arg3, ToJSVal arg4, ToJSVal arg5) 
         rarg4 <- toJSVal arg4
         rarg5 <- toJSVal arg5
         return [rarg1, rarg2, rarg3, rarg4, rarg5]
-
 
 instance (ToJSVal arg1, ToJSVal arg2, ToJSVal arg3, ToJSVal arg4, ToJSVal arg5, ToJSVal arg6) => MakeArgs (arg1, arg2, arg3, arg4, arg5, arg6) where
     makeArgs (arg1, arg2, arg3, arg4, arg5, arg6) = do

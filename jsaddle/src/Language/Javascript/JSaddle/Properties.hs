@@ -22,44 +22,37 @@
 
 module Language.Javascript.JSaddle.Properties (
   -- * Getting Property Values
-    objGetPropertyByName
+    getProp, unsafeGetProp
+  , objGetPropertyByName
   , objGetPropertyAtIndex
   -- * Setting Property Values
+  , setProp, unsafeSetProp
   , objSetPropertyByName
   , objSetPropertyAtIndex
 ) where
 
-import Language.Javascript.JSaddle.Classes
-       (ToJSVal(..), ToJSString(..))
 import Language.Javascript.JSaddle.Monad (JSM)
-import Language.Javascript.JSaddle.Types (Object(..))
+import Language.Javascript.JSaddle.Types (JSVal, Object(..))
+import JavaScript.Object.Internal (getProp, unsafeGetProp, setProp, unsafeSetProp)
 #ifdef ghcjs_HOST_OS
-import Language.Javascript.JSaddle.Types (JSString)
+import GHCJS.Marshal (ToJSVal(..))
 #else
+import GHCJS.Marshal.Internal (ToJSVal(..))
 import Language.Javascript.JSaddle.Native
-       (withObject, withJSString, withToJSVal)
+       (withObject, withToJSVal)
 import Language.Javascript.JSaddle.Run
        (AsyncCommand(..), sendLazyCommand, sendAsyncCommand)
 #endif
-import Language.Javascript.JSaddle.Value (JSVal)
 import Language.Javascript.JSaddle.Arguments ()
 import Language.Javascript.JSaddle.String ()
+import Language.Javascript.JSaddle.Marshal.String (ToJSString(..))
 
 -- | Get a property value given the object and the name of the property.
 objGetPropertyByName :: ToJSString name
                      => Object         -- ^ object to find the property on.
                      -> name           -- ^ name of the property.
                      -> JSM JSVal      -- ^ returns the property value.
-#ifdef ghcjs_HOST_OS
-objGetPropertyByName this name = js_tryGetProp (toJSString name) this
-foreign import javascript unsafe "$r=$2[$1]"
-    js_tryGetProp :: JSString -> Object -> IO JSVal
-#else
-objGetPropertyByName this name =
-    withObject this $ \rthis ->
-        withJSString (toJSString name) $
-            sendLazyCommand . GetPropertyByName rthis
-#endif
+objGetPropertyByName this name = unsafeGetProp (toJSString name) this
 
 -- | Get a property value given the object and the index of the property.
 objGetPropertyAtIndex :: Object    -- ^ object to find the property on.
@@ -80,20 +73,9 @@ objSetPropertyByName :: (ToJSString name, ToJSVal val)
                      -> name                 -- ^ name of the property.
                      -> val                  -- ^ new value to set the property to.
                      -> JSM ()
-#ifdef ghcjs_HOST_OS
 objSetPropertyByName this name val = do
     vref <- toJSVal val
-    js_trySetProp (toJSString name) this vref
-foreign import javascript unsafe "$2[$1]=$3"
-    js_trySetProp :: JSString -> Object -> JSVal -> IO ()
-#else
-objSetPropertyByName this name val = do
-    let name' = toJSString name
-    withObject this $ \rthis ->
-        withJSString name' $ \rname ->
-            withToJSVal val $ \rval ->
-                sendAsyncCommand $ SetPropertyByName rthis rname rval
-#endif
+    unsafeSetProp (toJSString name) vref this
 
 -- | Set a property value given the object and the index of the property.
 objSetPropertyAtIndex :: (ToJSVal val)

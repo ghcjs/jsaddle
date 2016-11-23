@@ -26,13 +26,12 @@ import Language.Javascript.JSaddle.Types (JSVal)
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Types (JSString)
 #else
-import Language.Javascript.JSaddle.Native
+import Language.Javascript.JSaddle.Native.Internal
        (withJSString)
 import Language.Javascript.JSaddle.Run
        (AsyncCommand(..), sendLazyCommand)
 #endif
-import Language.Javascript.JSaddle.Classes
-       (ToJSString(..))
+import Language.Javascript.JSaddle.Marshal.String (ToJSString(..))
 import Language.Javascript.JSaddle.Monad (JSM)
 
 -- $setup

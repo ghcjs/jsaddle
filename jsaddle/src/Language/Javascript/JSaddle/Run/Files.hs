@@ -16,6 +16,7 @@ module Language.Javascript.JSaddle.Run.Files (
   , jsaddleJs
   , initState
   , runBatch
+  , ghcjsHelpers
 ) where
 
 import Data.ByteString.Lazy (ByteString)
@@ -166,6 +167,9 @@ runBatch send = "\
     \                            var s = jsaddle_values.get(d.contents) === undefined ? \"\" : JSON.stringify(jsaddle_values.get(d.contents));\n\
     \                            " <> send "{\"tag\": \"ValueToJSONResult\", \"contents\": s}" <> "\n\
     \                            break;\n\
+    \                        case \"ValueToJSONValue\":\n\
+    \                            " <> send "{\"tag\": \"ValueToJSONValueResult\", \"contents\": jsaddle_values.get(d.contents)}" <> "\n\
+    \                            break;\n\
     \                        case \"DeRefVal\":\n\
     \                            var n = d.contents;\n\
     \                            var v = jsaddle_values.get(n);\n\
@@ -247,5 +251,76 @@ jsaddleJs = "\
     \    };\n\
     \}\n\
     \\n\
+    \ " <> ghcjsHelpers <> "\
     \connect();\n\
+    \"
+
+ghcjsHelpers :: ByteString
+ghcjsHelpers = "\
+    \function h$isNumber(o) {\
+    \    return typeof(o) === 'number';\n\
+    \}\n\
+    \\n\
+    \// returns true for null, but not for functions and host objects\n\
+    \function h$isObject(o) {\n\
+    \    return typeof(o) === 'object';\n\
+    \}\n\
+    \\n\
+    \function h$isString(o) {\n\
+    \    return typeof(o) === 'string';\n\
+    \}\n\
+    \\n\
+    \function h$isSymbol(o) {\n\
+    \    return typeof(o) === 'symbol';\n\
+    \}\n\
+    \\n\
+    \function h$isBoolean(o) {\n\
+    \    return typeof(o) === 'boolean';\n\
+    \}\n\
+    \\n\
+    \function h$isFunction(o) {\n\
+    \    return typeof(o) === 'function';\n\
+    \}\n\
+    \\n\
+    \function h$jsTypeOf(o) {\n\
+    \    var t = typeof(o);\n\
+    \    if(t === 'undefined') return 0;\n\
+    \    if(t === 'object')    return 1;\n\
+    \    if(t === 'boolean')   return 2;\n\
+    \    if(t === 'number')    return 3;\n\
+    \    if(t === 'string')    return 4;\n\
+    \    if(t === 'symbol')    return 5;\n\
+    \    if(t === 'function')  return 6;\n\
+    \    return 7; // other, host object etc\n\
+    \}\n\
+    \\n\
+    \function h$jsonTypeOf(o) {\n\
+    \    if (!(o instanceof Object)) {\n\
+    \        if (o == null) {\n\
+    \            return 0;\n\
+    \        } else if (typeof o == 'number') {\n\
+    \            if (h$isInteger(o)) {\n\
+    \                return 1;\n\
+    \            } else {\n\
+    \                return 2;\n\
+    \            }\n\
+    \        } else if (typeof o == 'boolean') {\n\
+    \            return 3;\n\
+    \        } else {\n\
+    \            return 4;\n\
+    \        }\n\
+    \    } else {\n\
+    \        if (Object.prototype.toString.call(o) == '[object Array]') {\n\
+    \            // it's an array\n\
+    \            return 5;\n\
+    \        } else if (!o) {\n\
+    \            // null \n\
+    \            return 0;\n\
+    \        } else {\n\
+    \            // it's an object\n\
+    \            return 6;\n\
+    \        }\n\
+    \    }\n\
+    \\n\
+    \}\n\
     \"

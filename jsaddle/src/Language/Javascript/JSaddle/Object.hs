@@ -22,7 +22,7 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.Object (
-    Object
+    Object(..)
   , MakeObject(..)
 
   -- * Property lookup
@@ -57,6 +57,11 @@ module Language.Javascript.JSaddle.Object (
   , new
   , call
   , obj
+  , create
+  , getProp
+  , unsafeGetProp
+  , setProp
+  , unsafeSetProp
 
   -- * Calling Haskell From JavaScript
   , Function(..)
@@ -75,12 +80,14 @@ module Language.Javascript.JSaddle.Object (
   --   and pass it to the continuation.
 
   -- * Arrays
+  , fromListIO
   , array
 
   -- * Global Object
   , global
 
   -- * Enumerating Properties
+  , listProps
   , propertyNames
   , properties
 
@@ -90,40 +97,42 @@ module Language.Javascript.JSaddle.Object (
   , nullObject
 ) where
 
-import Control.Applicative
 import Prelude hiding ((!!))
+import Data.Coerce (coerce)
 #ifdef ghcjs_HOST_OS
-import GHCJS.Types (nullRef, jsval)
+import GHCJS.Types (nullRef)
 import GHCJS.Foreign.Callback
        (releaseCallback, syncCallback2, OnBlocked(..), Callback)
-import GHCJS.Marshal.Pure (pFromJSVal)
-import JavaScript.Array (JSArray, MutableJSArray)
+import GHCJS.Marshal (ToJSVal(..))
+import JavaScript.Array (MutableJSArray)
 import qualified JavaScript.Array as Array (toListIO, fromListIO)
 import JavaScript.Array.Internal (SomeJSArray(..))
-import qualified JavaScript.Object as Object (create)
-import Data.Coerce (coerce)
+import JavaScript.Object (create, listProps)
 import Language.Javascript.JSaddle.Monad (JSM)
 import Language.Javascript.JSaddle.Types
        (JSString, Object(..),
         JSVal(..), JSCallAsFunction)
 #else
+import Data.Text (Text)
+import GHCJS.Marshal.Internal (ToJSVal(..))
 import Language.Javascript.JSaddle.Native
-       (wrapJSString, withJSVals, withObject)
+       (withJSVals, withObject)
 import Language.Javascript.JSaddle.Run
-       (Command(..), AsyncCommand(..), Result(..), sendCommand, sendLazyCommand)
+       (AsyncCommand(..), sendLazyCommand)
 import Language.Javascript.JSaddle.Monad (askJSM, JSM)
 import Language.Javascript.JSaddle.Types
-       (JSString, Object(..),
+       (JSString, Object(..), SomeJSArray(..),
         JSVal(..), JSCallAsFunction, JSContextRef(..))
+import JavaScript.Object.Internal (create, listProps)
 #endif
+import JavaScript.Array.Internal (fromListIO)
 import Language.Javascript.JSaddle.Value (valToObject)
-import Language.Javascript.JSaddle.Classes
-       (ToJSVal(..), ToJSString(..), MakeObject(..))
+import Language.Javascript.JSaddle.Classes (MakeObject(..))
+import Language.Javascript.JSaddle.Marshal.String (ToJSString(..))
 import Language.Javascript.JSaddle.Arguments (MakeArgs(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Properties
 import Control.Lens (IndexPreservingGetter, to)
-import Data.Text (Text)
 
 -- $setup
 -- >>> import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
@@ -402,11 +411,7 @@ call f this args = do
 -- >>> testJSaddle $ do { a <- obj; (a <# "x") "Hello"; a ^. js "x" }
 -- Hello
 obj :: JSM Object
-#ifdef ghcjs_HOST_OS
-obj = liftIO Object.create
-#else
-obj = Object <$> sendLazyCommand NewEmptyObject
-#endif
+obj = create
 
 -- | Short hand @::JSCallAsFunction@ so a haskell function can be passed to
 --   a to a JavaScipt one.
@@ -487,43 +492,9 @@ instance MakeArgs JSCallAsFunction where
 -- >>> testJSaddle $ array ("Hello", JSNull, (), True, 1.0::Double)
 -- Hello,,,true,1
 array :: MakeArgs args => args -> JSM Object
-#ifdef ghcjs_HOST_OS
 array args = do
     rargs <- makeArgs args
-    liftIO $ Object . jsval <$> Array.fromListIO rargs
-#else
-array args = do
-    rargs <- makeArgs args
-    withJSVals rargs $ \rargs' -> Object <$> sendLazyCommand (NewArray rargs')
-#endif
-
--- Make an array out of various lists
-instance ToJSVal [JSVal] where
-    toJSVal = toJSVal . array
-
-instance ToJSVal [JSM JSVal] where
-    toJSVal = toJSVal . array
-
-instance ToJSVal [Double] where
-    toJSVal = toJSVal . array
-
-instance ToJSVal [Float] where
-    toJSVal = toJSVal . array
-
-instance ToJSVal [Int] where
-    toJSVal = toJSVal . array
-
-instance ToJSVal [JSString] where
-    toJSVal = toJSVal . array
-
-instance ToJSVal [String] where
-    toJSVal = toJSVal . array
-
-instance ToJSVal [Text] where
-    toJSVal = toJSVal . array
-
-instance ToJSVal [Bool] where
-    toJSVal = toJSVal . array
+    Object . coerce <$> fromListIO rargs
 
 -- | JavaScript's global object
 global :: Object
@@ -541,17 +512,7 @@ global = Object (JSVal 4)
 -- >>> testJSaddle $ show . map strToText <$> propertyNames (eval "({x:1, y:2})")
 -- ["x","y"]
 propertyNames :: MakeObject this => this -> JSM [JSString]
-#ifdef ghcjs_HOST_OS
-propertyNames this = makeObject this >>= liftIO . js_propertyNames >>= liftIO . (fmap (map pFromJSVal)) . Array.toListIO
-foreign import javascript unsafe "$r = []; h$forIn($1, function(n){$r.push(n);})"
-    js_propertyNames :: Object -> IO JSArray
-#else
-propertyNames this = do
-    this' <- makeObject this
-    withObject this' $ \rthis -> do
-        PropertyNamesResult result <- sendCommand $ PropertyNames rthis
-        mapM wrapJSString result
-#endif
+propertyNames this = makeObject this >>= listProps
 
 -- | Get a list containing references to all the  properties present on a given object
 properties :: MakeObject this => this -> JSM [JSVal]

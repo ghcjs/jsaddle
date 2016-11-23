@@ -7,6 +7,11 @@
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE DefaultSignatures          #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE PolyKinds                  #-}
+{-# LANGUAGE FlexibleContexts           #-}
 #endif
 -----------------------------------------------------------------------------
 --
@@ -31,7 +36,9 @@ module Language.Javascript.JSaddle.Types (
 
   -- * JavaScript Value Types
   , JSVal(..)
-  , MutableJSArray(..)
+  , SomeJSArray(..)
+  , JSArray
+  , MutableJSArray
   , Object(..)
   , JSString(..)
   , Nullable(..)
@@ -55,9 +62,10 @@ import Control.Monad.IO.Class (MonadIO(..))
 #ifdef ghcjs_HOST_OS
 import GHCJS.Types
 import JavaScript.Object.Internal (Object(..))
-import JavaScript.Array (MutableJSArray)
+import JavaScript.Array.Internal (SomeJSArray(..), JSArray, MutableJSArray)
 import GHCJS.Nullable (Nullable(..))
 #else
+import Control.DeepSeq (NFData(..))
 import Control.Monad.Trans.Reader (ReaderT(..))
 import Control.Monad.Trans.State.Lazy (StateT(..))
 import qualified Control.Monad.Trans.State.Strict as Strict
@@ -66,11 +74,13 @@ import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Fix (MonadFix)
 import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..))
 import Control.Concurrent.STM.TVar (TVar)
+import Data.Coerce (Coercible, coerce)
 import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime(..))
+import Data.Typeable (Typeable)
 import Data.Aeson
-       (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..))
+       (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..), Value)
 import GHC.Generics (Generic)
 #endif
 
@@ -168,8 +178,42 @@ type JSValueRef = Int64
 -- | See 'GHCJS.Prim.JSVal'
 newtype JSVal = JSVal JSValueRef deriving(Show, ToJSON, FromJSON)
 
+instance NFData JSVal where
+  rnf x = x `seq` ()
+
+class IsJSVal a where
+  jsval_ :: a -> JSVal
+
+  default jsval_ :: Coercible a JSVal => a -> JSVal
+  jsval_ = coerce
+  {-# INLINE jsval_ #-}
+
+jsval :: IsJSVal a => a -> JSVal
+jsval = jsval_
+{-# INLINE jsval #-}
+
+data MutabilityType s = Mutable_ s
+                      | Immutable_ s
+                      | STMutable s
+
+type Mutable   = Mutable_ ()
+type Immutable = Immutable_ ()
+
+data IsItMutable = IsImmutable
+                 | IsMutable
+
+type family Mutability (a :: MutabilityType s) :: IsItMutable where
+  Mutability Immutable     = IsImmutable
+  Mutability Mutable       = IsMutable
+  Mutability (STMutable s) = IsMutable
+
+newtype SomeJSArray (m :: MutabilityType s) = SomeJSArray JSVal
+  deriving (Typeable)
+
+-- | See 'JavaScript.Array.Internal.JSArray'
+type JSArray        = SomeJSArray Immutable
 -- | See 'JavaScript.Array.Internal.MutableJSArray'
-newtype MutableJSArray = MutableJSArray JSValueRef deriving(Show, ToJSON, FromJSON)
+type MutableJSArray = SomeJSArray Mutable
 
 -- | See 'JavaScript.Object.Internal.Object'
 newtype Object = Object JSVal deriving(Show, ToJSON, FromJSON)
@@ -201,6 +245,7 @@ data AsyncCommand = FreeRef JSValueForSend
                   | SetPropertyAtIndex JSObjectForSend Int JSValueForSend
                   | StringToValue JSStringForSend JSValueForSend
                   | NumberToValue Double JSValueForSend
+                  | JSONValueToValue Value JSValueForSend
                   | GetPropertyByName JSObjectForSend JSStringForSend JSValueForSend
                   | GetPropertyAtIndex JSObjectForSend Int JSValueForSend
                   | CallAsFunction JSObjectForSend JSObjectForSend [JSValueForSend] JSValueForSend
@@ -223,6 +268,7 @@ data Command = DeRefVal JSValueForSend
              | ValueToNumber JSValueForSend
              | ValueToString JSValueForSend
              | ValueToJSON JSValueForSend
+             | ValueToJSONValue JSValueForSend
              | IsNull JSValueForSend
              | IsUndefined JSValueForSend
              | StrictEqual JSValueForSend JSValueForSend
@@ -251,6 +297,7 @@ data Result = DeRefValResult JSValueRef Text
             | ValueToNumberResult Double
             | ValueToStringResult JSStringReceived
             | ValueToJSONResult JSStringReceived
+            | ValueToJSONValueResult Value
             | IsNullResult Bool
             | IsUndefinedResult Bool
             | StrictEqualResult Bool

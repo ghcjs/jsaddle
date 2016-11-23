@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 -----------------------------------------------------------------------------
@@ -16,30 +17,21 @@
 
 module Language.Javascript.JSaddle.Classes (
   -- * Type classes to convert Haskell data to JavaScript
-    ToJSVal(..)
+    PToJSVal(..)
+  , PFromJSVal(..)
+  , ToJSVal(..)
+  , FromJSVal(..)
   , ToJSString(..)
+  , FromJSString(..)
   , MakeObject(..)
+  , MakeArgs(..)
 ) where
 
-import Language.Javascript.JSaddle.Types
-       (JSM, Object(..), JSString, JSVal)
-
--- | Anything that can be used to make a JavaScript value reference
-class ToJSVal a where
-    toJSVal :: a -> JSM JSVal
-
--- | Anything that can be used to make a JavaScript string reference
-class ToJSVal a => ToJSString a where
-    toJSString :: a -> JSString
-
--- | Anything that can be used to make a JavaScript object reference
-class MakeObject this where
-    makeObject :: this -> JSM Object
-
-instance ToJSVal Object where
-    toJSVal (Object r) = return r
-
--- | If we already have a Object we are fine
-instance MakeObject Object where
-    makeObject = return
-
+#ifdef ghcjs_HOST_OS
+import GHCJS.Marshal (ToJSVal(..), FromJSVal(..))
+#else
+import GHCJS.Marshal.Internal (ToJSVal(..), FromJSVal(..))
+#endif
+import GHCJS.Marshal.Pure (PToJSVal(..), PFromJSVal(..))
+import Language.Javascript.JSaddle.Classes.Internal (MakeObject(..), MakeArgs(..))
+import Language.Javascript.JSaddle.Marshal.String (ToJSString(..), FromJSString(..))

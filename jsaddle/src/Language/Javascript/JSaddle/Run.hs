@@ -58,7 +58,7 @@ import Language.Javascript.JSaddle.Types
        (Command(..), AsyncCommand(..), Result(..), JSContextRef(..), JSVal(..),
         Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..))
 import Language.Javascript.JSaddle.Exception (JSException(..))
-import Language.Javascript.JSaddle.Native (wrapJSVal)
+import Language.Javascript.JSaddle.Native.Internal (wrapJSVal)
 #endif
 
 -- | Forces execution of pending asyncronous code

@@ -18,7 +18,7 @@ import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
 import Language.Javascript.JSaddle (Result, JSM)
 import Language.Javascript.JSaddle.Run (runJavaScript)
-import Language.Javascript.JSaddle.Run.Files (initState, runBatch)
+import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
 
 newtype WKWebView = WKWebView (Ptr WKWebView)
 
@@ -54,7 +54,7 @@ jsaddleResult ptrHandler s = do
         Just r  -> processResult r
 
 jsaddleJs :: ByteString
-jsaddleJs = "\
+jsaddleJs = ghcjsHelpers <> "\
     \runJSaddleBatch = (function() {\n\
     \ " <> initState <> "\n\
     \ return function(batch) {\n\

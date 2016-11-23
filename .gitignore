@@ -8,3 +8,4 @@ cabal-dev
 *.lkshf
 /dist-newstyle/
 /.stack-work/
+*.project.local
