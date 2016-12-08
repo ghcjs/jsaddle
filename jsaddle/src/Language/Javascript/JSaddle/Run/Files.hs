@@ -47,12 +47,15 @@ initState = "\
 
 runBatch :: (ByteString -> ByteString) -> ByteString
 runBatch send = "\
-    \            var processBatch = function(timestamp) {\n\
-    \                try {\n\
-    \                    var nAsyncLength = batch[0].length;\n\
-    \                    for (var nAsync = 0; nAsync != nAsyncLength; nAsync++) {\n\
-    \                        var d = batch[0][nAsync];\n\
-    \                        switch (d.tag) {\n\
+    \    var processBatch = function(timestamp) {\n\
+    \        var results = [];\n\
+    \        try {\n\
+    \            var nCommandsLength = batch[0].length;\n\
+    \            for (var nCommand = 0; nCommand != nCommandsLength; nCommand++) {\n\
+    \                var cmd = batch[0][nCommand];\n\
+    \                if (cmd.Left) {\n\
+    \                    var d = cmd.Left;\n\
+    \                    switch (d.tag) {\n\
     \                            case \"FreeRef\":\n\
     \                                jsaddle_values.delete(d.contents);\n\
     \                                break;\n\
@@ -148,76 +151,79 @@ runBatch send = "\
     \                            default:\n\
     \                                " <> send "{\"tag\": \"ProtocolError\", \"contents\": e.data}" <> "\n\
     \                                return;\n\
-    \                        }\n\
     \                    }\n\
-    \                    var d = batch[1];\n\
+    \                } else {\n\
+    \                    var d = cmd.Right;\n\
     \                    switch (d.tag) {\n\
-    \                        case \"ValueToString\":\n\
-    \                            var val = jsaddle_values.get(d.contents);\n\
-    \                            var s = val === null ? \"null\" : val === undefined ? \"undefined\" : val.toString();\n\
-    \                            " <> send "{\"tag\": \"ValueToStringResult\", \"contents\": s}" <> "\n\
-    \                            break;\n\
-    \                        case \"ValueToBool\":\n\
-    \                            " <> send "{\"tag\": \"ValueToBoolResult\", \"contents\": jsaddle_values.get(d.contents) ? true : false}" <> "\n\
-    \                            break;\n\
-    \                        case \"ValueToNumber\":\n\
-    \                            " <> send "{\"tag\": \"ValueToNumberResult\", \"contents\": Number(jsaddle_values.get(d.contents))}" <> "\n\
-    \                            break;\n\
-    \                        case \"ValueToJSON\":\n\
-    \                            var s = jsaddle_values.get(d.contents) === undefined ? \"\" : JSON.stringify(jsaddle_values.get(d.contents));\n\
-    \                            " <> send "{\"tag\": \"ValueToJSONResult\", \"contents\": s}" <> "\n\
-    \                            break;\n\
-    \                        case \"ValueToJSONValue\":\n\
-    \                            " <> send "{\"tag\": \"ValueToJSONValueResult\", \"contents\": jsaddle_values.get(d.contents)}" <> "\n\
-    \                            break;\n\
-    \                        case \"DeRefVal\":\n\
-    \                            var n = d.contents;\n\
-    \                            var v = jsaddle_values.get(n);\n\
-    \                            var c = (v === null           ) ? [0, \"\"] :\n\
-    \                                    (v === undefined      ) ? [1, \"\"] :\n\
-    \                                    (v === false          ) ? [2, \"\"] :\n\
-    \                                    (v === true           ) ? [3, \"\"] :\n\
-    \                                    (typeof v === \"number\") ? [-1, v.toString()] :\n\
-    \                                    (typeof v === \"string\") ? [-2, v]\n\
-    \                                                            : [n, \"\"];\n\
-    \                            " <> send "{\"tag\": \"DeRefValResult\", \"contents\": c}" <> "\n\
-    \                            break;\n\
-    \                        case \"IsNull\":\n\
-    \                            " <> send "{\"tag\": \"IsNullResult\", \"contents\": jsaddle_values.get(d.contents) === null}" <> "\n\
-    \                            break;\n\
-    \                        case \"IsUndefined\":\n\
-    \                            " <> send "{\"tag\": \"IsUndefinedResult\", \"contents\": jsaddle_values.get(d.contents) === undefined}" <> "\n\
-    \                            break;\n\
-    \                        case \"InstanceOf\":\n\
-    \                            " <> send "{\"tag\": \"InstanceOfResult\", \"contents\": jsaddle_values.get(d.contents[0]) instanceof jsaddle_values.get(d.contents[1])}" <> "\n\
-    \                            break;\n\
-    \                        case \"StrictEqual\":\n\
-    \                            " <> send "{\"tag\": \"StrictEqualResult\", \"contents\": jsaddle_values.get(d.contents[0]) === jsaddle_values.get(d.contents[1])}" <> "\n\
-    \                            break;\n\
-    \                        case \"PropertyNames\":\n\
-    \                            var result = [];\n\
-    \                            for (name in jsaddle_values.get(d.contents)) { result.push(name); }\n\
-    \                            " <> send "{\"tag\": \"PropertyNamesResult\", \"contents\": result}" <> "\n\
-    \                            break;\n\
-    \                        case \"Sync\":\n\
-    \                            " <> send "{\"tag\": \"SyncResult\", \"contents\": []}" <> "\n\
-    \                            break;\n\
-    \                        default:\n\
-    \                            " <> send "{\"tag\": \"ProtocolError\", \"contents\": e.data}" <> "\n\
-    \                    }\n\
+    \                            case \"ValueToString\":\n\
+    \                                var val = jsaddle_values.get(d.contents);\n\
+    \                                var s = val === null ? \"null\" : val === undefined ? \"undefined\" : val.toString();\n\
+    \                                results.push({\"tag\": \"ValueToStringResult\", \"contents\": s});\n\
+    \                                break;\n\
+    \                            case \"ValueToBool\":\n\
+    \                                results.push({\"tag\": \"ValueToBoolResult\", \"contents\": jsaddle_values.get(d.contents) ? true : false});\n\
+    \                                break;\n\
+    \                            case \"ValueToNumber\":\n\
+    \                                results.push({\"tag\": \"ValueToNumberResult\", \"contents\": Number(jsaddle_values.get(d.contents))});\n\
+    \                                break;\n\
+    \                            case \"ValueToJSON\":\n\
+    \                                var s = jsaddle_values.get(d.contents) === undefined ? \"\" : JSON.stringify(jsaddle_values.get(d.contents));\n\
+    \                                results.push({\"tag\": \"ValueToJSONResult\", \"contents\": s});\n\
+    \                                break;\n\
+    \                            case \"ValueToJSONValue\":\n\
+    \                                results.push({\"tag\": \"ValueToJSONValueResult\", \"contents\": jsaddle_values.get(d.contents)});\n\
+    \                                break;\n\
+    \                            case \"DeRefVal\":\n\
+    \                                var n = d.contents;\n\
+    \                                var v = jsaddle_values.get(n);\n\
+    \                                var c = (v === null           ) ? [0, \"\"] :\n\
+    \                                        (v === undefined      ) ? [1, \"\"] :\n\
+    \                                        (v === false          ) ? [2, \"\"] :\n\
+    \                                        (v === true           ) ? [3, \"\"] :\n\
+    \                                        (typeof v === \"number\") ? [-1, v.toString()] :\n\
+    \                                        (typeof v === \"string\") ? [-2, v]\n\
+    \                                                                : [n, \"\"];\n\
+    \                                results.push({\"tag\": \"DeRefValResult\", \"contents\": c});\n\
+    \                                break;\n\
+    \                            case \"IsNull\":\n\
+    \                                results.push({\"tag\": \"IsNullResult\", \"contents\": jsaddle_values.get(d.contents) === null});\n\
+    \                                break;\n\
+    \                            case \"IsUndefined\":\n\
+    \                                results.push({\"tag\": \"IsUndefinedResult\", \"contents\": jsaddle_values.get(d.contents) === undefined});\n\
+    \                                break;\n\
+    \                            case \"InstanceOf\":\n\
+    \                                results.push({\"tag\": \"InstanceOfResult\", \"contents\": jsaddle_values.get(d.contents[0]) instanceof jsaddle_values.get(d.contents[1])});\n\
+    \                                break;\n\
+    \                            case \"StrictEqual\":\n\
+    \                                results.push({\"tag\": \"StrictEqualResult\", \"contents\": jsaddle_values.get(d.contents[0]) === jsaddle_values.get(d.contents[1])});\n\
+    \                                break;\n\
+    \                            case \"PropertyNames\":\n\
+    \                                var result = [];\n\
+    \                                for (name in jsaddle_values.get(d.contents)) { result.push(name); }\n\
+    \                                results.push({\"tag\": \"PropertyNamesResult\", \"contents\": result});\n\
+    \                                break;\n\
+    \                            case \"Sync\":\n\
+    \                                results.push({\"tag\": \"SyncResult\", \"contents\": []});\n\
+    \                                break;\n\
+    \                            default:\n\
+    \                                results.push({\"tag\": \"ProtocolError\", \"contents\": e.data});\n\
+    \                        }\n\
     \                }\n\
-    \                catch (err) {\n\
-    \                    var n = ++jsaddle_index;\n\
-    \                    jsaddle_values.set(n, err);\n\
-    \                    " <> send "{\"tag\": \"ThrowJSValue\", \"contents\": n}" <> "\n\
-    \                }\n\
-    \            };\n\
-    \            if(batch[2]) {\n\
-    \                window.requestAnimationFrame(processBatch);\n\
     \            }\n\
-    \            else {\n\
-    \                processBatch(window.performance ? window.performance.now() : null);\n\
-    \            }\n\
+    \            " <> send "{\"tag\": \"Success\", \"contents\": results}" <> "\n\
+    \        }\n\
+    \        catch (err) {\n\
+    \            var n = ++jsaddle_index;\n\
+    \            jsaddle_values.set(n, err);\n\
+    \            " <> send "{\"tag\": \"Failure\", \"contents\": [results,n]}" <> "\n\
+    \        }\n\
+    \    };\n\
+    \    if(batch[1]) {\n\
+    \        window.requestAnimationFrame(processBatch);\n\
+    \    }\n\
+    \    else {\n\
+    \        processBatch(window.performance ? window.performance.now() : null);\n\
+    \    }\n\
     \"
 
 -- Use this to generate this string for embedding

@@ -36,6 +36,8 @@ module Language.Javascript.JSaddle.Types (
 
   -- * JavaScript Value Types
   , JSVal(..)
+  , IsJSVal
+  , jsval
   , SomeJSArray(..)
   , JSArray
   , MutableJSArray
@@ -55,6 +57,7 @@ module Language.Javascript.JSaddle.Types (
   , Command(..)
   , Batch(..)
   , Result(..)
+  , Results(..)
 #endif
 ) where
 
@@ -228,16 +231,19 @@ newtype JSString = JSString Text deriving(Show, ToJSON, FromJSON)
 newtype JSValueReceived = JSValueReceived JSValueRef deriving(Show, ToJSON, FromJSON)
 
 -- | Wrapper used when sending a 'JSVal' to the JavaScript context
-newtype JSValueForSend = JSValueForSend JSValueRef deriving(Show, ToJSON, FromJSON)
+newtype JSValueForSend = JSValueForSend JSValueRef deriving(Show, ToJSON, FromJSON, Generic)
+instance NFData JSValueForSend
 
 -- | Wrapper used when sending a 'Object' to the JavaScript context
-newtype JSObjectForSend = JSObjectForSend JSValueForSend deriving(Show, ToJSON, FromJSON)
+newtype JSObjectForSend = JSObjectForSend JSValueForSend deriving(Show, ToJSON, FromJSON, Generic)
+instance NFData JSObjectForSend
 
 -- | Wrapper used when receiving a 'JSString' from the JavaScript context
 newtype JSStringReceived = JSStringReceived Text deriving(Show, ToJSON, FromJSON)
 
 -- | Wrapper used when sending a 'JString' to the JavaScript context
-newtype JSStringForSend = JSStringForSend Text deriving(Show, ToJSON, FromJSON)
+newtype JSStringForSend = JSStringForSend Text deriving(Show, ToJSON, FromJSON, Generic)
+instance NFData JSStringForSend
 
 -- | Command sent to a JavaScript context for execution asynchronously
 data AsyncCommand = FreeRef JSValueForSend
@@ -255,12 +261,14 @@ data AsyncCommand = FreeRef JSValueForSend
                   | NewArray [JSValueForSend] JSValueForSend
                   | EvaluateScript JSStringForSend JSValueForSend
                   | SyncWithAnimationFrame JSValueForSend
-             deriving (Show, Generic)
+                  deriving (Show, Generic)
 
 instance ToJSON AsyncCommand where
     toEncoding = genericToEncoding defaultOptions
 
 instance FromJSON AsyncCommand
+
+instance NFData AsyncCommand
 
 -- | Command sent to a JavaScript context for execution synchronously
 data Command = DeRefVal JSValueForSend
@@ -282,14 +290,18 @@ instance ToJSON Command where
 
 instance FromJSON Command
 
+instance NFData Command
+
 -- | Batch of commands that can be sent together to the JavaScript context
-data Batch = Batch [AsyncCommand] Command Bool
+data Batch = Batch [Either AsyncCommand Command] Bool
              deriving (Show, Generic)
 
 instance ToJSON Batch where
     toEncoding = genericToEncoding defaultOptions
 
 instance FromJSON Batch
+
+instance NFData Batch
 
 -- | Result of a 'Command' returned from the JavaScript context
 data Result = DeRefValResult JSValueRef Text
@@ -302,17 +314,26 @@ data Result = DeRefValResult JSValueRef Text
             | IsUndefinedResult Bool
             | StrictEqualResult Bool
             | InstanceOfResult Bool
-            | Callback JSValueReceived JSValueReceived [JSValueReceived]
             | PropertyNamesResult [JSStringReceived]
             | ThrowJSValue JSValueReceived
-            | ProtocolError Text
             | SyncResult
-             deriving (Show, Generic)
+            deriving (Show, Generic)
 
 instance ToJSON Result where
     toEncoding = genericToEncoding defaultOptions
 
 instance FromJSON Result
+
+data Results = Success [Result]
+             | Failure [Result] JSValueReceived
+             | Callback JSValueReceived JSValueReceived [JSValueReceived]
+             | ProtocolError Text
+             deriving (Show, Generic)
+
+instance ToJSON Results where
+    toEncoding = genericToEncoding defaultOptions
+
+instance FromJSON Results
 #endif
 
 

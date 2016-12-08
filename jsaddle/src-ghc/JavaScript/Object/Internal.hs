@@ -22,7 +22,7 @@ create = Object <$> sendLazyCommand NewEmptyObject
 listProps :: Object -> JSM [JSString]
 listProps this =
     withObject this $ \rthis -> do
-        PropertyNamesResult result <- sendCommand $ PropertyNames rthis
+        ~(PropertyNamesResult result) <- sendCommand $ PropertyNames rthis
         mapM wrapJSString result
 {-# INLINE listProps #-}
 

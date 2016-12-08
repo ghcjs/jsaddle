@@ -28,7 +28,7 @@ toListIO (SomeJSArray x) =
     withObject (Object x) $ \this -> do
         l <- withJSString (JSString "length") $ sendLazyCommand . GetPropertyByName this
         withJSVal l $ \l' -> do
-            ValueToNumberResult len <- sendCommand (ValueToNumber l')
+            ~(ValueToNumberResult len) <- sendCommand (ValueToNumber l')
             mapM (sendLazyCommand . GetPropertyAtIndex this) [0..round len - 1]
 {-# INLINE toListIO #-}
 

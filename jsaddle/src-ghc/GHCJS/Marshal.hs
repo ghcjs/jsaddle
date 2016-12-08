@@ -99,7 +99,7 @@ instance FromJSVal Double where
 instance FromJSVal AE.Value where
     fromJSVal r =
         withToJSVal r $ \rval -> do
-            ValueToJSONValueResult result <- sendCommand (ValueToJSONValue rval)
+            ~(ValueToJSONValueResult result) <- sendCommand (ValueToJSONValue rval)
             return $ Just result
     {-# INLINE fromJSVal #-}
 instance (FromJSVal a, FromJSVal b) => FromJSVal (a,b) where

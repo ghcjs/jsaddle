@@ -17,6 +17,7 @@ import Foreign.Ptr (Ptr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
 import Language.Javascript.JSaddle (Result, JSM)
+import Language.Javascript.JSaddle.Types (Batch(..))
 import Language.Javascript.JSaddle.Run (runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
 
@@ -73,5 +74,3 @@ indexHtml =
     \<body>\n\
     \</body>\n\
     \</html>"
-
--- jsaddle

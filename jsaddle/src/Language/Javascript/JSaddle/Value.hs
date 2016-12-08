@@ -97,7 +97,7 @@ import Data.Word (Word, Word8, Word16, Word32)
 import Data.Int (Int8, Int16, Int32)
 import GHCJS.Marshal.Internal (ToJSVal(..), FromJSVal(..))
 import Language.Javascript.JSaddle.Types
-       (Object(..), JSString(..), JSVal(..), JSValueForSend(..))
+       (Object(..), JSString(..), JSVal(..))
 import Language.Javascript.JSaddle.Native
        (wrapJSString, withJSVal, withObject, withJSString, withToJSVal)
 import Language.Javascript.JSaddle.Run
@@ -194,7 +194,7 @@ foreign import javascript unsafe "$r = Number($1);" jsrefToNumber :: JSVal -> Do
 #else
 valToNumber value =
     withToJSVal value $ \rval -> do
-        ValueToNumberResult result <- sendCommand (ValueToNumber rval)
+        ~(ValueToNumberResult result) <- sendCommand (ValueToNumber rval)
         return result
 #endif
 
@@ -224,7 +224,7 @@ foreign import javascript unsafe "$r = $1.toString();" jsrefToString :: JSVal ->
 #else
 valToStr value =
     withToJSVal value $ \rval -> do
-        ValueToStringResult result <- sendCommand (ValueToString rval)
+        ~(ValueToStringResult result) <- sendCommand (ValueToString rval)
         wrapJSString result
 #endif
 
@@ -278,7 +278,7 @@ foreign import javascript unsafe "$r = $1 === undefined ? \"\" : JSON.stringify(
 #else
 valToJSON value =
     withToJSVal value $ \rval -> do
-        ValueToJSONResult result <- sendCommand (ValueToJSON rval)
+        ~(ValueToJSONResult result) <- sendCommand (ValueToJSON rval)
         wrapJSString result
 #endif
 
@@ -645,15 +645,16 @@ foreign import javascript unsafe "$r = ($1 === undefined)?0:\
 deRefVal value = do
     v <- toJSVal value
     withJSVal v $ \rval ->
-        sendCommand (DeRefVal rval) >>= \case
-            DeRefValResult 0    _ -> return   ValNull
-            DeRefValResult 1    _ -> return   ValUndefined
-            DeRefValResult 2    _ -> return $ ValBool False
-            DeRefValResult 3    _ -> return $ ValBool True
-            DeRefValResult (-1) s -> return $ ValNumber (read (T.unpack s))
-            DeRefValResult (-2) s -> return $ ValString s
-            DeRefValResult ref  _ -> return $ ValObject (Object (JSVal ref))
-            _                     -> error "Unexpected result dereferencing JSaddle value"
+        sendCommand (DeRefVal rval) >>= \result -> return $
+            case result of
+                DeRefValResult 0    _ -> ValNull
+                DeRefValResult 1    _ -> ValUndefined
+                DeRefValResult 2    _ -> ValBool False
+                DeRefValResult 3    _ -> ValBool True
+                DeRefValResult (-1) s -> ValNumber (read (T.unpack s))
+                DeRefValResult (-2) s -> ValString s
+                DeRefValResult ref  _ -> ValObject (Object (JSVal ref))
+                _                     -> error "Unexpected result dereferencing JSaddle value"
 #endif
 
 -- | Make a JavaScript value out of a 'JSValue' ADT.
@@ -714,7 +715,7 @@ strictEqual a b = do
 #else
     withJSVal aval $ \aref ->
         withJSVal bval $ \bref -> do
-            StrictEqualResult result <- sendCommand $ StrictEqual aref bref
+            ~(StrictEqualResult result) <- sendCommand $ StrictEqual aref bref
             return result
 #endif
 
@@ -735,7 +736,7 @@ instanceOf value constructor = do
 #else
     withJSVal v $ \rval ->
         withObject c $ \c' -> do
-            InstanceOfResult result <- sendCommand $ InstanceOf rval c'
+            ~(InstanceOfResult result) <- sendCommand $ InstanceOf rval c'
             return result
 #endif
 

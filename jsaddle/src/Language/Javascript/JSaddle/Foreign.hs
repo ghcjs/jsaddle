@@ -70,7 +70,7 @@ isTruthyIO (JSVal 1) = return False -- undefined
 isTruthyIO (JSVal 2) = return False -- false
 isTruthyIO (JSVal 3) = return True  -- true
 isTruthyIO v = withJSVal v $ \rval -> do
-                ValueToBoolResult result <- sendCommand (ValueToBool rval)
+                ~(ValueToBoolResult result) <- sendCommand (ValueToBool rval)
                 return result
 #endif
 {-# INLINE isTruthyIO #-}
@@ -81,7 +81,7 @@ isNullIO = return . isNull
 #else
 isNullIO (JSVal 0) = return True
 isNullIO v = withJSVal v $ \rval -> do
-                IsNullResult result <- sendCommand $ IsNull rval
+                ~(IsNullResult result) <- sendCommand $ IsNull rval
                 return result
 #endif
 {-# INLINE isNullIO #-}
@@ -92,7 +92,7 @@ isUndefinedIO = return . isUndefined
 #else
 isUndefinedIO (JSVal 1) = return True
 isUndefinedIO v = withJSVal v $ \rval -> do
-            IsUndefinedResult result <- sendCommand $ IsUndefined rval
+            ~(IsUndefinedResult result) <- sendCommand $ IsUndefined rval
             return result
 #endif
 {-# INLINE isUndefinedIO #-}

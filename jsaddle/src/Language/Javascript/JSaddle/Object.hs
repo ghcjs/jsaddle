@@ -113,7 +113,6 @@ import Language.Javascript.JSaddle.Types
        (JSString, Object(..),
         JSVal(..), JSCallAsFunction)
 #else
-import Data.Text (Text)
 import GHCJS.Marshal.Internal (ToJSVal(..))
 import Language.Javascript.JSaddle.Native
        (withJSVals, withObject)

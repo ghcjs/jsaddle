@@ -37,10 +37,10 @@ import qualified JavaScript.Web.AnimationFrame as GHCJS
        (waitForAnimationFrame)
 #else
 import Control.Exception (throwIO)
-import Control.Monad (void, forever)
+import Control.Monad (void, forever, zipWithM_)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Reader (ask, runReaderT)
-import Control.Monad.STM (STM, atomically)
+import Control.Monad.STM (atomically)
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM.TChan
        (tryReadTChan, TChan, readTChan, writeTChan, newTChanIO)
@@ -49,16 +49,19 @@ import Control.Concurrent.STM.TVar
 import Control.Concurrent.MVar
        (MVar, MVar, putMVar, takeMVar, newEmptyMVar)
 
+import System.IO.Unsafe (unsafeInterleaveIO)
+
 import Data.Monoid ((<>))
 import qualified Data.Text as T (unpack)
 import qualified Data.Map as M (lookup, delete, insert, empty)
 import Data.Time.Clock (getCurrentTime,diffUTCTime)
 
 import Language.Javascript.JSaddle.Types
-       (Command(..), AsyncCommand(..), Result(..), JSContextRef(..), JSVal(..),
+       (Command(..), AsyncCommand(..), Result(..), Results(..), JSContextRef(..), JSVal(..),
         Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..))
 import Language.Javascript.JSaddle.Exception (JSException(..))
 import Language.Javascript.JSaddle.Native.Internal (wrapJSVal)
+import Control.DeepSeq (deepseq)
 #endif
 
 -- | Forces execution of pending asyncronous code
@@ -66,7 +69,9 @@ syncPoint :: JSM ()
 #ifdef ghcjs_HOST_OS
 syncPoint = return ()
 #else
-syncPoint = void $ sendCommand Sync
+syncPoint = do
+    SyncResult <- sendCommand Sync
+    return ()
 #endif
 
 -- | Forces execution of pending asyncronous code after performing `f`
@@ -126,7 +131,7 @@ sendAsyncCommand cmd = do
     s <- doSendAsyncCommand <$> JSM ask
     liftIO $ s cmd
 
-runJavaScript :: (Batch -> IO ()) -> JSM () -> IO (Result -> IO (), IO ())
+runJavaScript :: (Batch -> IO ()) -> JSM () -> IO (Results -> IO (), IO ())
 runJavaScript sendBatch entryPoint = do
     startTime' <- getCurrentTime
     recvChan <- newTChanIO
@@ -135,18 +140,19 @@ runJavaScript sendBatch entryPoint = do
     nextRef' <- newTVarIO 0
     let ctx = JSContextRef {
         startTime = startTime'
-      , doSendCommand = \cmd -> do
+      , doSendCommand = \cmd -> cmd `deepseq` do
             result <- newEmptyMVar
             atomically $ writeTChan commandChan (Right (cmd, result))
-            takeMVar result >>= \case
-                (ThrowJSValue (JSValueReceived v)) -> throwIO $ JSException (JSVal v)
-                r -> return r
-      , doSendAsyncCommand = atomically . writeTChan commandChan . Left
+            unsafeInterleaveIO $
+                takeMVar result >>= \case
+                    (ThrowJSValue (JSValueReceived v)) -> throwIO $ JSException (JSVal v)
+                    r -> return r
+      , doSendAsyncCommand = \cmd -> cmd `deepseq` atomically (writeTChan commandChan $ Left cmd)
       , addCallback = \(Object (JSVal val)) cb -> atomically $ modifyTVar callbacks (M.insert val cb)
       , freeCallback = \(Object (JSVal val)) -> atomically $ modifyTVar callbacks (M.delete val)
       , nextRef = nextRef'
       }
-    let processResult = \case
+    let processResults = \case
             (ProtocolError err) -> error $ "Protocol error : " <> T.unpack err
             (Callback f this a) -> do
                 f'@(JSVal fNumber) <- runReaderT (unJSM $ wrapJSVal f) ctx
@@ -157,40 +163,39 @@ runJavaScript sendBatch entryPoint = do
                     Just cb -> void . forkIO $ runReaderT (unJSM $ cb f' this' args) ctx
             m                   -> atomically $ writeTChan recvChan m
     _ <- forkIO . forever $ readBatch commandChan >>= \case
-            (batch, Just resultMVar) -> do
-                sendBatch batch
-                atomically (readTChan recvChan) >>= putMVar resultMVar
-            (batch, Nothing) -> do
+            (batch, resultMVars) -> do
                 sendBatch batch
                 atomically (readTChan recvChan) >>= \case
-                    SyncResult -> return ()
-                    ThrowJSValue e -> atomically (discardToSyncPoint commandChan) >>= (`putMVar` ThrowJSValue e)
-                    _ -> error "Unexpected result processing batch"
-                return ()
-    return (processResult, runReaderT (unJSM entryPoint) ctx)
+                    Success results -> zipWithM_ putMVar resultMVars results
+                    Failure results exception -> zipWithM_ putMVar resultMVars $ results <> repeat (ThrowJSValue exception)
+                    _ -> error "Unexpected jsaddle results"
+    return (processResults, runReaderT (unJSM entryPoint) ctx)
   where
-    readBatch :: TChan (Either AsyncCommand (Command, MVar Result)) -> IO (Batch, Maybe (MVar Result))
+    readBatch :: TChan (Either AsyncCommand (Command, MVar Result)) -> IO (Batch, [MVar Result])
     readBatch chan = do
         first <- atomically $ readTChan chan -- We want at least one command to send
-        loop first []
+        loop first ([], [])
       where
-        loop (Left asyncCmd@(SyncWithAnimationFrame _)) asyncCmds =
-            atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (asyncCmd:asyncCmds)
-        loop (Right (cmd, resultMVar)) asyncCmds =
-            return (Batch (reverse asyncCmds) cmd False, Just resultMVar)
-        loop (Left asyncCmd) asyncCmds' = do
-            let asyncCmds = asyncCmd:asyncCmds'
+        loop :: Either AsyncCommand (Command, MVar Result) -> ([Either AsyncCommand Command], [MVar Result]) -> IO (Batch, [MVar Result])
+        loop (Left asyncCmd@(SyncWithAnimationFrame _)) (cmds, resultMVars) =
+            atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (Left asyncCmd:cmds, resultMVars)
+        loop (Right (syncCmd, resultMVar)) (cmds', resultMVars') = do
+            let cmds = Right syncCmd:cmds'
+                resultMVars = resultMVar:resultMVars'
             atomically (tryReadTChan chan) >>= \case
-                Nothing -> return (Batch (reverse asyncCmds) Sync False, Nothing)
-                Just cmd -> loop cmd asyncCmds
+                Nothing -> return (Batch (reverse cmds) False, reverse resultMVars)
+                Just cmd -> loop cmd (cmds, resultMVars)
+        loop (Left asyncCmd) (cmds', resultMVars) = do
+            let cmds = Left asyncCmd:cmds'
+            atomically (tryReadTChan chan) >>= \case
+                Nothing -> return (Batch (reverse cmds) False, reverse resultMVars)
+                Just cmd -> loop cmd (cmds, resultMVars)
         -- When we have seen a SyncWithAnimationFrame command only a synchronous command should end the batch
-        loopAnimation (Right (cmd, resultMVar)) asyncCmds =
-            return (Batch (reverse asyncCmds) cmd True, Just resultMVar)
-        loopAnimation (Left asyncCmd) asyncCmds =
-            atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (asyncCmd:asyncCmds)
-    discardToSyncPoint :: TChan (Either AsyncCommand (Command, MVar Result)) -> STM (MVar Result)
-    discardToSyncPoint chan =
-        readTChan chan >>= \case
-            Right (_, resultMVar) -> return resultMVar
-            _                     -> discardToSyncPoint chan
+        loopAnimation :: Either AsyncCommand (Command, MVar Result) -> ([Either AsyncCommand Command], [MVar Result]) -> IO (Batch, [MVar Result])
+        loopAnimation (Right (Sync, resultMVar)) (cmds, resultMVars) =
+            return (Batch (reverse (Right Sync:cmds)) True, reverse (resultMVar:resultMVars))
+        loopAnimation (Right (syncCmd, resultMVar)) (cmds, resultMVars) =
+            atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (Right syncCmd:cmds, resultMVar:resultMVars)
+        loopAnimation (Left asyncCmd) (cmds, resultMVars) =
+            atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (Left asyncCmd:cmds, resultMVars)
 #endif

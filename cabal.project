@@ -4,6 +4,8 @@ packages:
  jsaddle/
  jsaddle-warp/
  jsaddle-wkwebview/
+-- jsaddle-webkitgtk/
+ jsaddle-webkit2gtk/
 
 package gi-atk
  flags: -overloaded-methods -overloaded-signals -overloaded-properties
