@@ -167,7 +167,11 @@ runJavaScript sendBatch entryPoint = do
                 sendBatch batch
                 atomically (readTChan recvChan) >>= \case
                     Success results -> zipWithM_ putMVar resultMVars results
-                    Failure results exception -> zipWithM_ putMVar resultMVars $ results <> repeat (ThrowJSValue exception)
+                    Failure results exception -> do
+                        -- The exception will only be rethrown in Haskell if/when one of the
+                        -- missing results (if any) is evaluated.
+                        putStrLn "A JavaScript exception was thrown! (may not reach Haskell code)"
+                        zipWithM_ putMVar resultMVars $ results <> repeat (ThrowJSValue exception)
                     _ -> error "Unexpected jsaddle results"
     return (processResults, runReaderT (unJSM entryPoint) ctx)
   where
