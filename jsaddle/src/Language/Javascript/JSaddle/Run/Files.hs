@@ -329,4 +329,58 @@ ghcjsHelpers = "\
     \    }\n\
     \\n\
     \}\n\
+    \function h$roundUpToMultipleOf(n,m) {\n\
+    \  var rem = n % m;\n\
+    \  return rem === 0 ? n : n - rem + m;\n\
+    \}\n\
+    \\n\
+    \function h$newByteArray(len) {\n\
+    \  var len0 = Math.max(h$roundUpToMultipleOf(len, 8), 8);\n\
+    \  var buf = new ArrayBuffer(len0);\n\
+    \  return { buf: buf\n\
+    \         , len: len\n\
+    \         , i3: new Int32Array(buf)\n\
+    \         , u8: new Uint8Array(buf)\n\
+    \         , u1: new Uint16Array(buf)\n\
+    \         , f3: new Float32Array(buf)\n\
+    \         , f6: new Float64Array(buf)\n\
+    \         , dv: new DataView(buf)\n\
+    \         }\n\
+    \}\n\
+    \function h$wrapBuffer(buf, unalignedOk, offset, length) {\n\
+    \  if(!unalignedOk && offset && offset % 8 !== 0) {\n\
+    \    throw (\"h$wrapBuffer: offset not aligned:\" + offset);\n\
+    \  }\n\
+    \  if(!buf || !(buf instanceof ArrayBuffer))\n\
+    \    throw \"h$wrapBuffer: not an ArrayBuffer\"\n\
+    \  if(!offset) { offset = 0; }\n\
+    \  if(!length || length < 0) { length = buf.byteLength - offset; }\n\
+    \  return { buf: buf\n\
+    \         , len: length\n\
+    \         , i3: (offset%4) ? null : new Int32Array(buf, offset, length >> 2)\n\
+    \         , u8: new Uint8Array(buf, offset, length)\n\
+    \         , u1: (offset%2) ? null : new Uint16Array(buf, offset, length >> 1)\n\
+    \         , f3: (offset%4) ? null : new Float32Array(buf, offset, length >> 2)\n\
+    \         , f6: (offset%8) ? null : new Float64Array(buf, offset, length >> 3)\n\
+    \         , dv: new DataView(buf, offset, length)\n\
+    \         };\n\
+    \}\n\
+    \function h$newByteArrayFromBase64String(base64) {\n\
+    \  var bin = window.atob(base64);\n\
+    \  var ba = h$newByteArray(bin.length);\n\
+    \  var u8 = ba.u8;\n\
+    \  for (var i = 0; i < bin.length; i++) {\n\
+    \    u8[i] = bin.charCodeAt(i);\n\
+    \  }\n\
+    \  return ba;\n\
+    \}\n\
+    \function h$byteArrayToBase64String(off, len, ba) {\n\
+    \  var bin = '';\n\
+    \  var u8 = ba.u8;\n\
+    \  var end = off + len;\n\
+    \  for (var i = off; i < end; i++) {\n\
+    \    bin += String.fromCharCode(u8[i]);\n\
+    \  }\n\
+    \  return window.btoa(bin);\n\
+    \}\n\
     \"

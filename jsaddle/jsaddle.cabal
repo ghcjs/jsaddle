@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.7.1.0
+version: 0.8.0.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -40,23 +40,48 @@ library
             unordered-containers >=0.2 && <0.3,
             vector >=0.10 && <0.12
         exposed-modules:
+            Data.JSString
+            Data.JSString.Internal
+            Data.JSString.Internal.Fusion
+            Data.JSString.Internal.Fusion.CaseMapping
+            Data.JSString.Internal.Fusion.Common
+            Data.JSString.Internal.Fusion.Types
+            Data.JSString.Internal.Search
+            Data.JSString.Internal.Type
+            Data.JSString.Text
+            GHCJS.Prim
+            GHCJS.Prim.Internal
+            GHCJS.Types
+            GHCJS.Foreign
+            GHCJS.Foreign.Internal
+            GHCJS.Internal.Types
             GHCJS.Marshal
             GHCJS.Marshal.Internal
             GHCJS.Marshal.Pure
+            GHCJS.Buffer
+            GHCJS.Buffer.Types
+            JavaScript.TypedArray
+            JavaScript.TypedArray.ArrayBuffer
+            JavaScript.TypedArray.ArrayBuffer.Internal
+            JavaScript.TypedArray.ArrayBuffer.Type
+            JavaScript.TypedArray.DataView.Internal
+            JavaScript.TypedArray.Immutable
+            JavaScript.TypedArray.Internal
+            JavaScript.TypedArray.Internal.Types
+            JavaScript.Array
             JavaScript.Array.Internal
+            JavaScript.Object
             JavaScript.Object.Internal
             Language.Javascript.JSaddle.Native
             Language.Javascript.JSaddle.Native.Internal
         hs-source-dirs: src-ghc
     exposed-modules:
         Language.Javascript.JSaddle
-        Language.Javascript.JSaddle.Array
         Language.Javascript.JSaddle.Arguments
         Language.Javascript.JSaddle.Classes
         Language.Javascript.JSaddle.Classes.Internal
         Language.Javascript.JSaddle.Evaluate
         Language.Javascript.JSaddle.Exception
-        Language.Javascript.JSaddle.Foreign
         Language.Javascript.JSaddle.Marshal.String
         Language.Javascript.JSaddle.Monad
         Language.Javascript.JSaddle.Object
@@ -69,6 +94,7 @@ library
     build-depends:
         aeson >=0.8.0.2 && <1.1,
         base <5,
+        base64-bytestring >=1.0.0.1 && <1.1,
         bytestring >=0.10.6.0 && <0.11,
         lens >=3.8.5 && <4.16,
         primitive >=0.6.1.0 && <0.7,

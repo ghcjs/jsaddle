@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 -----------------------------------------------------------------------------
 --
@@ -17,7 +18,11 @@ module Language.Javascript.JSaddle.Exception (
 ) where
 
 import qualified Control.Exception as E (Exception)
-import Language.Javascript.JSaddle.Types (JSVal)
+#ifdef ghcjs_HOST_OS
+import GHCJS.Prim (JSVal)
+#else
+import GHCJS.Prim.Internal (JSVal)
+#endif
 import Data.Typeable (Typeable)
 
 newtype JSException = JSException JSVal deriving (Typeable)

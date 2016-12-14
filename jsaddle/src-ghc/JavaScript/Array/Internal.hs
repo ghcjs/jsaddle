@@ -1,46 +1,61 @@
 {-# LANGUAGE OverloadedStrings #-}
 module JavaScript.Array.Internal
-    ( create
+    ( SomeJSArray(..)
+    , JSArray
+    , MutableJSArray
+    , STJSArray
+    , create
+    , fromList
     , fromListIO
+    , toList
     , toListIO
+    , index
     , read
     , push
     ) where
 
 import Prelude hiding(read)
 import Control.Monad (void)
-import Language.Javascript.JSaddle.Types (JSM, JSVal, SomeJSArray(..), MutableJSArray, Object(..), JSString(..))
+import GHCJS.Types (JSVal)
+import Data.JSString.Internal.Type (JSString(..))
+import Language.Javascript.JSaddle.Types (JSM, SomeJSArray(..), JSArray, MutableJSArray, STJSArray, Object(..), GHCJSPure(..))
 import Language.Javascript.JSaddle.Native.Internal
-       (withObject, withJSVal, withJSString, withJSVals)
+       (newArray, getPropertyByName, getPropertyAtIndex, callAsFunction, valueToNumber)
 import Language.Javascript.JSaddle.Run
        (Command(..), Result(..), AsyncCommand(..), sendCommand, sendLazyCommand)
 
 create :: JSM MutableJSArray
-create = SomeJSArray <$> sendLazyCommand (NewArray [])
+create = SomeJSArray <$> newArray []
 {-# INLINE create #-}
 
+fromList :: [JSVal] -> GHCJSPure (SomeJSArray m)
+fromList = GHCJSPure . fromListIO
+{-# INLINE fromList #-}
+
 fromListIO :: [JSVal] -> JSM (SomeJSArray m)
-fromListIO xs = withJSVals xs $ \xs' -> SomeJSArray <$> sendLazyCommand (NewArray xs')
+fromListIO xs = SomeJSArray <$> newArray xs
 {-# INLINE fromListIO #-}
 
+toList :: SomeJSArray m -> GHCJSPure [JSVal]
+toList = GHCJSPure . toListIO
+{-# INLINE toList #-}
+
 toListIO :: SomeJSArray m -> JSM [JSVal]
-toListIO (SomeJSArray x) =
-    withObject (Object x) $ \this -> do
-        l <- withJSString (JSString "length") $ sendLazyCommand . GetPropertyByName this
-        withJSVal l $ \l' -> do
-            ~(ValueToNumberResult len) <- sendCommand (ValueToNumber l')
-            mapM (sendLazyCommand . GetPropertyAtIndex this) [0..round len - 1]
+toListIO (SomeJSArray x) = do
+    len <- getPropertyByName (JSString "length") (Object x) >>= valueToNumber
+    mapM (`getPropertyAtIndex` Object x) [0..round len - 1]
 {-# INLINE toListIO #-}
 
+index :: Int -> SomeJSArray m -> GHCJSPure JSVal
+index n = GHCJSPure . read n
+{-# INLINE index #-}
+
 read :: Int -> SomeJSArray m -> JSM JSVal
-read n (SomeJSArray x) =
-    withObject (Object x) $ \this -> sendLazyCommand $ GetPropertyAtIndex this n
+read n (SomeJSArray x) = getPropertyAtIndex n $ Object x
 {-# INLINE read #-}
 
 push :: JSVal -> MutableJSArray -> JSM ()
-push e (SomeJSArray x) =
-    void $ withJSVal e $ \e' ->
-        withObject (Object x) $ \this -> do
-            f <- withJSString (JSString "push") $ sendLazyCommand . GetPropertyByName this
-            withObject (Object f) $ \f' -> sendLazyCommand $ CallAsFunction f' this [e']
+push e (SomeJSArray x) = void $ do
+    f <- getPropertyByName (JSString "push") (Object x)
+    void $ callAsFunction (Object f) (Object x) [e]
 {-# INLINE push #-}

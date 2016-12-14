@@ -7,11 +7,11 @@
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DefaultSignatures          #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE DefaultSignatures          #-}
 #endif
 -----------------------------------------------------------------------------
 --
@@ -34,13 +34,20 @@ module Language.Javascript.JSaddle.Types (
   , MonadJSM(..)
   , liftJSM
 
+  -- * Pure GHCJS functions
+  , GHCJSPure(..)
+  , ghcjsPure
+  , ghcjsPureMap
+  , ghcjsPureId
+
   -- * JavaScript Value Types
   , JSVal(..)
-  , IsJSVal
+  , IsJSVal(..)
   , jsval
   , SomeJSArray(..)
   , JSArray
   , MutableJSArray
+  , STJSArray
   , Object(..)
   , JSString(..)
   , Nullable(..)
@@ -48,6 +55,11 @@ module Language.Javascript.JSaddle.Types (
 
   -- * JavaScript Context Commands
 #ifndef ghcjs_HOST_OS
+  , MutabilityType(..)
+  , Mutable
+  , Immutable
+  , IsItMutable(..)
+  , Mutability
   , JSValueReceived(..)
   , JSValueForSend(..)
   , JSStringReceived(..)
@@ -65,9 +77,11 @@ import Control.Monad.IO.Class (MonadIO(..))
 #ifdef ghcjs_HOST_OS
 import GHCJS.Types
 import JavaScript.Object.Internal (Object(..))
-import JavaScript.Array.Internal (SomeJSArray(..), JSArray, MutableJSArray)
+import JavaScript.Array.Internal (SomeJSArray(..), JSArray, MutableJSArray, STJSArray)
 import GHCJS.Nullable (Nullable(..))
 #else
+import GHCJS.Prim.Internal (JSVal(..), JSValueRef)
+import Data.JSString.Internal.Type (JSString(..))
 import Control.DeepSeq (NFData(..))
 import Control.Monad.Trans.Reader (ReaderT(..))
 import Control.Monad.Trans.State.Lazy (StateT(..))
@@ -77,11 +91,10 @@ import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Fix (MonadFix)
 import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..))
 import Control.Concurrent.STM.TVar (TVar)
-import Data.Coerce (Coercible, coerce)
-import Data.Int (Int64)
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime(..))
 import Data.Typeable (Typeable)
+import Data.Coerce (coerce, Coercible)
 import Data.Aeson
        (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..), Value)
 import GHC.Generics (Generic)
@@ -118,6 +131,47 @@ type JSM = IO
 newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a }
     deriving (Functor, Applicative, Monad, MonadIO, MonadFix)
 #endif
+
+
+-- | Type we can give to functions that are pure when using ghcjs, but
+--   live in JSM when using jsaddle.
+--
+--   Some functions that can be pure in GHCJS cannot be implemented in
+--   a pure way in JSaddle (because we need to know the JSContextRef).
+--   Instead we implement versions of these functions in that return
+--   `GHCJSPure a` instead of `a`.  To call them in a way that will
+--   work when compiling with GHCJS use `ghcjsPure`.
+#ifdef ghcjs_HOST_OS
+type GHCJSPure a = a
+#else
+newtype GHCJSPure a = GHCJSPure (JSM a)
+#endif
+
+-- | Used when you want to call a functions that is pure in GHCJS, but
+--   lives in the JSM in jsaddle.
+ghcjsPure :: GHCJSPure a -> JSM a
+#ifdef ghcjs_HOST_OS
+ghcjsPure = pure
+#else
+ghcjsPure (GHCJSPure x) = x
+#endif
+{-# INLINE ghcjsPure #-}
+
+ghcjsPureMap :: (a -> b) -> GHCJSPure a -> GHCJSPure b
+#ifdef ghcjs_HOST_OS
+ghcjsPureMap = id
+#else
+ghcjsPureMap f (GHCJSPure x) = GHCJSPure (f <$> x)
+#endif
+{-# INLINE ghcjsPureMap #-}
+
+ghcjsPureId :: a -> GHCJSPure a
+#ifdef ghcjs_HOST_OS
+ghcjsPureId = id
+#else
+ghcjsPureId = GHCJSPure . return
+#endif
+{-# INLINE ghcjsPureId #-}
 
 -- | The 'MonadJSM' is to 'JSM' what 'MonadIO' is to 'IO'.
 --   When using GHCJS it is 'MonadIO'.
@@ -175,23 +229,18 @@ type JSCallAsFunction = JSVal      -- ^ Function object
                                    --   as an argument and invoke it from haskell.
 
 #ifndef ghcjs_HOST_OS
--- A reference to a particular JavaScript value inside the JavaScript context
-type JSValueRef = Int64
-
--- | See 'GHCJS.Prim.JSVal'
-newtype JSVal = JSVal JSValueRef deriving(Show, ToJSON, FromJSON)
 
 instance NFData JSVal where
   rnf x = x `seq` ()
 
 class IsJSVal a where
-  jsval_ :: a -> JSVal
+  jsval_ :: a -> GHCJSPure JSVal
 
-  default jsval_ :: Coercible a JSVal => a -> JSVal
-  jsval_ = coerce
+  default jsval_ :: Coercible a JSVal => a -> GHCJSPure JSVal
+  jsval_ = GHCJSPure . return . coerce
   {-# INLINE jsval_ #-}
 
-jsval :: IsJSVal a => a -> JSVal
+jsval :: IsJSVal a => a -> GHCJSPure JSVal
 jsval = jsval_
 {-# INLINE jsval #-}
 
@@ -212,20 +261,21 @@ type family Mutability (a :: MutabilityType s) :: IsItMutable where
 
 newtype SomeJSArray (m :: MutabilityType s) = SomeJSArray JSVal
   deriving (Typeable)
+instance IsJSVal (SomeJSArray m)
 
 -- | See 'JavaScript.Array.Internal.JSArray'
 type JSArray        = SomeJSArray Immutable
 -- | See 'JavaScript.Array.Internal.MutableJSArray'
 type MutableJSArray = SomeJSArray Mutable
 
+-- | See 'JavaScript.Array.Internal.STJSArray'
+type STJSArray s    = SomeJSArray (STMutable s)
+
 -- | See 'JavaScript.Object.Internal.Object'
 newtype Object = Object JSVal deriving(Show, ToJSON, FromJSON)
 
 -- | See 'GHCJS.Nullable.Nullable'
 newtype Nullable a = Nullable a
-
--- | See 'Data.JSString.Internal.Type'
-newtype JSString = JSString Text deriving(Show, ToJSON, FromJSON)
 
 -- | Wrapper used when receiving a 'JSVal' from the JavaScript context
 newtype JSValueReceived = JSValueReceived JSValueRef deriving(Show, ToJSON, FromJSON)

@@ -115,9 +115,7 @@ import Language.Javascript.JSaddle.Types
 #else
 import GHCJS.Marshal.Internal (ToJSVal(..))
 import Language.Javascript.JSaddle.Native
-       (withJSVals, withObject)
-import Language.Javascript.JSaddle.Run
-       (AsyncCommand(..), sendLazyCommand)
+       (newCallback, callAsFunction, callAsConstructor)
 import Language.Javascript.JSaddle.Monad (askJSM, JSM)
 import Language.Javascript.JSaddle.Types
        (JSString, Object(..), SomeJSArray(..),
@@ -450,9 +448,7 @@ foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
     makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
 #else
 function f = do
-    object <- Object <$> sendLazyCommand NewCallback
-    add <- addCallback <$> askJSM
-    liftIO $ add object f
+    object <- newCallback f
     return $ Function object
 #endif
 
@@ -532,9 +528,7 @@ foreign import javascript unsafe "$r = $1.apply($2, $3)"
 #else
 objCallAsFunction f this args = do
     rargs <- makeArgs args
-    withObject f $ \rfunction ->
-        withObject this $ \rthis ->
-            withJSVals rargs $ sendLazyCommand . CallAsFunction rfunction rthis
+    callAsFunction f this rargs
 #endif
 
 -- | Call a JavaScript object as a constructor. Consider using 'new'.
@@ -576,8 +570,7 @@ foreign import javascript unsafe "\
 #else
 objCallAsConstructor f args = do
     rargs <- makeArgs args
-    withObject f $ \rfunction ->
-        withJSVals rargs $ sendLazyCommand . CallAsConstructor rfunction
+    callAsConstructor f rargs
 #endif
 
 -- >>> testJSaddle $ strictEqual nullObject (eval "null")

@@ -28,6 +28,7 @@ module Language.Javascript.JSaddle.Run (
   , sendCommand
   , sendLazyCommand
   , sendAsyncCommand
+  , wrapJSVal
 #endif
 ) where
 
@@ -37,7 +38,7 @@ import qualified JavaScript.Web.AnimationFrame as GHCJS
        (waitForAnimationFrame)
 #else
 import Control.Exception (throwIO)
-import Control.Monad (void, forever, zipWithM_)
+import Control.Monad (void, when, forever, zipWithM_)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Reader (ask, runReaderT)
 import Control.Monad.STM (atomically)
@@ -50,6 +51,7 @@ import Control.Concurrent.MVar
        (MVar, MVar, putMVar, takeMVar, newEmptyMVar)
 
 import System.IO.Unsafe (unsafeInterleaveIO)
+import System.Mem.Weak (addFinalizer)
 
 import Data.Monoid ((<>))
 import qualified Data.Text as T (unpack)
@@ -60,7 +62,7 @@ import Language.Javascript.JSaddle.Types
        (Command(..), AsyncCommand(..), Result(..), Results(..), JSContextRef(..), JSVal(..),
         Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..))
 import Language.Javascript.JSaddle.Exception (JSException(..))
-import Language.Javascript.JSaddle.Native.Internal (wrapJSVal)
+-- import Language.Javascript.JSaddle.Native.Internal (wrapJSVal)
 import Control.DeepSeq (deepseq)
 #endif
 
@@ -202,4 +204,13 @@ runJavaScript sendBatch entryPoint = do
             atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (Right syncCmd:cmds, resultMVar:resultMVars)
         loopAnimation (Left asyncCmd) (cmds, resultMVars) =
             atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (Left asyncCmd:cmds, resultMVars)
+
+wrapJSVal :: JSValueReceived -> JSM JSVal
+wrapJSVal (JSValueReceived ref) = do
+    -- TODO make sure this ref has not already been wrapped (perhaps only in debug version)
+    let result = JSVal ref
+    when (ref >= 5) $ do
+        ctx <- JSM ask
+        liftIO . addFinalizer result $ doSendAsyncCommand ctx $ FreeRef $ JSValueForSend ref
+    return result
 #endif

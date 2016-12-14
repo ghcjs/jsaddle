@@ -11,12 +11,7 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.Native (
-    wrapJSVal
-  , wrapJSString
-  , withJSVal
-  , withJSVals
-  , withObject
-  , withJSString
+    module Language.Javascript.JSaddle.Native.Internal
   , withToJSVal
 ) where
 

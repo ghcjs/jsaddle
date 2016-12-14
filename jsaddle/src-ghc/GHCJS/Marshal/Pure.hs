@@ -1,12 +1,11 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module GHCJS.Marshal.Pure
-  ( PFromJSVal(..)
-  , PToJSVal(..)
-  ) where
+module GHCJS.Marshal.Pure ( PFromJSVal(..)
+                          , PToJSVal(..)
+                          ) where
 
+import           GHCJS.Types
+import           GHCJS.Foreign.Internal (jsFalse, jsTrue)
 import           GHCJS.Marshal.Internal
-import           Language.Javascript.JSaddle.Types (JSVal(..))
-import           Language.Javascript.JSaddle.Foreign (jsFalse, jsTrue)
 
 instance PFromJSVal JSVal where pFromJSVal = id
                                 {-# INLINE pFromJSVal #-}

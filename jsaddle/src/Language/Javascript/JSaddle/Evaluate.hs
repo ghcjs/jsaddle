@@ -27,9 +27,7 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Types (JSString)
 #else
 import Language.Javascript.JSaddle.Native.Internal
-       (withJSString)
-import Language.Javascript.JSaddle.Run
-       (AsyncCommand(..), sendLazyCommand)
+       (evaluateScript)
 #endif
 import Language.Javascript.JSaddle.Marshal.String (ToJSString(..))
 import Language.Javascript.JSaddle.Monad (JSM)
@@ -55,7 +53,5 @@ eval script = liftIO $ js_eval (toJSString script)
 foreign import javascript unsafe "$r = eval($1);"
     js_eval :: JSString -> IO JSVal
 #else
-eval script = do
-    let rscript = toJSString script
-    withJSString rscript $ sendLazyCommand . EvaluateScript
+eval = evaluateScript . toJSString
 #endif

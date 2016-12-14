@@ -17,19 +17,23 @@ import           Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 
 import qualified Data.Aeson as AE
 import           Data.Int (Int8, Int16, Int32)
+import           Data.Text (Text)
 import           Data.Word (Word8, Word16, Word32, Word)
 
 import           GHC.Prim
 
-import           Language.Javascript.JSaddle.Types (JSM, JSVal, SomeJSArray(..), Command(ValueToJSONValue), Result(ValueToJSONValueResult))
-import           Language.Javascript.JSaddle.Native (withToJSVal)
-import           Language.Javascript.JSaddle.Run(sendCommand)
-import           GHCJS.Marshal.Internal
+import           Language.Javascript.JSaddle.Types (JSM, JSVal, SomeJSArray(..), ghcjsPure)
+import           Language.Javascript.JSaddle.Native.Internal
+                 (valueToJSONValue, jsonValueToValue, valueToNumber)
+
+import           GHCJS.Types (JSString, isUndefined, isNull)
+import           GHCJS.Foreign.Internal (isTruthy)
 import           GHCJS.Marshal.Pure ()
-import           Language.Javascript.JSaddle.Value (isUndefinedIO, valToNumber,
-                                                    valToBool, valMakeJSON)
-import           Language.Javascript.JSaddle.Array (fromListIO)
-import qualified Language.Javascript.JSaddle.Array as A (read)
+
+import           JavaScript.Array (fromListIO)
+import qualified JavaScript.Array as A (read)
+
+import           GHCJS.Marshal.Internal
 
 instance FromJSVal JSVal where
   fromJSValUnchecked x = return x
@@ -42,65 +46,62 @@ instance FromJSVal () where
   fromJSVal = fromJSVal_pure
 --    {-# INLINE fromJSVal #-}
 instance FromJSVal Bool where
-    fromJSValUnchecked = valToBool
+    fromJSValUnchecked = ghcjsPure . isTruthy
     {-# INLINE fromJSValUnchecked #-}
-    fromJSVal = fmap Just . valToBool
+    fromJSVal = fmap Just . ghcjsPure . isTruthy
     {-# INLINE fromJSVal #-}
 instance FromJSVal Int where
-    fromJSValUnchecked = fmap round . valToNumber
+    fromJSValUnchecked = fmap round . valueToNumber
     {-# INLINE fromJSValUnchecked #-}
-    fromJSVal = fmap (Just . round) . valToNumber
+    fromJSVal = fmap (Just . round) . valueToNumber
     {-# INLINE fromJSVal #-}
 instance FromJSVal Int8 where
-    fromJSValUnchecked = fmap round . valToNumber
+    fromJSValUnchecked = fmap round . valueToNumber
     {-# INLINE fromJSValUnchecked #-}
-    fromJSVal = fmap (Just . round) . valToNumber
+    fromJSVal = fmap (Just . round) . valueToNumber
     {-# INLINE fromJSVal #-}
 instance FromJSVal Int16 where
-    fromJSValUnchecked = fmap round . valToNumber
+    fromJSValUnchecked = fmap round . valueToNumber
     {-# INLINE fromJSValUnchecked #-}
-    fromJSVal = fmap (Just . round) . valToNumber
+    fromJSVal = fmap (Just . round) . valueToNumber
     {-# INLINE fromJSVal #-}
 instance FromJSVal Int32 where
-    fromJSValUnchecked = fmap round . valToNumber
+    fromJSValUnchecked = fmap round . valueToNumber
     {-# INLINE fromJSValUnchecked #-}
-    fromJSVal = fmap (Just . round) . valToNumber
+    fromJSVal = fmap (Just . round) . valueToNumber
     {-# INLINE fromJSVal #-}
 instance FromJSVal Word where
-    fromJSValUnchecked = fmap round . valToNumber
+    fromJSValUnchecked = fmap round . valueToNumber
     {-# INLINE fromJSValUnchecked #-}
-    fromJSVal = fmap (Just . round) . valToNumber
+    fromJSVal = fmap (Just . round) . valueToNumber
     {-# INLINE fromJSVal #-}
 instance FromJSVal Word8 where
-    fromJSValUnchecked = fmap round . valToNumber
+    fromJSValUnchecked = fmap round . valueToNumber
     {-# INLINE fromJSValUnchecked #-}
-    fromJSVal = fmap (Just . round) . valToNumber
+    fromJSVal = fmap (Just . round) . valueToNumber
     {-# INLINE fromJSVal #-}
 instance FromJSVal Word16 where
-    fromJSValUnchecked = fmap round . valToNumber
+    fromJSValUnchecked = fmap round . valueToNumber
     {-# INLINE fromJSValUnchecked #-}
-    fromJSVal = fmap (Just . round) . valToNumber
+    fromJSVal = fmap (Just . round) . valueToNumber
     {-# INLINE fromJSVal #-}
 instance FromJSVal Word32 where
-    fromJSValUnchecked = fmap round . valToNumber
+    fromJSValUnchecked = fmap round . valueToNumber
     {-# INLINE fromJSValUnchecked #-}
-    fromJSVal = fmap (Just . round) . valToNumber
+    fromJSVal = fmap (Just . round) . valueToNumber
     {-# INLINE fromJSVal #-}
 instance FromJSVal Float where
-    fromJSValUnchecked = fmap realToFrac . valToNumber
+    fromJSValUnchecked = fmap realToFrac . valueToNumber
     {-# INLINE fromJSValUnchecked #-}
-    fromJSVal = fmap (Just . realToFrac) . valToNumber
+    fromJSVal = fmap (Just . realToFrac) . valueToNumber
     {-# INLINE fromJSVal #-}
 instance FromJSVal Double where
-    fromJSValUnchecked = valToNumber
+    fromJSValUnchecked = valueToNumber
     {-# INLINE fromJSValUnchecked #-}
-    fromJSVal = fmap Just . valToNumber
+    fromJSVal = fmap Just . valueToNumber
     {-# INLINE fromJSVal #-}
 instance FromJSVal AE.Value where
-    fromJSVal r =
-        withToJSVal r $ \rval -> do
-            ~(ValueToJSONValueResult result) <- sendCommand (ValueToJSONValue rval)
-            return $ Just result
+    fromJSVal r = Just <$> valueToJSONValue r
     {-# INLINE fromJSVal #-}
 instance (FromJSVal a, FromJSVal b) => FromJSVal (a,b) where
     fromJSVal r = runMaybeT $ (,) <$> jf r 0 <*> jf r 1
@@ -127,7 +128,7 @@ instance (FromJSVal a, FromJSVal b, FromJSVal c, FromJSVal d, FromJSVal e, FromJ
 jf :: FromJSVal a => JSVal -> Int -> MaybeT JSM a
 jf r n = MaybeT $ do
   r' <- A.read n (SomeJSArray r)
-  isUndefinedIO r >>= \case
+  ghcjsPure (isUndefined r) >>= \case
     True -> return Nothing
     False -> fromJSVal r'
 
@@ -164,5 +165,5 @@ arr7 :: JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSVal -> JSM JSVal
 arr7 a b c d e f g = coerce <$> fromListIO [a,b,c,d,e,f,g]
 
 toJSVal_aeson :: AE.ToJSON a => a -> JSM JSVal
-toJSVal_aeson = valMakeJSON . AE.toJSON
+toJSVal_aeson = jsonValueToValue . AE.toJSON
 
