@@ -9,6 +9,7 @@ module GHCJS.Prim.Internal ( JSVal(..)
                            , jsNull
                            ) where
 
+import           Control.DeepSeq (NFData(..))
 import           Data.Int (Int64)
 import           Data.Typeable (Typeable)
 import           Unsafe.Coerce (unsafeCoerce)
@@ -25,6 +26,10 @@ type JSValueRef = Int64
   argument or result.
 -}
 newtype JSVal = JSVal JSValueRef deriving(Show, ToJSON, FromJSON)
+
+instance NFData JSVal where
+  rnf x = x `seq` ()
+
 
 {-
   When a JavaScript exception is raised inside

@@ -32,7 +32,7 @@ module Data.JSString.Internal.Fusion.Types
 
 import Data.Text.Internal.Fusion.Types
 -- import Data.Text.Internal.Fusion.Size
-import Data.Word (Word8)
+-- import Data.Word (Word8)
 
 ---- | Specialised tuple for case conversion.
 --data CC s = CC !s {-# UNPACK #-} !Char {-# UNPACK #-} !Char

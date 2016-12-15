@@ -43,7 +43,7 @@ import GHC.Exts                       (Char(..), ord#, andI#, (/=#), isTrue#)
 -- | A wrapper around a JavaScript string
 newtype JSString = JSString Text deriving(Show, Read, IsString, Monoid, Ord, Eq, Data, ToJSON, FromJSON, Typeable)
 
-instance NFData JSString where rnf !x = ()
+instance NFData JSString where rnf !_ = ()
 
 -- | /O(1)/ The empty 'JSString'.
 empty :: JSString

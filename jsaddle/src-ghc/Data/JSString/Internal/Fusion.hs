@@ -30,21 +30,21 @@ module Data.JSString.Internal.Fusion ( -- * Types
                                      , countChar
                                      ) where
 
-import           GHC.Exts (Char(..), Int(..), chr#, Int#, isTrue#, (-#), (+#), (>=#))
+--import           GHC.Exts (Char(..), Int(..), chr#, Int#, isTrue#, (-#), (+#), (>=#))
 
 import           Prelude hiding (length, reverse)
 import qualified Data.Text.Internal.Fusion as T
-import           Data.Char
+--import           Data.Char
 import           Data.Coerce (coerce)
 
 import           Data.JSString.Internal.Type (JSString(..))
-import qualified Data.JSString.Internal.Type          as I
+--import qualified Data.JSString.Internal.Type          as I
 import           Data.JSString.Internal.Fusion.Types
 import qualified Data.JSString.Internal.Fusion.Common as S
 
-import           System.IO.Unsafe
+--import           System.IO.Unsafe
 
-import           GHCJS.Prim
+--import           GHCJS.Prim
 
 default (Int)
 

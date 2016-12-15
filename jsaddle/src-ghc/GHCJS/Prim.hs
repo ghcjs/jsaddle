@@ -7,21 +7,20 @@ module GHCJS.Prim ( module GHCJS.Prim.Internal
                   , toJSString
                   , isNull
                   , isUndefined
-                  , jsNull
                   ) where
 
 import           GHCJS.Prim.Internal
-import           Data.Int (Int64)
-import           Data.Typeable (Typeable)
-import           Unsafe.Coerce (unsafeCoerce)
+--import           Data.Int (Int64)
+--import           Data.Typeable (Typeable)
+--import           Unsafe.Coerce (unsafeCoerce)
 
-import           Data.Aeson (ToJSON(..), FromJSON(..))
+--import           Data.Aeson (ToJSON(..), FromJSON(..))
 import qualified Data.Text as T (unpack, pack)
 import           Data.JSString.Text (textFromJSVal)
 
-import           GHC.Prim
-import qualified GHC.Exception as Ex
-import qualified GHC.Exts as Exts
+--import           GHC.Prim
+--import qualified GHC.Exception as Ex
+--import qualified GHC.Exts as Exts
 
 import Language.Javascript.JSaddle.Types (JSVal(..), JSString(..), GHCJSPure(..), ghcjsPureMap)
 import qualified Language.Javascript.JSaddle.Native.Internal as N

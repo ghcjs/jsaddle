@@ -277,6 +277,7 @@ jsgf name = global # name
 -- > jsg0 name = jsgf name ()
 --
 -- >>> testJSaddle $ jsg0 "globalFunc" >>= valToText
+-- A JavaScript exception was thrown! (may not reach Haskell code)
 -- TypeError:...undefine...
 jsg0 :: (ToJSString name) => name -> JSM JSVal
 jsg0 name = jsgf name ()

@@ -230,9 +230,6 @@ type JSCallAsFunction = JSVal      -- ^ Function object
 
 #ifndef ghcjs_HOST_OS
 
-instance NFData JSVal where
-  rnf x = x `seq` ()
-
 class IsJSVal a where
   jsval_ :: a -> GHCJSPure JSVal
 

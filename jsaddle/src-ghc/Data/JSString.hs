@@ -1,5 +1,6 @@
 {-# LANGUAGE MagicHash, BangPatterns, UnboxedTuples, TypeFamilies
   #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 {-| Manipulation of JavaScript strings, API and fusion implementation
     based on Data.Text by Tom Harper, Duncan Coutts, Bryan O'Sullivan e.a.
  -}
