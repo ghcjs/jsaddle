@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.8.0.0
+version: 0.8.0.1
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -82,6 +82,7 @@ library
         Language.Javascript.JSaddle.Classes.Internal
         Language.Javascript.JSaddle.Evaluate
         Language.Javascript.JSaddle.Exception
+        Language.Javascript.JSaddle.Helper
         Language.Javascript.JSaddle.Marshal.String
         Language.Javascript.JSaddle.Monad
         Language.Javascript.JSaddle.Object

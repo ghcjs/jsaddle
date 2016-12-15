@@ -90,7 +90,6 @@ import Data.JSString.Text (textToJSString)
 import Language.Javascript.JSaddle.Types
        (Object(..), JSString(..), JSVal(..), ghcjsPure)
 import GHCJS.Marshal (ToJSVal(..))
-import GHCJS.Marshal.Pure (pToJSVal)
 #else
 import Data.Char (chr, ord)
 import Data.Word (Word, Word8, Word16, Word32)
