@@ -1,5 +1,5 @@
 name: jsaddle-webkit2gtk
-version: 0.8.0.0
+version: 0.8.1.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -17,11 +17,15 @@ author: Hamish Mackenzie
 source-repository head
     type: git
     location: https://github.com/ghcjs/jsaddle
+    subdir: jsaddle-webkit2gtk
 
 library
     exposed-modules:
-        Language.Javascript.JSaddle.WebKit2GTK
+        Language.Javascript.JSaddle.WebKitGTK
     build-depends:
+        base <5
+    if !impl(ghcjs -any)
+      build-depends:
         aeson >=0.8.0.2 && <1.1,
         base <5,
         bytestring >=0.10.6.0 && <0.11,

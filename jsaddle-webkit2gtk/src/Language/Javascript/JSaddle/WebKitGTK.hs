@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -13,11 +14,21 @@
 -- |
 --
 -----------------------------------------------------------------------------
-module Language.Javascript.JSaddle.WebKit2GTK (
+module Language.Javascript.JSaddle.WebKitGTK (
   -- * Running JSM in a WebView
     run
+#ifndef ghcjs_HOST_OS
   , runInWebView
+#endif
   ) where
+
+#ifdef ghcjs_HOST_OS
+
+run = IO () -> IO ()
+run = id
+{-# INLINE run #-}
+
+#else
 
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..), MonadIO)
@@ -166,11 +177,13 @@ addJSaddleHandler webView processResult = do
     void $ userContentManagerRegisterScriptMessageHandler manager "jsaddle"
 
 jsaddleJs :: LB.ByteString
-jsaddleJs = ghcjsHelpers <> "\
-    \runJSaddleBatch = (function() {\n\
-    \ " <> initState <> "\n\
-    \ return function(batch) {\n\
-    \ " <> runBatch (\a -> "window.webkit.messageHandlers.jsaddle.postMessage(JSON.stringify(" <> a <> "));") <> "\
-    \ };\n\
-    \})()\n\
-    \"
+jsaddleJs = ghcjsHelpers <> mconcat
+    [ "runJSaddleBatch = (function() {\n"
+    , initState
+    , "\nreturn function(batch) {\n"
+    , runBatch (\a -> "window.webkit.messageHandlers.jsaddle.postMessage(JSON.stringify(" <> a <> "));\n")
+    , "};\n"
+    , "})()"
+    ]
+
+#endif

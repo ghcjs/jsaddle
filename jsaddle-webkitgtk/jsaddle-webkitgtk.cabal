@@ -1,5 +1,5 @@
 name: jsaddle-webkitgtk
-version: 0.8.0.0
+version: 0.8.1.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -17,6 +17,7 @@ author: Hamish Mackenzie
 source-repository head
     type: git
     location: https://github.com/ghcjs/jsaddle
+    subdir: jsaddle-webkitgtk
 
 library
     exposed-modules:

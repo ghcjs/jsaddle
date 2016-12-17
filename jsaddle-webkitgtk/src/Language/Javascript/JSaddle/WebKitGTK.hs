@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -16,15 +17,26 @@
 module Language.Javascript.JSaddle.WebKitGTK (
   -- * Running JSM in a WebView
     run
+#ifndef ghcjs_HOST_OS
   , runInWebView
+#endif
   ) where
+
+#ifdef ghcjs_HOST_OS
+
+run = IO () -> IO ()
+run = id
+{-# INLINE run #-}
+
+#else
 
 import Control.Monad (when, void)
 import qualified Control.Exception as E (catch)
 import Control.Exception (SomeException(..))
 import Control.Concurrent (forkIO, yield)
 
-import System.Posix.Signals (installHandler)
+import System.Posix.Signals
+       (Handler(..), keyboardSignal, installHandler)
 import System.Directory (getCurrentDirectory)
 
 import Data.Monoid ((<>))
@@ -200,12 +212,14 @@ addJSaddleHandler ctxRef processResult = do
             jsvaluemakeundefined ctxRef
 
 jsaddleJs :: LB.ByteString
-jsaddleJs = ghcjsHelpers <> "\
-    \(function() {\n\
-    \ " <> initState <> "\n\
-    \ return function(batchJSON) {\n\
-    \  var batch = JSON.parse(batchJSON);\n\
-    \ " <> runBatch (\a -> "window.jsaddleCallback(JSON.stringify(" <> a <> "));") <> "\
-    \ };\n\
-    \})()\n\
-    \"
+jsaddleJs = ghcjsHelpers <> mconcat
+    [ "(function() {\n"
+    , initState
+    , "\nreturn function(batchJSON) {\n"
+    , "  var batch = JSON.parse(batchJSON);\n"
+    , runBatch (\a -> "window.jsaddleCallback(JSON.stringify(" <> a <> "));\n")
+    , "};\n"
+    , "})()\n"
+    ]
+
+#endif

@@ -17,6 +17,7 @@ author: Hamish Mackenzie
 source-repository head
     type: git
     location: https://github.com/ghcjs/jsaddle
+    subdir: jsaddle-warp
 
 library
 
