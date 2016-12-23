@@ -39,7 +39,7 @@ extern void jsaddleResult(HsStablePtr, const char *  _Nonnull result);
 
 @end
 
-void addJSaddleHandler(WKWebView *webView, HsStablePtr startHandler,  HsStablePtr resultHandler) {
+void addJSaddleHandler(WKWebView *webView, HsStablePtr startHandler, HsStablePtr resultHandler) {
     JSaddleHandler * handler = [[JSaddleHandler alloc] initHandler:startHandler resultHandler:resultHandler];
     [[[webView configuration] userContentController] addScriptMessageHandler:handler name:@"jsaddle"];
     webView.navigationDelegate = handler;

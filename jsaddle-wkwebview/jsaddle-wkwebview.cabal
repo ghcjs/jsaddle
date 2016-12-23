@@ -1,5 +1,5 @@
 name: jsaddle-wkwebview
-version: 0.8.0.0
+version: 0.8.1.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -28,6 +28,9 @@ library
         jsaddle >= 0.8.0.0 && <0.9
     default-language: Haskell2010
     hs-source-dirs: src
+    frameworks: Cocoa, WebKit
     ghc-options: -ferror-spans -Wall
-    c-sources: cbits/WKWebView.m
+    c-sources:
+        cbits/Main.m
+        cbits/WKWebView.m
 
