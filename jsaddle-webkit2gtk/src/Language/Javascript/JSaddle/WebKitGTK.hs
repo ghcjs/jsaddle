@@ -24,7 +24,7 @@ module Language.Javascript.JSaddle.WebKitGTK (
 
 #ifdef ghcjs_HOST_OS
 
-run = IO () -> IO ()
+run :: IO () -> IO ()
 run = id
 {-# INLINE run #-}
 
