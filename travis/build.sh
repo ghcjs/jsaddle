@@ -13,7 +13,7 @@ fi
 npm install ws
 
 cabal update
-cabal new-build --max-backjumps=20000 'jsaddle-warp:lib:jsaddle-warp' 'jsaddle-warp:test:test-tool'
+cabal new-build --constraint='Cabal>=1.24.2.0' 'jsaddle-warp:lib:jsaddle-warp' 'jsaddle-warp:test:test-tool'
 GHC_PACKAGE_PATH=/opt/ghc/$GHCVER/lib/ghc-$GHCVER/package.conf.d:~/.cabal/store/ghc-$GHCVER/package.db:./dist-newstyle/packagedb/ghc-$GHCVER jsaddle_datadir=`pwd` ./dist-newstyle/build/jsaddle-warp-$JSADDLE_WARP_VERSION/build/test-tool/test-tool .
 
 # update the cache
