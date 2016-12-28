@@ -55,7 +55,7 @@ void runInWKWebView(HsStablePtr handler, const char * _Nonnull progName) {
         NSApplication *application = [NSApplication sharedApplication];
         AppDelegate *appDelegate = [[AppDelegate alloc] initApp:handler progName:[NSString stringWithCString:progName encoding:NSUTF8StringEncoding]];
         [application setDelegate:appDelegate];
-        char * argv [] =  {"", 0};
+        const char * _Nonnull argv [] =  {"", 0};
         NSApplicationMain(0, argv);
     }
 }

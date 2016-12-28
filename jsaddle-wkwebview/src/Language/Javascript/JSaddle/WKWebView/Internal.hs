@@ -1,11 +1,9 @@
 {-# LANGUAGE ForeignFunctionInterface, OverloadedStrings #-}
-module Language.Javascript.JSaddle.WKWebView
+module Language.Javascript.JSaddle.WKWebView.Internal
     ( jsaddleMain
     , WKWebView(..)
-    , run
     ) where
 
-import System.Environment (getProgName)
 import Control.Monad (void, join)
 import Control.Concurrent (forkIO)
 
@@ -14,7 +12,7 @@ import Data.ByteString (useAsCString, packCString)
 import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
 import Data.Aeson (encode, decode)
 
-import Foreign.C.String (CString, withCString)
+import Foreign.C.String (CString)
 import Foreign.Ptr (Ptr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
@@ -30,13 +28,6 @@ foreign export ccall withWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) 
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> IO ()
 foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
 foreign import ccall evaluateJavaScript :: WKWebView -> CString -> IO ()
-foreign import ccall runInWKWebView :: StablePtr (WKWebView -> IO ()) -> CString -> IO ()
-
-run :: JSM () -> IO ()
-run f = do
-    handler <- newStablePtr (jsaddleMain f)
-    progName <- getProgName
-    withCString progName $ runInWKWebView handler
 
 jsaddleMain :: JSM () -> WKWebView -> IO ()
 jsaddleMain f webView = do

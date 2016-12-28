@@ -1,5 +1,5 @@
 name: jsaddle-warp
-version: 0.8.0.0
+version: 0.8.2.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -46,9 +46,10 @@ library
     ghc-options: -ferror-spans -Wall
 
 test-suite test-tool
+    if impl(ghcjs -any) || os(ios)
+        buildable: False
 
-    if !impl(ghcjs -any)
-        build-depends:
+    build-depends:
             QuickCheck -any,
             bytestring -any,
             deepseq -any,
