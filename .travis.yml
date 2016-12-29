@@ -8,10 +8,10 @@ cache:
     - .ghc
 
 env:
-# - CABALVER=1.24 GHCVER=7.10.3 OSVER=xenial
- - CABALVER=1.24 GHCVER=8.0.1 OSVER=xenial
- - CABALVER=1.24 GHCVER=7.10.3 OSVER=trusty
- - CABALVER=1.24 GHCVER=8.0.1 OSVER=trusty
+# - CABALVER=head GHCVER=7.10.3 OSVER=xenial
+ - CABALVER=head GHCVER=8.0.1 OSVER=xenial
+ - CABALVER=head GHCVER=7.10.3 OSVER=trusty
+ - CABALVER=head GHCVER=8.0.1 OSVER=trusty
 
 before_install:
  - docker build -t ghc -f travis/$OSVER.Dockerfile travis
