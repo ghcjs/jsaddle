@@ -35,8 +35,9 @@ import qualified Control.Exception as E (catch)
 import Control.Exception (SomeException(..))
 import Control.Concurrent (forkIO, yield)
 
-import System.Posix.Signals
-       (Handler(..), keyboardSignal, installHandler)
+#ifndef mingw32_HOST_OS
+import System.Posix.Signals (installHandler, keyboardSignal, Handler(Catch))
+#endif
 import System.Directory (getCurrentDirectory)
 
 import Data.Monoid ((<>))
@@ -95,7 +96,11 @@ quitWebView wv = postGUIAsync $ do w <- widgetGetToplevel wv --TODO: Shouldn't t
                                    widgetDestroy w
 
 installQuitHandler :: WebView -> IO ()
+#ifdef mingw32_HOST_OS
+installQuitHandler wv = return () -- TODO: Maybe figure something out here for Windows users.
+#else
 installQuitHandler wv = void $ installHandler keyboardSignal (Catch (quitWebView wv)) Nothing
+#endif
 
 postGUIAsync :: IO () -> IO ()
 postGUIAsync action =
