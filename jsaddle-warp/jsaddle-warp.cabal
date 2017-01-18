@@ -51,17 +51,29 @@ test-suite test-tool
 
     build-depends:
             QuickCheck -any,
+            aeson -any,
             bytestring -any,
+            containers -any,
             deepseq -any,
             doctest >=0.10.1 && <0.12,
             filepath >=1.4.0.0 && <1.5,
             ghc-prim -any,
+            http-types -any,
             jsaddle -any,
             jsaddle-warp -any,
             lens -any,
             ref-tf -any,
             primitive -any,
-            process >=1.2.3.0 && <1.5
+            process >=1.2.3.0 && <1.5,
+            stm -any,
+            text -any,
+            time -any,
+            transformers -any,
+            wai -any,
+            wai-websockets -any,
+            warp -any,
+            webdriver >=0.8.4 && <0.9,
+            websockets -any
     type: exitcode-stdio-1.0
     main-is: DocTest.hs
     build-depends:
