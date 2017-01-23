@@ -37,7 +37,7 @@ library
             ref-tf >=0.4.0.1 && <0.5,
             scientific >=0.3 && <0.4,
             stm >=2.4.4 && <2.5,
-            time >=1.5.0.1 && <1.7,
+            time >=1.5.0.1 && <1.8,
             unordered-containers >=0.2 && <0.3,
             vector >=0.10 && <0.12
         exposed-modules:
