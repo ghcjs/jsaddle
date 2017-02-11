@@ -23,7 +23,7 @@ library
     exposed-modules:
         Language.Javascript.JSaddle.WebKitGTK
     build-depends:
-        aeson >=0.8.0.2 && <1.1,
+        aeson >=0.8.0.2 && <1.2,
         base <5,
         bytestring >=0.10.6.0 && <0.11,
         directory >=1.0.0.2 && <1.4,

@@ -94,7 +94,7 @@ library
         Language.Javascript.JSaddle.Value
         Language.Javascript.JSaddle.Types
     build-depends:
-        aeson >=0.8.0.2 && <1.1,
+        aeson >=0.8.0.2 && <1.2,
         base <5,
         base64-bytestring >=1.0.0.1 && <1.1,
         bytestring >=0.10.6.0 && <0.11,
