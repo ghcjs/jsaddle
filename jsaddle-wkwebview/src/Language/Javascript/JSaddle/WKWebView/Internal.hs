@@ -1,6 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface, OverloadedStrings #-}
 module Language.Javascript.JSaddle.WKWebView.Internal
     ( jsaddleMain
+    , jsaddleMainFile
     , WKWebView(..)
     ) where
 
@@ -9,6 +10,7 @@ import Control.Concurrent (forkIO)
 
 import Data.Monoid ((<>))
 import Data.ByteString (useAsCString, packCString)
+import qualified Data.ByteString as BS (ByteString)
 import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
 import Data.Aeson (encode, decode)
 
@@ -27,10 +29,32 @@ foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString ->
 foreign export ccall withWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> IO ()
 foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
+foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall evaluateJavaScript :: WKWebView -> CString -> IO ()
 
+-- | Run JSaddle in WKWebView
 jsaddleMain :: JSM () -> WKWebView -> IO ()
 jsaddleMain f webView = do
+    jsaddleMain' f webView
+
+    useAsCString (toStrict indexHtml) $ loadHTMLString webView
+    useAsCString (toStrict jsaddleJs) $ evaluateJavaScript webView
+
+-- | Run JSaddle in a WKWebView first loading the specified file
+--   from the mainBundle (relative to the resourcePath).
+jsaddleMainFile :: BS.ByteString -- ^ The file to navigate to.
+                -> BS.ByteString -- ^ The path to allow read access to.
+                -> JSM () -> WKWebView -> IO ()
+jsaddleMainFile url allowing f webView = do
+    jsaddleMain' f webView
+
+    useAsCString url $ \u ->
+        useAsCString allowing $ \a ->
+            loadBundleFile webView u a
+    useAsCString (toStrict jsaddleJs) $ evaluateJavaScript webView
+
+jsaddleMain' :: JSM () -> WKWebView -> IO ()
+jsaddleMain' f webView = do
     (processResult, start) <- runJavaScript (\batch ->
         useAsCString (toStrict $ "runJSaddleBatch(" <> encode batch <> ");") $
             evaluateJavaScript webView)
@@ -39,9 +63,6 @@ jsaddleMain f webView = do
     startHandler <- newStablePtr (void $ forkIO start)
     resultHandler <- newStablePtr processResult
     addJSaddleHandler webView startHandler resultHandler
-
-    useAsCString (toStrict indexHtml) $ loadHTMLString webView
-    useAsCString (toStrict jsaddleJs) $ evaluateJavaScript webView
 
 jsaddleStart :: StablePtr (IO ()) -> IO ()
 jsaddleStart ptrHandler = join (deRefStablePtr ptrHandler)

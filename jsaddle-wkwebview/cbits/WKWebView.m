@@ -53,3 +53,17 @@ void loadHTMLString(WKWebView *webView, const char * _Nonnull html) {
     [webView loadHTMLString:[NSString stringWithCString:html encoding:NSUTF8StringEncoding] baseURL:NULL];
 }
 
+void loadBundleFile(WKWebView *webView, const char * _Nonnull file, const char * _Nonnull allowing) {
+    NSBundle *main = [NSBundle mainBundle];
+    if(main) {
+        NSString *path = main.resourcePath;
+        if(path) {
+            NSURL *fileUrl = [NSURL fileURLWithPath:[NSString stringWithFormat: @"%@/%@", path, [NSString stringWithCString:file encoding:NSUTF8StringEncoding]]];
+            NSURL *allowingUrl = [NSURL fileURLWithPath:[NSString stringWithFormat: @"%@/%@", path, [NSString stringWithCString:allowing encoding:NSUTF8StringEncoding]]];
+            [webView loadFileURL:fileUrl allowingReadAccessToURL:allowingUrl];
+        }
+    }
+}
+
+
+
