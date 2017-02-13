@@ -38,7 +38,6 @@ jsaddleMain f webView = do
     jsaddleMain' f webView
 
     useAsCString (toStrict indexHtml) $ loadHTMLString webView
-    useAsCString (toStrict jsaddleJs) $ evaluateJavaScript webView
 
 -- | Run JSaddle in a WKWebView first loading the specified file
 --   from the mainBundle (relative to the resourcePath).
@@ -51,7 +50,6 @@ jsaddleMainFile url allowing f webView = do
     useAsCString url $ \u ->
         useAsCString allowing $ \a ->
             loadBundleFile webView u a
-    useAsCString (toStrict jsaddleJs) $ evaluateJavaScript webView
 
 jsaddleMain' :: JSM () -> WKWebView -> IO ()
 jsaddleMain' f webView = do
@@ -60,7 +58,8 @@ jsaddleMain' f webView = do
             evaluateJavaScript webView)
         f
 
-    startHandler <- newStablePtr (void $ forkIO start)
+    startHandler <- newStablePtr (
+        useAsCString (toStrict jsaddleJs) (evaluateJavaScript webView) >> void (forkIO start))
     resultHandler <- newStablePtr processResult
     addJSaddleHandler webView startHandler resultHandler
 
