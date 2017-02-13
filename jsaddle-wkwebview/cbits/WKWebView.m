@@ -53,6 +53,14 @@ void loadHTMLString(WKWebView *webView, const char * _Nonnull html) {
     [webView loadHTMLString:[NSString stringWithCString:html encoding:NSUTF8StringEncoding] baseURL:NULL];
 }
 
+const char * mainBundleResourcePathC() {
+    NSBundle *main = [NSBundle mainBundle];
+    if(!main) return NULL;
+    NSString *path = main.resourcePath;
+    if(!path) return NULL;
+    return [path UTF8String];
+}
+
 void loadBundleFile(WKWebView *webView, const char * _Nonnull file, const char * _Nonnull allowing) {
     NSBundle *main = [NSBundle mainBundle];
     if(main) {
