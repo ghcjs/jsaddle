@@ -3,6 +3,7 @@ module Language.Javascript.JSaddle.WKWebView.Internal
     ( jsaddleMain
     , jsaddleMainFile
     , WKWebView(..)
+    , mainBundleResourcePath
     ) where
 
 import Control.Monad (void, join)
@@ -15,7 +16,7 @@ import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
 import Data.Aeson (encode, decode)
 
 import Foreign.C.String (CString)
-import Foreign.Ptr (Ptr)
+import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
 import Language.Javascript.JSaddle (Results, JSM)
@@ -31,6 +32,7 @@ foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> Stab
 foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall evaluateJavaScript :: WKWebView -> CString -> IO ()
+foreign import ccall mainBundleResourcePathC :: IO CString
 
 -- | Run JSaddle in WKWebView
 jsaddleMain :: JSM () -> WKWebView -> IO ()
@@ -38,7 +40,6 @@ jsaddleMain f webView = do
     jsaddleMain' f webView
 
     useAsCString (toStrict indexHtml) $ loadHTMLString webView
-    useAsCString (toStrict jsaddleJs) $ evaluateJavaScript webView
 
 -- | Run JSaddle in a WKWebView first loading the specified file
 --   from the mainBundle (relative to the resourcePath).
@@ -51,7 +52,6 @@ jsaddleMainFile url allowing f webView = do
     useAsCString url $ \u ->
         useAsCString allowing $ \a ->
             loadBundleFile webView u a
-    useAsCString (toStrict jsaddleJs) $ evaluateJavaScript webView
 
 jsaddleMain' :: JSM () -> WKWebView -> IO ()
 jsaddleMain' f webView = do
@@ -60,7 +60,8 @@ jsaddleMain' f webView = do
             evaluateJavaScript webView)
         f
 
-    startHandler <- newStablePtr (void $ forkIO start)
+    startHandler <- newStablePtr (
+        useAsCString (toStrict jsaddleJs) (evaluateJavaScript webView) >> void (forkIO start))
     resultHandler <- newStablePtr processResult
     addJSaddleHandler webView startHandler resultHandler
 
@@ -100,3 +101,10 @@ indexHtml =
     \<body>\n\
     \</body>\n\
     \</html>"
+
+mainBundleResourcePath :: IO (Maybe BS.ByteString)
+mainBundleResourcePath = do
+    bs <- mainBundleResourcePathC
+    if bs == nullPtr
+        then return Nothing
+        else Just <$> packCString bs

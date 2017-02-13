@@ -4,10 +4,11 @@ module Language.Javascript.JSaddle.WKWebView
     , WKWebView(..)
     , run
     , runFile
+    , mainBundleResourcePath
     ) where
 
 import Data.ByteString (ByteString)
-import Language.Javascript.JSaddle.WKWebView.Internal (jsaddleMain, jsaddleMainFile, WKWebView(..))
+import Language.Javascript.JSaddle.WKWebView.Internal (jsaddleMain, jsaddleMainFile, WKWebView(..), mainBundleResourcePath)
 import System.Environment (getProgName)
 import Foreign.C.String (CString, withCString)
 import Foreign.StablePtr (StablePtr, newStablePtr)
