@@ -7,7 +7,7 @@
 mkDerivation {
   pname = "jsaddle-warp";
   version = "0.8.2.0";
-  src = ./.;
+  src = builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "dist" ])) ./.;
   libraryHaskellDepends = [
     aeson base containers http-types jsaddle stm text time transformers
     wai wai-websockets warp websockets

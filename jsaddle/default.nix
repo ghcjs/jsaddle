@@ -6,7 +6,7 @@
 mkDerivation {
   pname = "jsaddle";
   version = "0.8.0.1";
-  src = ./.;
+  src = builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "dist" ])) ./.;
   libraryHaskellDepends = [
     aeson attoparsec base base64-bytestring bytestring containers
     deepseq filepath ghc-prim http-types lens primitive process ref-tf
