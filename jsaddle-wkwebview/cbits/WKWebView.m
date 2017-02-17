@@ -46,11 +46,17 @@ void addJSaddleHandler(WKWebView *webView, HsStablePtr startHandler, HsStablePtr
 }
 
 void evaluateJavaScript(WKWebView *webView, const char * _Nonnull js) {
-    [webView evaluateJavaScript:[NSString stringWithCString:js encoding:NSUTF8StringEncoding] completionHandler:NULL];
+    NSString *jsString = [NSString stringWithCString:js encoding:NSUTF8StringEncoding];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [webView evaluateJavaScript:jsString completionHandler:NULL];
+    });
 }
 
 void loadHTMLString(WKWebView *webView, const char * _Nonnull html) {
-    [webView loadHTMLString:[NSString stringWithCString:html encoding:NSUTF8StringEncoding] baseURL:NULL];
+    NSString *htmlString = [NSString stringWithCString:html encoding:NSUTF8StringEncoding];
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [webView loadHTMLString:htmlString baseURL:NULL];
+    });
 }
 
 const char * mainBundleResourcePathC() {
