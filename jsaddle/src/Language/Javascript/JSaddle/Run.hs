@@ -42,7 +42,7 @@ import Control.Monad (void, when, forever, zipWithM_)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Reader (ask, runReaderT)
 import Control.Monad.STM (atomically)
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, forkOS)
 import Control.Concurrent.STM.TChan
        (tryReadTChan, TChan, readTChan, writeTChan, newTChanIO)
 import Control.Concurrent.STM.TVar
@@ -164,8 +164,9 @@ runJavaScript sendBatch entryPoint = do
                     Nothing -> liftIO $ putStrLn "Callback called after it was freed"
                     Just cb -> void . forkIO $ runReaderT (unJSM $ cb f' this' args) ctx
             m                   -> atomically $ writeTChan recvChan m
-    _ <- forkIO . forever $ readBatch commandChan >>= \case
-            (batch, resultMVars) -> do
+    _ <- forkOS . forever $ readBatch commandChan >>= \case
+            (batch@(Batch cmds _), resultMVars) -> do
+                -- putStrLn $ "sendBatch " <> show (length cmds, last cmds)
                 sendBatch batch
                 atomically (readTChan recvChan) >>= \case
                     Success results -> zipWithM_ putMVar resultMVars results

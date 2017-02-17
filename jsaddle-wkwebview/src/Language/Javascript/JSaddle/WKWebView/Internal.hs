@@ -7,7 +7,8 @@ module Language.Javascript.JSaddle.WKWebView.Internal
     ) where
 
 import Control.Monad (void, join)
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, forkOS)
+import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
 import Data.Monoid ((<>))
 import Data.ByteString (useAsCString, packCString)
@@ -37,9 +38,8 @@ foreign import ccall mainBundleResourcePathC :: IO CString
 -- | Run JSaddle in WKWebView
 jsaddleMain :: JSM () -> WKWebView -> IO ()
 jsaddleMain f webView = do
-    jsaddleMain' f webView
-
-    useAsCString (toStrict indexHtml) $ loadHTMLString webView
+    jsaddleMain' f webView $
+        useAsCString (toStrict indexHtml) $ loadHTMLString webView
 
 -- | Run JSaddle in a WKWebView first loading the specified file
 --   from the mainBundle (relative to the resourcePath).
@@ -47,23 +47,27 @@ jsaddleMainFile :: BS.ByteString -- ^ The file to navigate to.
                 -> BS.ByteString -- ^ The path to allow read access to.
                 -> JSM () -> WKWebView -> IO ()
 jsaddleMainFile url allowing f webView = do
-    jsaddleMain' f webView
+    jsaddleMain' f webView $
+        useAsCString url $ \u ->
+            useAsCString allowing $ \a ->
+                loadBundleFile webView u a
 
-    useAsCString url $ \u ->
-        useAsCString allowing $ \a ->
-            loadBundleFile webView u a
+jsaddleMain' :: JSM () -> WKWebView -> IO () -> IO ()
+jsaddleMain' f webView loadHtml = do
+    ready <- newEmptyMVar
 
-jsaddleMain' :: JSM () -> WKWebView -> IO ()
-jsaddleMain' f webView = do
     (processResult, start) <- runJavaScript (\batch ->
         useAsCString (toStrict $ "runJSaddleBatch(" <> encode batch <> ");") $
             evaluateJavaScript webView)
         f
 
-    startHandler <- newStablePtr (
-        useAsCString (toStrict jsaddleJs) (evaluateJavaScript webView) >> void (forkIO start))
+    startHandler <- newStablePtr (putMVar ready ())
     resultHandler <- newStablePtr processResult
     addJSaddleHandler webView startHandler resultHandler
+    loadHtml
+    void . forkOS $ do
+        takeMVar ready
+        useAsCString (toStrict jsaddleJs) (evaluateJavaScript webView) >> void (forkIO start)
 
 jsaddleStart :: StablePtr (IO ()) -> IO ()
 jsaddleStart ptrHandler = join (deRefStablePtr ptrHandler)
