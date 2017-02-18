@@ -46,9 +46,10 @@ void addJSaddleHandler(WKWebView *webView, HsStablePtr startHandler, HsStablePtr
 }
 
 void evaluateJavaScript(WKWebView *webView, const char * _Nonnull js) {
-    NSString *jsString = [NSString stringWithCString:js encoding:NSUTF8StringEncoding];
+    NSString *jsString = [[NSString alloc] initWithCString:js encoding:NSUTF8StringEncoding];
     dispatch_async(dispatch_get_main_queue(), ^{
         [webView evaluateJavaScript:jsString completionHandler:NULL];
+        [jsString release];
     });
 }
 
