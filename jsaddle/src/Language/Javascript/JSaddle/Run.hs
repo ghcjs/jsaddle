@@ -42,7 +42,7 @@ import Control.Monad (void, when, forever, zipWithM_)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Reader (ask, runReaderT)
 import Control.Monad.STM (atomically)
-import Control.Concurrent (forkIO, forkOS)
+import Control.Concurrent (forkIO)
 import Control.Concurrent.STM.TChan
        (tryReadTChan, TChan, readTChan, writeTChan, newTChanIO)
 import Control.Concurrent.STM.TVar
@@ -55,7 +55,7 @@ import System.Mem.Weak (addFinalizer)
 
 import Data.Monoid ((<>))
 import qualified Data.Text as T (unpack)
-import qualified Data.Map as M (lookup, delete, insert, empty)
+import qualified Data.Map as M (lookup, delete, insert, empty, size)
 import Data.Time.Clock (getCurrentTime,diffUTCTime)
 
 import Language.Javascript.JSaddle.Types
@@ -64,6 +64,7 @@ import Language.Javascript.JSaddle.Types
 import Language.Javascript.JSaddle.Exception (JSException(..))
 -- import Language.Javascript.JSaddle.Native.Internal (wrapJSVal)
 import Control.DeepSeq (deepseq)
+import GHC.Stats (getGCStats, GCStats(..))
 #endif
 
 -- | Forces execution of pending asyncronous code
@@ -136,7 +137,7 @@ sendAsyncCommand cmd = do
 runJavaScript :: (Batch -> IO ()) -> JSM () -> IO (Results -> IO (), IO ())
 runJavaScript sendBatch entryPoint = do
     startTime' <- getCurrentTime
-    recvChan <- newTChanIO
+    recvMVar <- newEmptyMVar
     commandChan <- newTChanIO
     callbacks <- newTVarIO M.empty
     nextRef' <- newTVarIO 0
@@ -157,19 +158,25 @@ runJavaScript sendBatch entryPoint = do
     let processResults = \case
             (ProtocolError err) -> error $ "Protocol error : " <> T.unpack err
             (Callback f this a) -> do
+                logInfo ("Call " <>)
                 f'@(JSVal fNumber) <- runReaderT (unJSM $ wrapJSVal f) ctx
                 this' <- runReaderT  (unJSM $ wrapJSVal this) ctx
                 args <- runReaderT (unJSM $ mapM wrapJSVal a) ctx
                 (M.lookup fNumber <$> liftIO (readTVarIO callbacks)) >>= \case
                     Nothing -> liftIO $ putStrLn "Callback called after it was freed"
                     Just cb -> void . forkIO $ runReaderT (unJSM $ cb f' this' args) ctx
-            m                   -> atomically $ writeTChan recvChan m
-    _ <- forkOS . forever $ readBatch commandChan >>= \case
+            m                   -> putMVar recvMVar m
+        logInfo s = do
+            current <- currentBytesUsed <$> getGCStats
+            cbCount <- M.size <$> readTVarIO callbacks
+            putStrLn . s $ show (current, cbCount)
+    _ <- forkIO . forever $ readBatch commandChan >>= \case
             (batch@(Batch cmds _), resultMVars) -> do
-                -- putStrLn $ "sendBatch " <> show (length cmds, last cmds)
+                logInfo (\x -> "Sync " <> x <> show (length cmds, last cmds))
                 sendBatch batch
-                atomically (readTChan recvChan) >>= \case
-                    Success results -> zipWithM_ putMVar resultMVars results
+                takeMVar recvMVar >>= \case
+                    Success results | length results /= length resultMVars -> error "Unexpected number of jsaddle results"
+                                    | otherwise -> zipWithM_ putMVar resultMVars results
                     Failure results exception -> do
                         -- The exception will only be rethrown in Haskell if/when one of the
                         -- missing results (if any) is evaluated.
