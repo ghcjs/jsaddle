@@ -64,7 +64,7 @@ import Language.Javascript.JSaddle.Types
 import Language.Javascript.JSaddle.Exception (JSException(..))
 -- import Language.Javascript.JSaddle.Native.Internal (wrapJSVal)
 import Control.DeepSeq (deepseq)
-import GHC.Stats (getGCStats, GCStats(..))
+import GHC.Stats (getGCStatsEnabled, getGCStats, GCStats(..))
 #endif
 
 -- | Forces execution of pending asyncronous code
@@ -167,9 +167,11 @@ runJavaScript sendBatch entryPoint = do
                     Just cb -> void . forkIO $ runReaderT (unJSM $ cb f' this' args) ctx
             m                   -> putMVar recvMVar m
         logInfo s = do
-            current <- currentBytesUsed <$> getGCStats
-            cbCount <- M.size <$> readTVarIO callbacks
-            putStrLn . s $ show (current, cbCount)
+            stats <- getGCStatsEnabled
+            when stats $ do
+                current <- currentBytesUsed <$> getGCStats
+                cbCount <- M.size <$> readTVarIO callbacks
+                putStrLn . s $ show (current, cbCount)
     _ <- forkIO . forever $ readBatch commandChan >>= \case
             (batch@(Batch cmds _), resultMVars) -> do
                 logInfo (\x -> "Sync " <> x <> show (length cmds, last cmds))
