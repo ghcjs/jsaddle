@@ -55,3 +55,11 @@ void runInWKWebView(HsStablePtr handler, const char * _Nonnull progName) {
     }
 }
 
+BOOL openApp(NSURL * url) {
+    UIApplication *app = [UIApplication sharedApplication];
+    if ([app canOpenURL:url]) {
+        [app open:url];
+        return true;
+    }
+    return false;
+}

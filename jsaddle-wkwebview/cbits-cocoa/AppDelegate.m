@@ -60,3 +60,7 @@ void runInWKWebView(HsStablePtr handler, const char * _Nonnull progName) {
     }
 }
 
+BOOL openApp(NSURL * url) {
+    NSWorkspace *workspace = [NSWorkspace sharedWorkspace];
+    return [workspace openURL:url];
+}
