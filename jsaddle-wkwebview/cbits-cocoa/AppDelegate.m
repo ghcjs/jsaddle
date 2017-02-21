@@ -22,7 +22,8 @@ extern void withWebView(WKWebView *, HsStablePtr);
     if (self) {
         _handler = handler;
         NSRect contentSize = NSMakeRect(0.0, 500.0, 1000.0, 700.0);
-        NSUInteger windowStyleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskResizable | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable;
+        // TODO replace with once nix has newer Cocoa NSUInteger windowStyleMask = NSWindowStyleMaskTitled | NSWindowStyleMaskResizable | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable;
+        NSUInteger windowStyleMask = NSTitledWindowMask | NSResizableWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask;
         _window = [[NSWindow alloc] initWithContentRect:contentSize styleMask:windowStyleMask backing:NSBackingStoreBuffered defer:YES];
         _window.backgroundColor = [NSColor whiteColor];
         _window.title = progName;

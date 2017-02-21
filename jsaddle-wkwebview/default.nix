@@ -8,7 +8,4 @@ mkDerivation {
       osx_sdk darwin.libobjc darwin.apple_sdk.libs.xpc ];
   description = "Interface for JavaScript that works with GHCJS and GHC";
   license = stdenv.lib.licenses.mit;
-  preBuild = ''
-    sed -i 's/\(windowStyleMask =\).*;/\1 0xf;/g' cbits-cocoa/AppDelegate.m
-  '';
 }
