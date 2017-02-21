@@ -2,6 +2,8 @@
 #import <Foundation/Foundation.h>
 #import <WebKit/WebKit.h>
 
+BOOL openApp(NSURL * url);
+
 extern void jsaddleStart(HsStablePtr);
 extern void jsaddleResult(HsStablePtr, const char *  _Nonnull result);
 
@@ -35,6 +37,20 @@ extern void jsaddleResult(HsStablePtr, const char *  _Nonnull result);
 {
     NSString * s = (NSString *) message.body;
     jsaddleResult(self.resultHandler, [s UTF8String]);
+}
+
+- (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
+{
+    NSURL *url = navigationAction.request.URL;
+
+    if(!navigationAction.targetFrame && ![url.scheme isEqualToString:@"file"]) {
+        if(openApp(url))
+		    decisionHandler(WKNavigationActionPolicyCancel);
+		else
+		    decisionHandler(WKNavigationActionPolicyAllow);
+    }
+    else
+        decisionHandler(WKNavigationActionPolicyAllow);
 }
 
 @end
