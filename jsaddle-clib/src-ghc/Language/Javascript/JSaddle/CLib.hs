@@ -60,7 +60,8 @@ jsaddleJs = ghcjsHelpers <> "\
     \ return function(batch) {\n\
     \ " <> runBatch (\a -> "jsaddle.postMessage(JSON.stringify(" <> a <> "));") <> "\
     \ };\n\
-    \})();\n"
+    \})();\n\
+    \jsaddle.postReady();\n"
 
 indexHtml :: ByteString
 indexHtml =
