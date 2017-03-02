@@ -46,7 +46,7 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.STM.TChan
        (tryReadTChan, TChan, readTChan, writeTChan, newTChanIO)
 import Control.Concurrent.STM.TVar
-       (writeTVar, readTVar, readTVarIO, modifyTVar, newTVarIO)
+       (writeTVar, readTVar, readTVarIO, modifyTVar', newTVarIO)
 import Control.Concurrent.MVar
        (MVar, MVar, putMVar, takeMVar, newEmptyMVar)
 
@@ -151,8 +151,8 @@ runJavaScript sendBatch entryPoint = do
                     (ThrowJSValue (JSValueReceived v)) -> throwIO $ JSException (JSVal v)
                     r -> return r
       , doSendAsyncCommand = \cmd -> cmd `deepseq` atomically (writeTChan commandChan $ Left cmd)
-      , addCallback = \(Object (JSVal val)) cb -> atomically $ modifyTVar callbacks (M.insert val cb)
-      , freeCallback = \(Object (JSVal val)) -> atomically $ modifyTVar callbacks (M.delete val)
+      , addCallback = \(Object (JSVal val)) cb -> atomically $ modifyTVar' callbacks (M.insert val cb)
+      , freeCallback = \(Object (JSVal val)) -> atomically $ modifyTVar' callbacks (M.delete val)
       , nextRef = nextRef'
       }
     let processResults = \case
