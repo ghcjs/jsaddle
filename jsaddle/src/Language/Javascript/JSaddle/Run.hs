@@ -19,6 +19,7 @@ module Language.Javascript.JSaddle.Run (
   , syncAfter
   , waitForAnimationFrame
   , nextAnimationFrame
+  , enableLogging
 #ifndef ghcjs_HOST_OS
   -- * Functions used to implement JSaddle using JSON messaging
   , runJavaScript
@@ -66,6 +67,16 @@ import Language.Javascript.JSaddle.Exception (JSException(..))
 -- import Language.Javascript.JSaddle.Native.Internal (wrapJSVal)
 import Control.DeepSeq (deepseq)
 import GHC.Stats (getGCStatsEnabled, getGCStats, GCStats(..))
+#endif
+
+-- | Enable (or disable) JSaddle logging
+enableLogging :: Bool -> JSM ()
+#ifdef ghcjs_HOST_OS
+enableLogging _ = return ()
+#else
+enableLogging v = do
+    f <- doEnableLogging <$> JSM ask
+    liftIO $ f v
 #endif
 
 -- | Forces execution of pending asyncronous code
@@ -156,7 +167,7 @@ runJavaScript sendBatch entryPoint = do
       , addCallback = \(Object (JSVal val)) cb -> atomically $ modifyTVar' callbacks (M.insert val cb)
       , freeCallback = \(Object (JSVal val)) -> atomically $ modifyTVar' callbacks (M.delete val)
       , nextRef = nextRef'
-      , enableLogging = atomicWriteIORef loggingEnabled
+      , doEnableLogging = atomicWriteIORef loggingEnabled
       }
     let processResults = \case
             (ProtocolError err) -> error $ "Protocol error : " <> T.unpack err
