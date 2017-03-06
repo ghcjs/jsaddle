@@ -114,6 +114,7 @@ data JSContextRef = JSContextRef {
   , addCallback        :: Object -> JSCallAsFunction -> IO ()
   , freeCallback       :: Object -> IO ()
   , nextRef            :: TVar JSValueRef
+  , enableLogging      :: Bool -> IO ()
 }
 #endif
 

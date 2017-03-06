@@ -57,6 +57,7 @@ import Data.Monoid ((<>))
 import qualified Data.Text as T (unpack)
 import qualified Data.Map as M (lookup, delete, insert, empty, size)
 import Data.Time.Clock (getCurrentTime,diffUTCTime)
+import Data.IORef (newIORef, atomicWriteIORef, readIORef)
 
 import Language.Javascript.JSaddle.Types
        (Command(..), AsyncCommand(..), Result(..), Results(..), JSContextRef(..), JSVal(..),
@@ -141,6 +142,7 @@ runJavaScript sendBatch entryPoint = do
     commandChan <- newTChanIO
     callbacks <- newTVarIO M.empty
     nextRef' <- newTVarIO 0
+    loggingEnabled <- newIORef False
     let ctx = JSContextRef {
         startTime = startTime'
       , doSendCommand = \cmd -> cmd `deepseq` do
@@ -154,6 +156,7 @@ runJavaScript sendBatch entryPoint = do
       , addCallback = \(Object (JSVal val)) cb -> atomically $ modifyTVar' callbacks (M.insert val cb)
       , freeCallback = \(Object (JSVal val)) -> atomically $ modifyTVar' callbacks (M.delete val)
       , nextRef = nextRef'
+      , enableLogging = atomicWriteIORef loggingEnabled
       }
     let processResults = \case
             (ProtocolError err) -> error $ "Protocol error : " <> T.unpack err
@@ -166,12 +169,15 @@ runJavaScript sendBatch entryPoint = do
                     Nothing -> liftIO $ putStrLn "Callback called after it was freed"
                     Just cb -> void . forkIO $ runReaderT (unJSM $ cb f' this' args) ctx
             m                   -> putMVar recvMVar m
-        logInfo s = do
-            stats <- getGCStatsEnabled
-            when stats $ do
-                current <- currentBytesUsed <$> getGCStats
-                cbCount <- M.size <$> readTVarIO callbacks
-                putStrLn . s $ show (current, cbCount)
+        logInfo s =
+            readIORef loggingEnabled >>= \case
+                True -> do
+                    currentBytesUsedStr <- getGCStatsEnabled >>= \case
+                        True  -> show . currentBytesUsed <$> getGCStats
+                        False -> return "??"
+                    cbCount <- M.size <$> readTVarIO callbacks
+                    putStrLn . s $ "M " <> currentBytesUsedStr <> "CB " <> show cbCount
+                False -> return ()
     _ <- forkIO . forever $ readBatch commandChan >>= \case
             (batch@(Batch cmds _), resultMVars) -> do
                 logInfo (\x -> "Sync " <> x <> show (length cmds, last cmds))
