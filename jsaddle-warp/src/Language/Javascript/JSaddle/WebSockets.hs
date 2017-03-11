@@ -19,7 +19,8 @@ module Language.Javascript.JSaddle.WebSockets (
 ) where
 
 import Control.Monad (forever)
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Exception (handle, AsyncException, throwIO, fromException)
 
 import Data.Monoid ((<>))
 import Data.Aeson (encode, decode)
@@ -27,7 +28,7 @@ import Data.Aeson (encode, decode)
 import Network.Wai (Application)
 import Network.WebSockets
        (ConnectionOptions(..), sendTextData, receiveDataMessage,
-        acceptRequest, ServerApp)
+        acceptRequest, ServerApp, sendPing)
 import qualified Network.WebSockets as WS (DataMessage(..))
 import Network.Wai.Handler.WebSockets (websocketsOr)
 
@@ -35,6 +36,7 @@ import Language.Javascript.JSaddle.Types (JSM(..))
 import qualified Network.Wai as W
        (responseLBS, requestMethod, Application, pathInfo)
 import Data.Text (Text)
+import qualified Data.Text as T (pack)
 import qualified Network.HTTP.Types as H
        (status403, status200, status405)
 import Language.Javascript.JSaddle.Run (runJavaScript)
@@ -55,6 +57,20 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
                         Just r  -> processResult r
                 _ -> error "jsaddle WebSocket unexpected binary data"
         start
+        waitTillClosed conn
+
+    -- Based on Network.WebSocket.forkPingThread
+    waitTillClosed conn = ignore `handle` go 1
+      where
+        go :: Int -> IO ()
+        go i = do
+            threadDelay (1 * 1000 * 1000)
+            sendPing conn (T.pack $ show i)
+            go (i + 1)
+
+    ignore e = case fromException e of
+        Just async -> throwIO (async :: AsyncException)
+        Nothing    -> return ()
 
 jsaddleApp :: Application
 jsaddleApp req = jsaddleAppPieces (W.pathInfo req) req
