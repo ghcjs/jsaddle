@@ -1,6 +1,5 @@
 {-# LANGUAGE CPP                        #-}
 #ifdef ghcjs_HOST_OS
-{-# LANGUAGE ConstraintKinds            #-}
 {-# OPTIONS_GHC -Wno-dodgy-exports      #-}
 #else
 {-# LANGUAGE TypeFamilies               #-}
@@ -8,11 +7,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE DefaultSignatures          #-}
+{-# LANGUAGE ImplicitParams             #-}
 #endif
+{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE KindSignatures             #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Types
@@ -52,6 +53,9 @@ module Language.Javascript.JSaddle.Types (
   , JSString(..)
   , Nullable(..)
   , JSCallAsFunction
+
+  -- * Debugging
+  , JSadddleHasCallStack
 
   -- * JavaScript Context Commands
 #ifndef ghcjs_HOST_OS
@@ -98,6 +102,12 @@ import Data.Coerce (coerce, Coercible)
 import Data.Aeson
        (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..), Value)
 import GHC.Generics (Generic)
+#endif
+
+#if MIN_VERSION_base(4,9,0) && defined(CHECK_UNCHECKED)
+import GHC.Stack (HasCallStack)
+#else
+import GHC.Exts (Constraint)
 #endif
 
 -- | Identifies a JavaScript execution context.
@@ -384,5 +394,11 @@ instance ToJSON Results where
 instance FromJSON Results
 #endif
 
+-- | Like HasCallStack, but only when jsaddle cabal flag check-unchecked is set
+#if MIN_VERSION_base(4,9,0) && defined(CHECK_UNCHECKED)
+type JSadddleHasCallStack = HasCallStack
+#else
+type JSadddleHasCallStack = (() :: Constraint)
+#endif
 
 

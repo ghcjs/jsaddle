@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, DeriveDataTypeable, DefaultSignatures,
+{-# LANGUAGE CPP, ScopedTypeVariables, DeriveDataTypeable, DefaultSignatures,
              TypeOperators, TupleSections, FlexibleContexts, FlexibleInstances,
              LambdaCase
   #-}
@@ -34,7 +34,7 @@ import qualified Data.JSString.Internal.Type as JSS
 import qualified JavaScript.Object.Internal as OI (Object(..), create, setProp, getProp)
 import qualified JavaScript.Array.Internal as AI (SomeJSArray(..), create, push, read, fromListIO, toListIO)
 
-import           Language.Javascript.JSaddle.Types (JSM, MutableJSArray, GHCJSPure(..), ghcjsPure, ghcjsPureMap)
+import           Language.Javascript.JSaddle.Types (JSM, MutableJSArray, GHCJSPure(..), ghcjsPure, ghcjsPureMap, JSadddleHasCallStack)
 import           Language.Javascript.JSaddle.String (textToStr)
 
 data Purity = PureShared    -- ^ conversion is pure even if the original value is shared
@@ -61,17 +61,36 @@ class ToJSVal a where
   default toJSVal :: (Generic a, GToJSVal (Rep a ())) => a -> JSM JSVal
   toJSVal = toJSVal_generic id
 
+fromJustWithStack :: JSadddleHasCallStack => Maybe a -> a
+fromJustWithStack Nothing = error "fromJSValUnchecked: fromJSVal result was Nothing"
+fromJustWithStack (Just x) = x
+
 class FromJSVal a where
   fromJSVal :: JSVal -> JSM (Maybe a)
 
+#if MIN_VERSION_base(4,9,0) && defined(JSADDLE_HAS_CALL_STACK)
+  fromJSValUnchecked :: JSadddleHasCallStack => JSVal -> JSM a
+#ifdef CHECK_UNCHECKED
+  fromJSValUnchecked v = fromJSVal v >>= \case
+                             Nothing -> error "fromJSValUnchecked: fromJSVal result was Nothing"
+                             Just x  -> return x
+#else
+  fromJSValUnchecked = fmap fromJustWithStack . fromJSVal
+#endif
+#else
   fromJSValUnchecked :: JSVal -> JSM a
   fromJSValUnchecked = fmap fromJust . fromJSVal
+#endif
   {-# INLINE fromJSValUnchecked #-}
 
   fromJSValListOf :: JSVal -> JSM (Maybe [a])
   fromJSValListOf = fmap sequence . (mapM fromJSVal <=< AI.toListIO . coerce) -- fixme should check that it's an array
 
+#if MIN_VERSION_base(4,9,0) && defined(JSADDLE_HAS_CALL_STACK)
+  fromJSValUncheckedListOf :: JSadddleHasCallStack => JSVal -> JSM [a]
+#else
   fromJSValUncheckedListOf :: JSVal -> JSM [a]
+#endif
   fromJSValUncheckedListOf = mapM fromJSValUnchecked <=< AI.toListIO . coerce
 
   -- default fromJSVal :: PFromJSVal a => JSVal a -> JSM (Maybe a)
