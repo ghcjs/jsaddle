@@ -1,5 +1,5 @@
 name: jsaddle-wkwebview
-version: 0.8.2.0
+version: 0.8.3.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
