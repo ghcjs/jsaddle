@@ -52,7 +52,7 @@ getInt32Array (SomeBuffer buf) = GHCJSPure $ I.SomeTypedArray <$> buf ^. js "i3"
 {-# INLINE getInt32Array #-}
 
 getUint8Array :: SomeBuffer any -> GHCJSPure (I.SomeUint8Array any)
-getUint8Array (SomeBuffer buf) = GHCJSPure $ I.SomeTypedArray <$> buf ^. js "u3"
+getUint8Array (SomeBuffer buf) = GHCJSPure $ I.SomeTypedArray <$> buf ^. js "u8"
 {-# INLINE getUint8Array #-}
 
 getUint16Array :: SomeBuffer any -> GHCJSPure (I.SomeUint16Array any)
