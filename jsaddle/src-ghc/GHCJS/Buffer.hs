@@ -85,7 +85,7 @@ clone = js_clone
 
 fromByteString :: ByteString -> GHCJSPure (Buffer, Int, Int)
 fromByteString bs = GHCJSPure $ do
-  buffer <- SomeBuffer <$> jsg1 "h$newByteArrayBase64String" (decodeUtf8 $ B64.encode bs)
+  buffer <- SomeBuffer <$> jsg1 "h$newByteArrayFromBase64String" (decodeUtf8 $ B64.encode bs)
   return (buffer, 0, BS.length bs)
 {-# INLINE fromByteString #-}
 
