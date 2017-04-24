@@ -52,7 +52,7 @@ getInt32Array (SomeBuffer buf) = GHCJSPure $ I.SomeTypedArray <$> buf ^. js "i3"
 {-# INLINE getInt32Array #-}
 
 getUint8Array :: SomeBuffer any -> GHCJSPure (I.SomeUint8Array any)
-getUint8Array (SomeBuffer buf) = GHCJSPure $ I.SomeTypedArray <$> buf ^. js "u3"
+getUint8Array (SomeBuffer buf) = GHCJSPure $ I.SomeTypedArray <$> buf ^. js "u8"
 {-# INLINE getUint8Array #-}
 
 getUint16Array :: SomeBuffer any -> GHCJSPure (I.SomeUint16Array any)
@@ -85,7 +85,7 @@ clone = js_clone
 
 fromByteString :: ByteString -> GHCJSPure (Buffer, Int, Int)
 fromByteString bs = GHCJSPure $ do
-  buffer <- SomeBuffer <$> jsg1 "h$newByteArrayBase64String" (decodeUtf8 $ B64.encode bs)
+  buffer <- SomeBuffer <$> jsg1 "h$newByteArrayFromBase64String" (decodeUtf8 $ B64.encode bs)
   return (buffer, 0, BS.length bs)
 {-# INLINE fromByteString #-}
 
