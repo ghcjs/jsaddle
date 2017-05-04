@@ -67,9 +67,12 @@ import GI.Gtk
 import GI.Gio (noCancellable)
 import GI.JavaScriptCore (Value(..), GlobalContext(..))
 import GI.WebKit2
-       (WebView, setSettingsEnableWriteConsoleMessagesToStdout,
-        setSettingsEnableJavascript,
-        webViewNewWithUserContentManager, userContentManagerNew,
+       (scriptDialogPromptSetText, scriptDialogPromptGetDefaultText,
+        scriptDialogGetMessage, scriptDialogGetDialogType,
+        onWebViewScriptDialog, WebView,
+        setSettingsEnableWriteConsoleMessagesToStdout,
+        setSettingsEnableJavascript, webViewNewWithUserContentManager,
+        userContentManagerNew,
         userContentManagerRegisterScriptMessageHandler,
         javascriptResultGetValue, javascriptResultGetGlobalContext,
         webViewGetUserContentManager,
@@ -78,7 +81,7 @@ import GI.WebKit2
         webViewRunJavascript, LoadEvent(..),
         UserContentManagerScriptMessageReceivedCallback, webViewLoadHtml,
         onWebViewLoadChanged, setSettingsEnableDeveloperExtras,
-        webViewSetSettings, webViewGetSettings)
+        webViewSetSettings, webViewGetSettings, ScriptDialogType(..))
 
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
        (JSValueRef, JSContextRef)
@@ -87,7 +90,7 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
        (jsvaluetostringcopy)
 
-import Language.Javascript.JSaddle (JSM, Results)
+import Language.Javascript.JSaddle (JSM, Results, Batch)
 import Language.Javascript.JSaddle.Run (runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
 
@@ -151,11 +154,11 @@ run main = do
 
 runInWebView :: JSM () -> WebView -> IO ()
 runInWebView f webView = do
-    (processResults, start) <- runJavaScript (\batch -> postGUIAsync $
+    (processResults, syncResults, start) <- runJavaScript (\batch -> postGUIAsync $
         webViewRunJavascript webView (decodeUtf8 . toStrict $ "runJSaddleBatch(" <> encode batch <> ");") noCancellable Nothing)
         f
 
-    addJSaddleHandler webView processResults
+    addJSaddleHandler webView processResults syncResults
     webViewRunJavascript webView (decodeUtf8 $ toStrict jsaddleJs) noCancellable . Just $
         \_obj _asyncResult ->
             void $ forkIO start
@@ -170,8 +173,8 @@ connectUserContentManagerScriptMessageReceived obj cb after = liftIO $ do
     cb'' <- mk_UserContentManagerScriptMessageReceivedCallback cb'
     connectSignalFunPtr obj "script-message-received::jsaddle" cb'' after
 
-addJSaddleHandler :: WebView -> (Results -> IO ()) -> IO ()
-addJSaddleHandler webView processResult = do
+addJSaddleHandler :: WebView -> (Results -> IO ()) -> (Results -> IO Batch) -> IO ()
+addJSaddleHandler webView processResult syncResults = do
     manager <- webViewGetUserContentManager webView
     _ <- onUserContentManagerScriptMessageReceived manager $ \result -> do
         ctx <- javascriptResultGetGlobalContext result
@@ -180,6 +183,21 @@ addJSaddleHandler webView processResult = do
             withJSValueRef arg $ \argRef ->
                 encodeUtf8 <$> valueToText ctxRef argRef
         mapM_ processResult (decode (fromStrict bs))
+    _ <- onWebViewScriptDialog webView $ \dialog ->
+        scriptDialogGetDialogType dialog >>= \case
+            ScriptDialogTypePrompt ->
+                scriptDialogGetMessage dialog >>= \case
+                    "JSaddleSync" -> do
+                        resultsText <- scriptDialogPromptGetDefaultText dialog
+                        case decode (fromStrict $ encodeUtf8 resultsText) of
+                            Just results -> do
+                                batch <- syncResults results
+                                scriptDialogPromptSetText dialog (decodeUtf8 . toStrict $ encode batch)
+                                return True
+                            Nothing -> return False
+                    _ -> return False
+            _ -> return False
+
     void $ userContentManagerRegisterScriptMessageHandler manager "jsaddle"
 
 jsaddleJs :: LB.ByteString
@@ -188,6 +206,9 @@ jsaddleJs = ghcjsHelpers <> mconcat
     , initState
     , "\nreturn function(batch) {\n"
     , runBatch (\a -> "window.webkit.messageHandlers.jsaddle.postMessage(JSON.stringify(" <> a <> "));\n")
+               Nothing
+               -- TODO fix https://github.com/haskell-gi/haskell-gi/issues/97 then use
+               -- (Just (\a -> "JSON.parse(window.prompt(\"JSaddleSync\", JSON.stringify(" <> a <> ")))"))
     , "};\n"
     , "})()"
     ]

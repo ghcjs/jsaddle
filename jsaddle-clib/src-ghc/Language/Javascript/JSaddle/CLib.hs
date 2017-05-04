@@ -35,7 +35,7 @@ foreign import ccall safe "wrapper"
 jsaddleInit :: JSM () -> FunPtr (CString -> IO ()) -> IO (Ptr NativeCallbacks)
 jsaddleInit jsm evaluateJavascriptAsyncPtr = do
   let evaluateJavascriptAsync = mkCallback evaluateJavascriptAsyncPtr
-  (processResult, start) <- runJavaScript (\batch ->
+  (processResult, _, start) <- runJavaScript (\batch ->
     useAsCString (toStrict $ "runJSaddleBatch(" <> encode batch <> ");") $
       evaluateJavascriptAsync) jsm
   jsaddleStartPtr <- wrapStartCallback $ void $ forkIO $ start
@@ -58,7 +58,7 @@ jsaddleJs = ghcjsHelpers <> "\
     \runJSaddleBatch = (function() {\n\
     \ " <> initState <> "\n\
     \ return function(batch) {\n\
-    \ " <> runBatch (\a -> "jsaddle.postMessage(JSON.stringify(" <> a <> "));") <> "\
+    \ " <> runBatch (\a -> "jsaddle.postMessage(JSON.stringify(" <> a <> "));") Nothing <> "\
     \ };\n\
     \})();\n\
     \jsaddle.postReady();\n"

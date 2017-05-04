@@ -48,7 +48,7 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
     wsApp :: ServerApp
     wsApp pending_conn = do
         conn <- acceptRequest pending_conn
-        (processResult, start) <- runJavaScript (sendTextData conn . encode) entryPoint
+        (processResult, _, start) <- runJavaScript (sendTextData conn . encode) entryPoint
         _ <- forkIO . forever $
             receiveDataMessage conn >>= \case
                 (WS.Text t) ->

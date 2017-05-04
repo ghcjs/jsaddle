@@ -66,6 +66,7 @@ module Language.Javascript.JSaddle.Object (
   -- * Calling Haskell From JavaScript
   , Function(..)
   , function
+  , asyncFunction
   , freeFunction
   , fun
   , JSCallAsFunction
@@ -115,7 +116,7 @@ import Language.Javascript.JSaddle.Types
 #else
 import GHCJS.Marshal.Internal (ToJSVal(..))
 import Language.Javascript.JSaddle.Native
-       (newCallback, callAsFunction, callAsConstructor)
+       (newAsyncCallback, newSyncCallback, callAsFunction, callAsConstructor)
 import Language.Javascript.JSaddle.Monad (askJSM, JSM)
 import Language.Javascript.JSaddle.Types
        (JSString, Object(..), SomeJSArray(..),
@@ -436,8 +437,10 @@ newtype Function = Function {functionObject :: Object}
 
 
 -- ^ Make a JavaScript function object that wraps a Haskell function.
+-- Calls made to the function will be synchronous where possible
+-- (on GHCJS it uses on `syncCallback2` with `ContinueAsync`).
 function :: JSCallAsFunction -- ^ Haskell function to call
-         -> JSM Function       -- ^ Returns a JavaScript function object that will
+         -> JSM Function     -- ^ Returns a JavaScript function object that will
                              --   call the Haskell one when it is called
 #ifdef ghcjs_HOST_OS
 function f = do
@@ -449,7 +452,26 @@ foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
     makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
 #else
 function f = do
-    object <- newCallback f
+    object <- newSyncCallback f
+    return $ Function object
+#endif
+
+-- ^ Make a JavaScript function object that wraps a Haskell function.
+-- Calls made to the function will be Asynchronous.
+asyncFunction :: JSCallAsFunction -- ^ Haskell function to call
+              -> JSM Function     -- ^ Returns a JavaScript function object that will
+                                  --   call the Haskell one when it is called
+#ifdef ghcjs_HOST_OS
+asyncFunction f = do
+    callback <- asyncCallback2 $ \this args -> do
+        rargs <- Array.toListIO (coerce args)
+        f this this rargs -- TODO pass function object through
+    Function callback <$> makeFunctionWithCallback callback
+foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
+    makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
+#else
+asyncFunction f = do
+    object <- newAsyncCallback f
     return $ Function object
 #endif
 

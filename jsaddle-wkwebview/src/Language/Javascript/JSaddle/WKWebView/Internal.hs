@@ -20,24 +20,27 @@ import Foreign.C.String (CString)
 import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
-import Language.Javascript.JSaddle (Results, JSM)
+import Language.Javascript.JSaddle (Results, Batch, JSM)
 import Language.Javascript.JSaddle.Run (runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
 
 newtype WKWebView = WKWebView (Ptr WKWebView)
+newtype JSaddleHandler = JSaddleHandler (Ptr JSaddleHandler)
 
 foreign export ccall jsaddleStart :: StablePtr (IO ()) -> IO ()
 foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString -> IO ()
+foreign export ccall jsaddleSyncResult :: StablePtr (Results -> IO Batch) -> JSaddleHandler -> CString -> IO ()
 foreign export ccall withWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
-foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> IO ()
+foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> StablePtr (Results -> IO Batch) -> IO ()
 foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall evaluateJavaScript :: WKWebView -> CString -> IO ()
+foreign import ccall completeSync :: JSaddleHandler -> CString -> IO ()
 foreign import ccall mainBundleResourcePathC :: IO CString
 
 -- | Run JSaddle in WKWebView
 jsaddleMain :: JSM () -> WKWebView -> IO ()
-jsaddleMain f webView = do
+jsaddleMain f webView =
     jsaddleMain' f webView $
         useAsCString (toStrict indexHtml) $ loadHTMLString webView
 
@@ -46,7 +49,7 @@ jsaddleMain f webView = do
 jsaddleMainFile :: BS.ByteString -- ^ The file to navigate to.
                 -> BS.ByteString -- ^ The path to allow read access to.
                 -> JSM () -> WKWebView -> IO ()
-jsaddleMainFile url allowing f webView = do
+jsaddleMainFile url allowing f webView =
     jsaddleMain' f webView $
         useAsCString url $ \u ->
             useAsCString allowing $ \a ->
@@ -56,14 +59,15 @@ jsaddleMain' :: JSM () -> WKWebView -> IO () -> IO ()
 jsaddleMain' f webView loadHtml = do
     ready <- newEmptyMVar
 
-    (processResult, start) <- runJavaScript (\batch ->
+    (processResult, syncResult, start) <- runJavaScript (\batch ->
         useAsCString (toStrict $ "runJSaddleBatch(" <> encode batch <> ");") $
             evaluateJavaScript webView)
         f
 
     startHandler <- newStablePtr (putMVar ready ())
     resultHandler <- newStablePtr processResult
-    addJSaddleHandler webView startHandler resultHandler
+    syncResultHandler <- newStablePtr syncResult
+    addJSaddleHandler webView startHandler resultHandler syncResultHandler
     loadHtml
     void . forkOS $ do
         takeMVar ready
@@ -80,6 +84,17 @@ jsaddleResult ptrHandler s = do
         Nothing -> error $ "jsaddle WebSocket decode failed : " <> show result
         Just r  -> processResult r
 
+jsaddleSyncResult :: StablePtr (Results -> IO Batch) -> JSaddleHandler -> CString -> IO ()
+jsaddleSyncResult ptrHandler jsaddleHandler s = do
+    syncProcessResult <- deRefStablePtr ptrHandler
+    result <- packCString s
+    case decode (fromStrict result) of
+        Nothing -> error $ "jsaddle WebSocket decode failed : " <> show result
+        Just r  -> do -- void . forkIO $ do
+            batch <- syncProcessResult r
+            useAsCString (toStrict $ encode batch) $
+                completeSync jsaddleHandler
+
 withWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
 withWebView webView ptrF = do
     f <- deRefStablePtr ptrF
@@ -90,7 +105,8 @@ jsaddleJs = ghcjsHelpers <> "\
     \runJSaddleBatch = (function() {\n\
     \ " <> initState <> "\n\
     \ return function(batch) {\n\
-    \ " <> runBatch (\a -> "window.webkit.messageHandlers.jsaddle.postMessage(JSON.stringify(" <> a <> "));") <> "\
+    \ " <> runBatch (\a -> "window.webkit.messageHandlers.jsaddle.postMessage(JSON.stringify(" <> a <> "));\n")
+                    (Just (\a -> "JSON.parse(window.prompt(\"JSaddleSync\", JSON.stringify(" <> a <> ")))")) <> "\
     \ };\n\
     \})();\n\
     \"

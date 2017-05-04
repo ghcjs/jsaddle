@@ -27,7 +27,8 @@ module Language.Javascript.JSaddle.Native.Internal (
   , callAsFunction
   , callAsConstructor
   , newEmptyObject
-  , newCallback
+  , newAsyncCallback
+  , newSyncCallback
   , newArray
   , evaluateScript
   , deRefVal
@@ -54,7 +55,7 @@ import Language.Javascript.JSaddle.Types
         JSStringReceived(..), JSStringForSend(..), JSObjectForSend(..))
 import Language.Javascript.JSaddle.Monad (askJSM)
 import Language.Javascript.JSaddle.Run
-       (Command(..), AsyncCommand(..), Result(..), sendCommand,
+       (Command(..), Result(..), sendCommand,
         sendAsyncCommand, sendLazyCommand, wrapJSVal)
 
 wrapJSString :: MonadIO m => JSStringReceived -> m JSString
@@ -136,13 +137,21 @@ newEmptyObject :: JSM Object
 newEmptyObject = Object <$> sendLazyCommand NewEmptyObject
 {-# INLINE newEmptyObject #-}
 
-newCallback :: JSCallAsFunction -> JSM Object
-newCallback f = do
-    object <- Object <$> sendLazyCommand NewCallback
+newAsyncCallback :: JSCallAsFunction -> JSM Object
+newAsyncCallback f = do
+    object <- Object <$> sendLazyCommand NewAsyncCallback
     add <- addCallback <$> askJSM
     liftIO $ add object f
     return object
-{-# INLINE newCallback #-}
+{-# INLINE newAsyncCallback #-}
+
+newSyncCallback :: JSCallAsFunction -> JSM Object
+newSyncCallback f = do
+    object <- Object <$> sendLazyCommand NewSyncCallback
+    add <- addCallback <$> askJSM
+    liftIO $ add object f
+    return object
+{-# INLINE newSyncCallback #-}
 
 newArray :: [JSVal] -> JSM JSVal
 newArray xs = withJSVals xs $ \xs' -> sendLazyCommand (NewArray xs')

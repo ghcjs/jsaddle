@@ -185,7 +185,7 @@ runInWebView f webView = do
             jsvalueprotect ctxRef result
             return result
 
-    (processResults, start) <- runJavaScript (\batch -> postGUIAsync $
+    (processResults, _, start) <- runJavaScript (\batch -> postGUIAsync $
         withJSContextRef ctx $ \ctxRef ->
             withJSString (decodeUtf8 . toStrict $ encode batch) $ \script -> do
                 val <- jsvaluemakestring ctxRef script
@@ -222,7 +222,7 @@ jsaddleJs = ghcjsHelpers <> mconcat
     , initState
     , "\nreturn function(batchJSON) {\n"
     , "  var batch = JSON.parse(batchJSON);\n"
-    , runBatch (\a -> "window.jsaddleCallback(JSON.stringify(" <> a <> "));\n")
+    , runBatch (\a -> "window.jsaddleCallback(JSON.stringify(" <> a <> "));\n") Nothing
     , "};\n"
     , "})()\n"
     ]

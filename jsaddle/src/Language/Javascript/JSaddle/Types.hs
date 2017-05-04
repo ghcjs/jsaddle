@@ -315,11 +315,14 @@ data AsyncCommand = FreeRef JSValueForSend
                   | CallAsFunction JSObjectForSend JSObjectForSend [JSValueForSend] JSValueForSend
                   | CallAsConstructor JSObjectForSend [JSValueForSend] JSValueForSend
                   | NewEmptyObject JSValueForSend
-                  | NewCallback JSValueForSend
+                  | NewAsyncCallback JSValueForSend
+                  | NewSyncCallback JSValueForSend
                   | NewArray [JSValueForSend] JSValueForSend
                   | EvaluateScript JSStringForSend JSValueForSend
                   | SyncWithAnimationFrame JSValueForSend
-                  deriving (Show, Generic)
+                  | StartSyncBlock
+                  | EndSyncBlock
+                   deriving (Show, Generic)
 
 instance ToJSON AsyncCommand where
     toEncoding = genericToEncoding defaultOptions
@@ -351,7 +354,7 @@ instance FromJSON Command
 instance NFData Command
 
 -- | Batch of commands that can be sent together to the JavaScript context
-data Batch = Batch [Either AsyncCommand Command] Bool
+data Batch = Batch [Either AsyncCommand Command] Bool Int
              deriving (Show, Generic)
 
 instance ToJSON Batch where
@@ -384,6 +387,7 @@ instance FromJSON Result
 
 data Results = Success [Result]
              | Failure [Result] JSValueReceived
+             | Duplicate
              | Callback JSValueReceived JSValueReceived [JSValueReceived]
              | ProtocolError Text
              deriving (Show, Generic)

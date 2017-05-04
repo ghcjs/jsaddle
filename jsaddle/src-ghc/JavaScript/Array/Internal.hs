@@ -21,8 +21,6 @@ import Data.JSString.Internal.Type (JSString(..))
 import Language.Javascript.JSaddle.Types (JSM, SomeJSArray(..), JSArray, MutableJSArray, STJSArray, Object(..), GHCJSPure(..))
 import Language.Javascript.JSaddle.Native.Internal
        (newArray, getPropertyByName, getPropertyAtIndex, callAsFunction, valueToNumber)
-import Language.Javascript.JSaddle.Run
-       (Command(..), Result(..), AsyncCommand(..), sendCommand, sendLazyCommand)
 
 create :: JSM MutableJSArray
 create = SomeJSArray <$> newArray []

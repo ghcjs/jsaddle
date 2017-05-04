@@ -43,13 +43,20 @@ initState = "\
     \        jsaddle_values.set(3, true);\n\
     \        jsaddle_values.set(4, window);\n\
     \        var jsaddle_index = 100;\n\
+    \        var expectedBatch = 1;\n\
     \"
 
-runBatch :: (ByteString -> ByteString) -> ByteString
-runBatch send = "\
+runBatch :: (ByteString -> ByteString) -> Maybe (ByteString -> ByteString) -> ByteString
+runBatch send sendSync = "\
+    \  var runBatch = function(firstBatch, initialSyncDepth) {\n\
     \    var processBatch = function(timestamp) {\n\
-    \        var results = [];\n\
-    \        try {\n\
+    \      var batch = firstBatch;\n\
+    \      var results = [];\n\
+    \      try {\n\
+    \        syncDepth = initialSyncDepth || 0;\n\
+    \        for(;;){\n\
+    \          if(batch[2] === expectedBatch) {\n\
+    \            expectedBatch++;\n\
     \            var nCommandsLength = batch[0].length;\n\
     \            for (var nCommand = 0; nCommand != nCommandsLength; nCommand++) {\n\
     \                var cmd = batch[0][nCommand];\n\
@@ -89,7 +96,7 @@ runBatch send = "\
     \                                var n = d.contents;\n\
     \                                jsaddle_values.set(n, {});\n\
     \                                break;\n\
-    \                            case \"NewCallback\":\n\
+    \                            case \"NewAsyncCallback\":\n\
     \                                (function() {\n\
     \                                    var nFunction = d.contents;\n\
     \                                    jsaddle_values.set(nFunction, function() {\n\
@@ -103,6 +110,26 @@ runBatch send = "\
     \                                        }\n\
     \                                        " <> send "{\"tag\": \"Callback\", \"contents\": [nFunction, nThis, args]}" <> "\n\
     \                                    })})();\n\
+    \                                break;\n\
+    \                            case \"NewSyncCallback\":\n\
+    \                                (function() {\n\
+    \                                    var nFunction = d.contents;\n\
+    \                                    jsaddle_values.set(nFunction, function() {\n\
+    \                                        var nThis = ++jsaddle_index;\n\
+    \                                        jsaddle_values.set(nThis, this);\n\
+    \                                        var args = [];\n\
+    \                                        for (var i = 0; i != arguments.length; i++) {\n\
+    \                                            var nArg = ++jsaddle_index;\n\
+    \                                            jsaddle_values.set(nArg, arguments[i]);\n\
+    \                                            args[i] = nArg;\n\
+    \                                        }\n" <> (
+    case sendSync of
+      Just s  ->
+        "                                        runBatch(" <> s "{\"tag\": \"Callback\", \"contents\": [nFunction, nThis, args]}" <> ", 1);\n"
+      Nothing ->
+        "                                        " <> send "{\"tag\": \"Callback\", \"contents\": [nFunction, nThis, args]}" <> "\n"
+    ) <>
+    "                                    })})();\n\
     \                                break;\n\
     \                            case \"CallAsFunction\":\n\
     \                                var n = d.contents[3];\n\
@@ -147,6 +174,12 @@ runBatch send = "\
     \                            case \"SyncWithAnimationFrame\":\n\
     \                                var n = d.contents[0];\n\
     \                                jsaddle_values.set(n, timestamp);\n\
+    \                                break;\n\
+    \                            case \"StartSyncBlock\":\n\
+    \                                syncDepth++;\n\
+    \                                break;\n\
+    \                            case \"EndSyncBlock\":\n\
+    \                                syncDepth--;\n\
     \                                break;\n\
     \                            default:\n\
     \                                " <> send "{\"tag\": \"ProtocolError\", \"contents\": e.data}" <> "\n\
@@ -210,20 +243,49 @@ runBatch send = "\
     \                        }\n\
     \                }\n\
     \            }\n\
-    \            " <> send "{\"tag\": \"Success\", \"contents\": results}" <> "\n\
+    \            if(syncDepth === 0) {\n\
+    \              " <> send "{\"tag\": \"Success\", \"contents\": results}" <> "\n\
+    \              break;\n\
+    \            } else {\n" <> (
+    case sendSync of
+      Just s  ->
+        "              batch = " <> s "{\"tag\": \"Success\", \"contents\": results}" <> "\n\
+        \              results = [];\n"
+      Nothing ->
+        "              " <> send "{\"tag\": \"Success\", \"contents\": results}" <> "\n\
+        \              break;\n"
+    ) <>
+    "            }\n\
+    \          } else {\n\
+    \            if(syncDepth === 0) {\n\
+    \              break;\n\
+    \            } else {\n" <> (
+    case sendSync of
+      Just s  ->
+        "              batch = " <> s "{\"tag\": \"Duplicate\"}" <> "\n\
+        \              results = [];\n"
+      Nothing ->
+        "              " <> send "{\"tag\": \"Duplicate\"}" <> "\n\
+        \              break;\n"
+    ) <>
+    "            }\n\
+    \          }\n\
     \        }\n\
-    \        catch (err) {\n\
-    \            var n = ++jsaddle_index;\n\
-    \            jsaddle_values.set(n, err);\n\
-    \            " <> send "{\"tag\": \"Failure\", \"contents\": [results,n]}" <> "\n\
-    \        }\n\
+    \      }\n\
+    \      catch (err) {\n\
+    \        var n = ++jsaddle_index;\n\
+    \        jsaddle_values.set(n, err);\n\
+    \        " <> send "{\"tag\": \"Failure\", \"contents\": [results,n]}" <> "\n\
+    \      }\n\
     \    };\n\
-    \    if(batch[1]) {\n\
+    \    if(batch[1] && (initialSyncDepth || 0) === 0) {\n\
     \        window.requestAnimationFrame(processBatch);\n\
     \    }\n\
     \    else {\n\
     \        processBatch(window.performance ? window.performance.now() : null);\n\
     \    }\n\
+    \  };\n\
+    \  runBatch(batch);\n\
     \"
 
 -- Use this to generate this string for embedding
@@ -249,7 +311,7 @@ jsaddleJs = "\
     \        ws.onmessage = function(e) {\n\
     \            var batch = JSON.parse(e.data);\n\
     \\n\
-    \ " <> runBatch (\a -> "ws.send(JSON.stringify(" <> a <> "));") <> "\
+    \ " <> runBatch (\a -> "ws.send(JSON.stringify(" <> a <> "));") Nothing <> "\
     \        };\n\
     \    };\n\
     \    ws.onerror = function() {\n\

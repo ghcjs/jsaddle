@@ -49,7 +49,7 @@ import Control.Concurrent.STM.TChan
 import Control.Concurrent.STM.TVar
        (writeTVar, readTVar, readTVarIO, modifyTVar', newTVarIO)
 import Control.Concurrent.MVar
-       (MVar, MVar, putMVar, takeMVar, newEmptyMVar)
+       (tryTakeMVar, MVar, putMVar, takeMVar, newEmptyMVar)
 
 import System.IO.Unsafe (unsafeInterleaveIO)
 import System.Mem.Weak (addFinalizer)
@@ -67,6 +67,8 @@ import Language.Javascript.JSaddle.Exception (JSException(..))
 -- import Language.Javascript.JSaddle.Native.Internal (wrapJSVal)
 import Control.DeepSeq (deepseq)
 import GHC.Stats (getGCStatsEnabled, getGCStats, GCStats(..))
+import Data.Maybe (isJust)
+import Data.Foldable (forM_)
 #endif
 
 -- | Enable (or disable) JSaddle logging
@@ -146,10 +148,12 @@ sendAsyncCommand cmd = do
     s <- doSendAsyncCommand <$> JSM ask
     liftIO $ s cmd
 
-runJavaScript :: (Batch -> IO ()) -> JSM () -> IO (Results -> IO (), IO ())
+runJavaScript :: (Batch -> IO ()) -> JSM () -> IO (Results -> IO (), Results -> IO Batch, IO ())
 runJavaScript sendBatch entryPoint = do
     startTime' <- getCurrentTime
     recvMVar <- newEmptyMVar
+    syncSendBatch <- newEmptyMVar
+    lastAsyncBatch <- newEmptyMVar
     commandChan <- newTChanIO
     callbacks <- newTVarIO M.empty
     nextRef' <- newTVarIO 0
@@ -169,17 +173,39 @@ runJavaScript sendBatch entryPoint = do
       , nextRef = nextRef'
       , doEnableLogging = atomicWriteIORef loggingEnabled
       }
-    let processResults = \case
+    let processResults :: Bool -> Results -> IO ()
+        processResults syncCallbacks = \case
             (ProtocolError err) -> error $ "Protocol error : " <> T.unpack err
             (Callback f this a) -> do
-                logInfo ("Call " <>)
                 f'@(JSVal fNumber) <- runReaderT (unJSM $ wrapJSVal f) ctx
                 this' <- runReaderT  (unJSM $ wrapJSVal this) ctx
                 args <- runReaderT (unJSM $ mapM wrapJSVal a) ctx
+                logInfo (("Call " <> show fNumber <> " ") <>)
                 (M.lookup fNumber <$> liftIO (readTVarIO callbacks)) >>= \case
                     Nothing -> liftIO $ putStrLn "Callback called after it was freed"
-                    Just cb -> void . forkIO $ runReaderT (unJSM $ cb f' this' args) ctx
+                    Just cb -> void . forkIO $ do
+                        runReaderT (unJSM $ cb f' this' args) ctx
+                        when syncCallbacks $ do
+                            doSendAsyncCommand ctx EndSyncBlock
+                            void $ doSendCommand ctx Sync
+            Duplicate           -> error "Error : Unexpected Duplicate"
             m                   -> putMVar recvMVar m
+        asyncResults :: Results -> IO ()
+        asyncResults = processResults False
+        syncResults :: Results -> IO Batch
+        syncResults results = do
+            existing <- tryTakeMVar syncSendBatch
+            when (isJust existing) $ error "Error : Unexpected Sync Results"
+            tryTakeMVar lastAsyncBatch >>= \case
+                Just lastAsync -> processResults True results >> return lastAsync
+                Nothing -> do
+                    nextBatch <- newEmptyMVar
+                    putMVar syncSendBatch (\batch -> do
+                         existing <- tryTakeMVar nextBatch
+                         when (isJust existing) $ error "Error : Unexpected Sync Results"
+                         putMVar nextBatch batch)
+                    processResults True results
+                    takeMVar nextBatch
         logInfo s =
             readIORef loggingEnabled >>= \case
                 True -> do
@@ -189,23 +215,30 @@ runJavaScript sendBatch entryPoint = do
                     cbCount <- M.size <$> readTVarIO callbacks
                     putStrLn . s $ "M " <> currentBytesUsedStr <> "CB " <> show cbCount
                 False -> return ()
-    _ <- forkIO . forever $ readBatch commandChan >>= \case
-            (batch@(Batch cmds _), resultMVars) -> do
+    _ <- forkIO . forM_ [1..] $ \nBatch ->
+        readBatch nBatch commandChan >>= \case
+            (batch@(Batch cmds _ _), resultMVars) -> do
                 logInfo (\x -> "Sync " <> x <> show (length cmds, last cmds))
-                sendBatch batch
-                takeMVar recvMVar >>= \case
-                    Success results | length results /= length resultMVars -> error "Unexpected number of jsaddle results"
-                                    | otherwise -> zipWithM_ putMVar resultMVars results
-                    Failure results exception -> do
-                        -- The exception will only be rethrown in Haskell if/when one of the
-                        -- missing results (if any) is evaluated.
-                        putStrLn "A JavaScript exception was thrown! (may not reach Haskell code)"
-                        zipWithM_ putMVar resultMVars $ results <> repeat (ThrowJSValue exception)
-                    _ -> error "Unexpected jsaddle results"
-    return (processResults, runReaderT (unJSM entryPoint) ctx)
+                tryTakeMVar syncSendBatch >>= \case
+                    Just send -> send batch
+                    Nothing   -> do
+                        putMVar lastAsyncBatch batch
+                        sendBatch batch
+                takeMVar recvMVar >>= \r -> do
+                    _ <- tryTakeMVar lastAsyncBatch
+                    case r of
+                        Success results | length results /= length resultMVars -> error "Unexpected number of jsaddle results"
+                                        | otherwise -> zipWithM_ putMVar resultMVars results
+                        Failure results exception -> do
+                            -- The exception will only be rethrown in Haskell if/when one of the
+                            -- missing results (if any) is evaluated.
+                            putStrLn "A JavaScript exception was thrown! (may not reach Haskell code)"
+                            zipWithM_ putMVar resultMVars $ results <> repeat (ThrowJSValue exception)
+                        _ -> error "Unexpected jsaddle results"
+    return (asyncResults, syncResults, runReaderT (unJSM entryPoint) ctx)
   where
-    readBatch :: TChan (Either AsyncCommand (Command, MVar Result)) -> IO (Batch, [MVar Result])
-    readBatch chan = do
+    readBatch :: Int -> TChan (Either AsyncCommand (Command, MVar Result)) -> IO (Batch, [MVar Result])
+    readBatch nBatch chan = do
         first <- atomically $ readTChan chan -- We want at least one command to send
         loop first ([], [])
       where
@@ -216,17 +249,17 @@ runJavaScript sendBatch entryPoint = do
             let cmds = Right syncCmd:cmds'
                 resultMVars = resultMVar:resultMVars'
             atomically (tryReadTChan chan) >>= \case
-                Nothing -> return (Batch (reverse cmds) False, reverse resultMVars)
+                Nothing -> return (Batch (reverse cmds) False nBatch, reverse resultMVars)
                 Just cmd -> loop cmd (cmds, resultMVars)
         loop (Left asyncCmd) (cmds', resultMVars) = do
             let cmds = Left asyncCmd:cmds'
             atomically (tryReadTChan chan) >>= \case
-                Nothing -> return (Batch (reverse cmds) False, reverse resultMVars)
+                Nothing -> return (Batch (reverse cmds) False nBatch, reverse resultMVars)
                 Just cmd -> loop cmd (cmds, resultMVars)
         -- When we have seen a SyncWithAnimationFrame command only a synchronous command should end the batch
         loopAnimation :: Either AsyncCommand (Command, MVar Result) -> ([Either AsyncCommand Command], [MVar Result]) -> IO (Batch, [MVar Result])
         loopAnimation (Right (Sync, resultMVar)) (cmds, resultMVars) =
-            return (Batch (reverse (Right Sync:cmds)) True, reverse (resultMVar:resultMVars))
+            return (Batch (reverse (Right Sync:cmds)) True nBatch, reverse (resultMVar:resultMVars))
         loopAnimation (Right (syncCmd, resultMVar)) (cmds, resultMVars) =
             atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (Right syncCmd:cmds, resultMVar:resultMVars)
         loopAnimation (Left asyncCmd) (cmds, resultMVars) =

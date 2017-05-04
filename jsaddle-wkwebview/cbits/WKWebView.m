@@ -4,26 +4,30 @@
 
 BOOL openApp(NSURL * url);
 
-extern void jsaddleStart(HsStablePtr);
-extern void jsaddleResult(HsStablePtr, const char *  _Nonnull result);
-
-@interface JSaddleHandler : NSObject<WKNavigationDelegate, WKScriptMessageHandler>
+@interface JSaddleHandler : NSObject<WKNavigationDelegate, WKScriptMessageHandler, WKUIDelegate>
 
 @property (nonatomic, assign) HsStablePtr startHandler;
 @property (nonatomic, assign) HsStablePtr resultHandler;
+@property (nonatomic, assign) HsStablePtr syncHandler;
+@property (nonatomic, assign) void (^completionHandler)(NSString *result);
 
-- (instancetype)initHandler:(HsStablePtr)startHandler resultHandler:(HsStablePtr)resultHandler;
+- (instancetype)initHandler:(HsStablePtr)startHandler resultHandler:(HsStablePtr)resultHandler syncHandler:(HsStablePtr)syncHandler;
 
 @end
 
+extern void jsaddleStart(HsStablePtr);
+extern void jsaddleResult(HsStablePtr, const char *  _Nonnull result);
+extern void jsaddleSyncResult(HsStablePtr, JSaddleHandler *, const char * _Nonnull result);
+
 @implementation JSaddleHandler
 
-- (instancetype)initHandler:(HsStablePtr)startHandler resultHandler:(HsStablePtr)resultHandler
+- (instancetype)initHandler:(HsStablePtr)startHandler resultHandler:(HsStablePtr)resultHandler syncHandler:(HsStablePtr)syncHandler
 {
     self = [super init];
     if (self) {
         _startHandler = startHandler;
         _resultHandler = resultHandler;
+        _syncHandler = syncHandler;
     }
     return self;
 }
@@ -37,6 +41,18 @@ extern void jsaddleResult(HsStablePtr, const char *  _Nonnull result);
 {
     NSString * s = (NSString *) message.body;
     jsaddleResult(self.resultHandler, [s UTF8String]);
+}
+
+- (void)webView:(WKWebView *)webView runJavaScriptTextInputPanelWithPrompt:(NSString *)prompt
+    defaultText:(NSString *)defaultText initiatedByFrame:(WKFrameInfo *)frame completionHandler:(void (^)(NSString *result))completionHandler
+{
+    if([prompt isEqualToString:@"JSaddleSync"]) {
+        _completionHandler = completionHandler;
+        jsaddleSyncResult(self.syncHandler, self, [defaultText UTF8String]);
+    }
+    else {
+        // TODO decide what if anything should go here
+    }
 }
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
@@ -55,10 +71,11 @@ extern void jsaddleResult(HsStablePtr, const char *  _Nonnull result);
 
 @end
 
-void addJSaddleHandler(WKWebView *webView, HsStablePtr startHandler, HsStablePtr resultHandler) {
-    JSaddleHandler * handler = [[JSaddleHandler alloc] initHandler:startHandler resultHandler:resultHandler];
+void addJSaddleHandler(WKWebView *webView, HsStablePtr startHandler, HsStablePtr resultHandler, HsStablePtr syncHandler) {
+    JSaddleHandler * handler = [[JSaddleHandler alloc] initHandler:startHandler resultHandler:resultHandler syncHandler:syncHandler];
     [[[webView configuration] userContentController] addScriptMessageHandler:handler name:@"jsaddle"];
     webView.navigationDelegate = handler;
+    webView.UIDelegate = handler;
 }
 
 void evaluateJavaScript(WKWebView *webView, const char * _Nonnull js) {
@@ -67,6 +84,12 @@ void evaluateJavaScript(WKWebView *webView, const char * _Nonnull js) {
         [webView evaluateJavaScript:jsString completionHandler:NULL];
         [jsString release];
     });
+}
+
+void completeSync(JSaddleHandler *handler, const char * _Nonnull s) {
+    NSString *string = [[NSString alloc] initWithCString:s encoding:NSUTF8StringEncoding];
+    handler.completionHandler(string);
+    handler.completionHandler = NULL;
 }
 
 void loadHTMLString(WKWebView *webView, const char * _Nonnull html) {
