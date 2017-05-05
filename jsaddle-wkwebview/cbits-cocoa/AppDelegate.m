@@ -34,7 +34,7 @@ extern void withWebView(WKWebView *, HsStablePtr);
 -(void)applicationWillFinishLaunching:(NSNotification *)notification {
     WKWebViewConfiguration *theConfiguration = [[WKWebViewConfiguration alloc] init];
     [theConfiguration.preferences setValue:@YES forKey:@"developerExtrasEnabled"];
-    WKWebView *webView = [[WKWebView alloc] initWithFrame:_window.contentView.frame configuration:theConfiguration];
+    WKWebView *webView = [[WKWebView alloc] initWithFrame: [_window.contentView frame] configuration:theConfiguration];
     [_window setContentView:webView];
     withWebView(webView, _handler);
 }
