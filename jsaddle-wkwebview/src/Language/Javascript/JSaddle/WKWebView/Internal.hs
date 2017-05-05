@@ -29,6 +29,7 @@ newtype WKWebView = WKWebView (Ptr WKWebView)
 foreign export ccall jsaddleStart :: StablePtr (IO ()) -> IO ()
 foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString -> IO ()
 foreign export ccall withWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
+foreign export ccall didRegisterForRemoteNotificationsWithDeviceTokenCallback :: StablePtr (CString -> IO ()) -> CString -> IO ()
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> IO ()
 foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
@@ -85,6 +86,12 @@ withWebView webView ptrF = do
     f <- deRefStablePtr ptrF
     f webView
 
+-- | A base64 encoded device token
+didRegisterForRemoteNotificationsWithDeviceTokenCallback :: StablePtr (CString -> IO ()) -> CString -> IO ()
+didRegisterForRemoteNotificationsWithDeviceTokenCallback f token = do
+  f' <- deRefStablePtr f
+  f' token
+
 jsaddleJs :: ByteString
 jsaddleJs = ghcjsHelpers <> "\
     \runJSaddleBatch = (function() {\n\
@@ -112,3 +119,4 @@ mainBundleResourcePath = do
     if bs == nullPtr
         then return Nothing
         else Just <$> packCString bs
+

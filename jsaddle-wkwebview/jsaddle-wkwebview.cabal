@@ -14,6 +14,10 @@ description:
 category: Web, Javascript
 author: Hamish Mackenzie
 
+flag include-app-delegate
+    description: Include default AppDelegate C sources.
+    default: True
+
 source-repository head
     type: git
     location: https://github.com/ghcjs/jsaddle
@@ -38,11 +42,13 @@ library
     else
         hs-source-dirs: src-ghc
         if os(ios)
-            frameworks: UIKit
-            c-sources:
-                cbits-uikit/AppDelegate.m
-                cbits-uikit/ViewController.m
+            frameworks: UIKit, UserNotifications
+            if flag(include-app-delegate)
+              c-sources:
+                  cbits-uikit/AppDelegate.m
+                  cbits-uikit/ViewController.m
         else
             frameworks: Cocoa
-            c-sources:
-                cbits-cocoa/AppDelegate.m
+            if flag(include-app-delegate)
+              c-sources:
+                  cbits-cocoa/AppDelegate.m

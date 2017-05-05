@@ -1,12 +1,15 @@
 #import "AppDelegate.h"
 #import "ViewController.h"
+#import <UserNotifications/UserNotifications.h>
+
+extern void didRegisterForRemoteNotificationsWithDeviceTokenCallback(HsStablePtr, const char * _Nonnull);
 
 @interface AppDelegate ()
-
 
 @end
 
 HsStablePtr globalHandler = 0;
+HsStablePtr globalDeviceTokenHook = 0;
 
 @implementation AppDelegate
 
@@ -16,6 +19,13 @@ HsStablePtr globalHandler = 0;
     self.window.rootViewController = [[ViewController alloc] initWithHandler:globalHandler];
     self.window.backgroundColor = [UIColor whiteColor];
     [self.window makeKeyAndVisible];
+    UNUserNotificationCenter* center = [UNUserNotificationCenter currentNotificationCenter];
+    [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert + UNAuthorizationOptionSound + UNAuthorizationOptionBadge)
+       completionHandler:^(BOOL granted, NSError * _Nullable error) {
+         // Handler used to alter application behavior based on types of notifications authorized
+         // Perhaps we don't need to do anything here.
+    }];
+    [application registerForRemoteNotifications];
     return YES;
 }
 
@@ -45,11 +55,17 @@ HsStablePtr globalHandler = 0;
     // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
 }
 
+- (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken {
+    NSString *deviceTokenString = [deviceToken base64EncodedStringWithOptions: 0];
+	didRegisterForRemoteNotificationsWithDeviceTokenCallback(globalDeviceTokenHook, [deviceTokenString UTF8String]);
+}
+
 @end
 
-void runInWKWebView(HsStablePtr handler, const char * _Nonnull progName) {
+void runInWKWebView(HsStablePtr handler, const char * _Nonnull progName, HsStablePtr deviceTokenHook) {
     @autoreleasepool {
         globalHandler = handler;
+        globalDeviceTokenHook = deviceTokenHook;
         const char * _Nonnull argv [] =  {"", 0};
         UIApplicationMain(0, argv, nil, NSStringFromClass([AppDelegate class]));
     }
