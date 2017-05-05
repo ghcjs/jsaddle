@@ -103,7 +103,7 @@ import Data.Coerce (coerce)
 #ifdef ghcjs_HOST_OS
 import GHCJS.Types (nullRef)
 import GHCJS.Foreign.Callback
-       (releaseCallback, syncCallback2, OnBlocked(..), Callback)
+       (releaseCallback, syncCallback2, asyncCallback2, OnBlocked(..), Callback)
 import GHCJS.Marshal (ToJSVal(..))
 import JavaScript.Array (MutableJSArray)
 import qualified JavaScript.Array as Array (toListIO, fromListIO)
@@ -436,6 +436,11 @@ newtype Function = Function {functionObject :: Object}
 #endif
 
 
+#ifdef ghcjs_HOST_OS
+foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
+    makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
+#endif
+
 -- ^ Make a JavaScript function object that wraps a Haskell function.
 -- Calls made to the function will be synchronous where possible
 -- (on GHCJS it uses on `syncCallback2` with `ContinueAsync`).
@@ -448,8 +453,6 @@ function f = do
         rargs <- Array.toListIO (coerce args)
         f this this rargs -- TODO pass function object through
     Function callback <$> makeFunctionWithCallback callback
-foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
-    makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
 #else
 function f = do
     object <- newSyncCallback f
@@ -467,8 +470,6 @@ asyncFunction f = do
         rargs <- Array.toListIO (coerce args)
         f this this rargs -- TODO pass function object through
     Function callback <$> makeFunctionWithCallback callback
-foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
-    makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
 #else
 asyncFunction f = do
     object <- newAsyncCallback f
