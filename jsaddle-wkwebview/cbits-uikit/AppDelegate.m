@@ -57,7 +57,11 @@ HsStablePtr globalDeviceTokenHook = 0;
 
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken {
     NSString *deviceTokenString = [deviceToken base64EncodedStringWithOptions: 0];
-	didRegisterForRemoteNotificationsWithDeviceTokenCallback(globalDeviceTokenHook, [deviceTokenString UTF8String]);
+    didRegisterForRemoteNotificationsWithDeviceTokenCallback(globalDeviceTokenHook, [deviceTokenString UTF8String]);
+}
+
+- (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
+    // Called when remote notification registration failed
 }
 
 @end
