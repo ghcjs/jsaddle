@@ -4,7 +4,6 @@ module Language.Javascript.JSaddle.WKWebView.Internal
     , jsaddleMainFile
     , WKWebView(..)
     , mainBundleResourcePath
-    , AppDelegateConfig (..)
     , boolFromCChar
     , boolToCChar
     ) where
@@ -13,7 +12,6 @@ import Control.Monad (void, join)
 import Control.Concurrent (forkIO, forkOS)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
-import Data.Default
 import Data.Monoid ((<>))
 import Data.ByteString (useAsCString, packCString)
 import qualified Data.ByteString as BS (ByteString)
@@ -95,19 +93,6 @@ handlerCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
 handlerCString c fptr = do
   f <- deRefStablePtr fptr
   f c
-
-data AppDelegateConfig = AppDelegateConfig
-  { _appDelegateConfig_requestAuthorizationWithOptions :: Bool
-  , _appDelegateConfig_registerForRemoteNotifications :: Bool
-  , _appDelegateConfig_didRegisterForRemoteNotificationsWithDeviceToken :: CString -> IO ()
-  }
-
-instance Default AppDelegateConfig where
-  def = AppDelegateConfig
-    { _appDelegateConfig_requestAuthorizationWithOptions = False
-    , _appDelegateConfig_registerForRemoteNotifications = False
-    , _appDelegateConfig_didRegisterForRemoteNotificationsWithDeviceToken = \_ -> return ()
-    }
 
 boolToCChar :: Bool -> CChar
 boolToCChar a = if a then 1 else 0

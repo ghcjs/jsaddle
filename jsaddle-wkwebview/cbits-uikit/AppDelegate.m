@@ -10,6 +10,10 @@ extern void handlerCString(const char * _Nonnull, HsStablePtr);
 
 HsStablePtr globalHandler = 0;
 BOOL global_requestAuthorizationWithOptions = NO;
+BOOL global_requestAuthorizationOptionBadge = NO;
+BOOL global_requestAuthorizationOptionSound = NO;
+BOOL global_requestAuthorizationOptionAlert = NO;
+BOOL global_requestAuthorizationOptionCarPlay = NO;
 BOOL global_registerForRemoteNotifications = NO;
 HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
 
@@ -23,10 +27,22 @@ HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
     [self.window makeKeyAndVisible];
     UNUserNotificationCenter* center = [UNUserNotificationCenter currentNotificationCenter];
     if (global_requestAuthorizationWithOptions) {
-      [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert + UNAuthorizationOptionSound + UNAuthorizationOptionBadge)
+      UNAuthorizationOptions options = (UNAuthorizationOptions)0;
+      if (global_requestAuthorizationOptionBadge) {
+        options = options + UNAuthorizationOptionBadge;
+      }
+      if (global_requestAuthorizationOptionSound) {
+        options = options + UNAuthorizationOptionSound;
+      }
+      if (global_requestAuthorizationOptionAlert) {
+        options = options + UNAuthorizationOptionAlert;
+      }
+      if (global_requestAuthorizationOptionCarPlay) {
+        options = options + UNAuthorizationOptionCarPlay;
+      }
+      [center requestAuthorizationWithOptions:(options)
          completionHandler:^(BOOL granted, NSError * _Nullable error) {
            // Handler used to alter application behavior based on types of notifications authorized
-           // Perhaps we don't need to do anything here.
       }];
     }
     if (global_registerForRemoteNotifications) {
@@ -75,11 +91,19 @@ HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
 void runInWKWebView(HsStablePtr handler,
                     const char * _Nonnull progName,
                     const BOOL hs_requestAuthorizationWithOptions,
+                    const BOOL hs_requestAuthorizationOptionBadge,
+                    const BOOL hs_requestAuthorizationOptionSound,
+                    const BOOL hs_requestAuthorizationOptionAlert,
+                    const BOOL hs_requestAuthorizationOptionCarPlay,
                     const BOOL hs_registerForRemoteNotifications,
                     HsStablePtr hs_didRegisterForRemoteNotificationsWithDeviceToken) {
     @autoreleasepool {
         globalHandler = handler;
         global_requestAuthorizationWithOptions = hs_requestAuthorizationWithOptions;
+        global_requestAuthorizationOptionBadge = hs_requestAuthorizationOptionBadge;
+        global_requestAuthorizationOptionSound = hs_requestAuthorizationOptionSound;
+        global_requestAuthorizationOptionAlert = hs_requestAuthorizationOptionAlert;
+        global_requestAuthorizationOptionCarPlay = hs_requestAuthorizationOptionCarPlay;
         global_registerForRemoteNotifications = hs_registerForRemoteNotifications;
         global_didRegisterForRemoteNotificationsWithDeviceToken = hs_didRegisterForRemoteNotificationsWithDeviceToken;
         const char * _Nonnull argv [] =  {"", 0};
