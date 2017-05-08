@@ -30,7 +30,8 @@ library
         aeson >=0.8.0.2 && <1.2,
         base <5,
         bytestring >=0.10.6.0 && <0.11,
-        jsaddle >= 0.8.0.0 && <0.9
+        jsaddle >= 0.8.0.0 && <0.9,
+        data-default
     default-language: Haskell2010
     hs-source-dirs: src
     frameworks: Foundation, WebKit

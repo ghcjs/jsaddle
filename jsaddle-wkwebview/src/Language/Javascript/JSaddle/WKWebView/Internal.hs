@@ -4,12 +4,14 @@ module Language.Javascript.JSaddle.WKWebView.Internal
     , jsaddleMainFile
     , WKWebView(..)
     , mainBundleResourcePath
+    , AppDelegateConfig (..)
     ) where
 
 import Control.Monad (void, join)
 import Control.Concurrent (forkIO, forkOS)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
 
+import Data.Default
 import Data.Monoid ((<>))
 import Data.ByteString (useAsCString, packCString)
 import qualified Data.ByteString as BS (ByteString)
@@ -29,7 +31,7 @@ newtype WKWebView = WKWebView (Ptr WKWebView)
 foreign export ccall jsaddleStart :: StablePtr (IO ()) -> IO ()
 foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString -> IO ()
 foreign export ccall withWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
-foreign export ccall didRegisterForRemoteNotificationsWithDeviceTokenCallback :: CString -> StablePtr (CString -> IO ()) -> IO ()
+foreign export ccall handlerCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> IO ()
 foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
@@ -86,11 +88,19 @@ withWebView webView ptrF = do
     f <- deRefStablePtr ptrF
     f webView
 
--- | A base64 encoded device token
-didRegisterForRemoteNotificationsWithDeviceTokenCallback :: CString -> StablePtr (CString -> IO ()) -> IO ()
-didRegisterForRemoteNotificationsWithDeviceTokenCallback token f = do
-  f' <- deRefStablePtr f
-  f' token
+handlerCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
+handlerCString c fptr = do
+  f <- deRefStablePtr fptr
+  f c
+
+data AppDelegateConfig = AppDelegateConfig
+  { _appDelegateConfig_didRegisterForRemoteNotificationsWithDeviceToken :: CString -> IO ()
+  }
+
+instance Default AppDelegateConfig where
+  def = AppDelegateConfig
+    { _appDelegateConfig_didRegisterForRemoteNotificationsWithDeviceToken = \_ -> return ()
+    }
 
 jsaddleJs :: ByteString
 jsaddleJs = ghcjsHelpers <> "\

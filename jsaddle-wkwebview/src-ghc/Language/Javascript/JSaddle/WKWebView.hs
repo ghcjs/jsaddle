@@ -8,7 +8,7 @@ module Language.Javascript.JSaddle.WKWebView
     ) where
 
 import Data.ByteString (ByteString)
-import Language.Javascript.JSaddle.WKWebView.Internal (jsaddleMain, jsaddleMainFile, WKWebView(..), mainBundleResourcePath)
+import Language.Javascript.JSaddle.WKWebView.Internal (jsaddleMain, jsaddleMainFile, WKWebView(..), mainBundleResourcePath, AppDelegateConfig (..))
 import System.Environment (getProgName)
 import Foreign.C.String (CString, withCString, peekCString)
 import Foreign.StablePtr (StablePtr, newStablePtr)
@@ -28,12 +28,12 @@ run didRegisterForRemoteNotificationsWithDeviceToken f = do
 --   from the mainBundle (relative to the resourcePath).
 runFile :: ByteString -- ^ The file to navigate to.
         -> ByteString -- ^ The path to allow read access to.
-        -> (CString -> IO ())
+        -> AppDelegateConfig
         -> JSM ()
         -> IO ()
-runFile url allowing didRegisterForRemoteNotificationsWithDeviceToken f = do
+runFile url allowing cfg f = do
     handler <- newStablePtr (jsaddleMainFile url allowing f)
     progName <- getProgName
-    deviceTokenHandler <- newStablePtr didRegisterForRemoteNotificationsWithDeviceToken
+    deviceTokenHandler <- newStablePtr $ _appDelegateConfig_didRegisterForRemoteNotificationsWithDeviceToken cfg
     withCString progName $ \pn -> runInWKWebView handler pn deviceTokenHandler
 
