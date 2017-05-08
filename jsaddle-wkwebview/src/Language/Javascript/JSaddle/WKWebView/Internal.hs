@@ -5,6 +5,8 @@ module Language.Javascript.JSaddle.WKWebView.Internal
     , WKWebView(..)
     , mainBundleResourcePath
     , AppDelegateConfig (..)
+    , boolFromCChar
+    , boolToCChar
     ) where
 
 import Control.Monad (void, join)
@@ -19,6 +21,7 @@ import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
 import Data.Aeson (encode, decode)
 
 import Foreign.C.String (CString)
+import Foreign.C.Types (CChar (..))
 import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
@@ -94,13 +97,21 @@ handlerCString c fptr = do
   f c
 
 data AppDelegateConfig = AppDelegateConfig
-  { _appDelegateConfig_didRegisterForRemoteNotificationsWithDeviceToken :: CString -> IO ()
+  { _appDelegateConfig_registerForRemoteNotifications :: Bool
+  , _appDelegateConfig_didRegisterForRemoteNotificationsWithDeviceToken :: CString -> IO ()
   }
 
 instance Default AppDelegateConfig where
   def = AppDelegateConfig
-    { _appDelegateConfig_didRegisterForRemoteNotificationsWithDeviceToken = \_ -> return ()
+    { _appDelegateConfig_registerForRemoteNotifications = False
+    , _appDelegateConfig_didRegisterForRemoteNotificationsWithDeviceToken = \_ -> return ()
     }
+
+boolToCChar :: Bool -> CChar
+boolToCChar a = if a then 1 else 0
+
+boolFromCChar :: CChar -> Bool
+boolFromCChar a = a /= 0
 
 jsaddleJs :: ByteString
 jsaddleJs = ghcjsHelpers <> "\

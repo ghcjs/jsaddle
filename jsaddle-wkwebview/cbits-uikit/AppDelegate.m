@@ -10,6 +10,7 @@ extern void handlerCString(const char * _Nonnull, HsStablePtr);
 
 HsStablePtr globalHandler = 0;
 HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
+BOOL global_registerForRemoteNotifications = NO;
 
 @implementation AppDelegate
 
@@ -25,7 +26,9 @@ HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
          // Handler used to alter application behavior based on types of notifications authorized
          // Perhaps we don't need to do anything here.
     }];
-    [application registerForRemoteNotifications];
+    if (global_registerForRemoteNotifications) {
+      [application registerForRemoteNotifications];
+    }
     return YES;
 }
 
@@ -66,10 +69,14 @@ HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
 
 @end
 
-void runInWKWebView(HsStablePtr handler, const char * _Nonnull progName, HsStablePtr hs_didRegisterForRemoteNotificationsWithDeviceToken) {
+void runInWKWebView(HsStablePtr handler,
+                    const char * _Nonnull progName,
+                    const BOOL hs_registerForRemoteNotifications,
+                    HsStablePtr hs_didRegisterForRemoteNotificationsWithDeviceToken) {
     @autoreleasepool {
         globalHandler = handler;
         global_didRegisterForRemoteNotificationsWithDeviceToken = hs_didRegisterForRemoteNotificationsWithDeviceToken;
+        global_registerForRemoteNotifications = hs_registerForRemoteNotifications;
         const char * _Nonnull argv [] =  {"", 0};
         UIApplicationMain(0, argv, nil, NSStringFromClass([AppDelegate class]));
     }
