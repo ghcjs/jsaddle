@@ -24,6 +24,14 @@ import Language.Javascript.JSaddle (JSM)
 foreign import ccall runInWKWebView
     :: StablePtr (WKWebView -> IO ())
     -> CString
+    -> StablePtr (IO ()) -- willFinishLaunchingWithOptions
+    -> StablePtr (IO ()) -- didFinishLaunchingWithOptions
+    -> StablePtr (IO ()) -- applicationDidBecomeActive
+    -> StablePtr (IO ()) -- applicationWillResignActive
+    -> StablePtr (IO ()) -- applicationDidEnterBackground
+    -> StablePtr (IO ()) -- applicationWillEnterForeground
+    -> StablePtr (IO ()) -- applicationWillTerminate
+    -> StablePtr (IO ()) -- applicationSignificantTimeChange
     -> CChar  -- whether to run requestAuthorizationWithOptions
     -> CChar -- Ask for Badge authorization
     -> CChar -- Ask for Sound authorization
@@ -34,14 +42,29 @@ foreign import ccall runInWKWebView
     -> StablePtr (CString -> IO ()) -- didFailToRegisterForRemoteNotificationsWithError
     -> IO ()
 
-
 data AppDelegateConfig = AppDelegateConfig
-    { _appDelegateConfig_appDelegateNotificationConfig :: AppDelegateNotificationConfig
+    { _appDelegateConfig_willFinishLaunchingWithOptions :: IO ()
+    , _appDelegateConfig_didFinishLaunchingWithOptions :: IO ()
+    , _appDelegateConfig_applicationDidBecomeActive :: IO ()
+    , _appDelegateConfig_applicationWillResignActive :: IO ()
+    , _appDelegateConfig_applicationDidEnterBackground :: IO ()
+    , _appDelegateConfig_applicationWillEnterForeground :: IO ()
+    , _appDelegateConfig_applicationWillTerminate :: IO ()
+    , _appDelegateConfig_applicationSignificantTimeChange :: IO ()
+    , _appDelegateConfig_appDelegateNotificationConfig :: AppDelegateNotificationConfig
     }
 
 instance Default AppDelegateConfig where
     def = AppDelegateConfig
-        { _appDelegateConfig_appDelegateNotificationConfig = def
+        { _appDelegateConfig_willFinishLaunchingWithOptions = return ()
+        , _appDelegateConfig_didFinishLaunchingWithOptions = return ()
+        , _appDelegateConfig_applicationDidBecomeActive = return ()
+        , _appDelegateConfig_applicationWillResignActive = return ()
+        , _appDelegateConfig_applicationDidEnterBackground = return ()
+        , _appDelegateConfig_applicationWillEnterForeground = return ()
+        , _appDelegateConfig_applicationWillTerminate = return ()
+        , _appDelegateConfig_applicationSignificantTimeChange = return ()
+        , _appDelegateConfig_appDelegateNotificationConfig = def
         }
 
 data AuthorizationOption = AuthorizationOption_Badge
@@ -59,11 +82,11 @@ data AppDelegateNotificationConfig = AppDelegateNotificationConfig
 
 instance Default AppDelegateNotificationConfig where
   def = AppDelegateNotificationConfig
-    { _appDelegateNotificationConfig_requestAuthorizationWithOptions = Nothing
-    , _appDelegateNotificationConfig_registerForRemoteNotifications = False
-    , _appDelegateNotificationConfig_didRegisterForRemoteNotificationsWithDeviceToken = \_ -> return ()
-    , _appDelegateNotificationConfig_didFailToRegisterForRemoteNotificationsWithError = \_ -> return ()
-    }
+      { _appDelegateNotificationConfig_requestAuthorizationWithOptions = Nothing
+      , _appDelegateNotificationConfig_registerForRemoteNotifications = False
+      , _appDelegateNotificationConfig_didRegisterForRemoteNotificationsWithDeviceToken = \_ -> return ()
+      , _appDelegateNotificationConfig_didFailToRegisterForRemoteNotificationsWithError = \_ -> return ()
+      }
 
 
 -- | Run JSaddle in a WKWebView
@@ -88,6 +111,18 @@ run' mUrl cfg f = do
       Just (url, allowing) -> newStablePtr (jsaddleMainFile url allowing f)
       Nothing -> newStablePtr (jsaddleMain f)
     progName <- getProgName
+
+    -- AppDelegate callbacks
+    willFinishLaunchingWithOptions <- newStablePtr $ _appDelegateConfig_willFinishLaunchingWithOptions cfg
+    didFinishLaunchingWithOptions <- newStablePtr $ _appDelegateConfig_didFinishLaunchingWithOptions cfg
+    applicationDidBecomeActive <- newStablePtr $ _appDelegateConfig_applicationDidBecomeActive cfg
+    applicationWillResignActive <- newStablePtr $ _appDelegateConfig_applicationWillResignActive cfg
+    applicationDidEnterBackground <- newStablePtr $ _appDelegateConfig_applicationDidEnterBackground cfg
+    applicationWillEnterForeground <- newStablePtr $ _appDelegateConfig_applicationWillEnterForeground cfg
+    applicationWillTerminate <- newStablePtr $ _appDelegateConfig_applicationWillTerminate cfg
+    applicationSignificantTimeChange <- newStablePtr $ _appDelegateConfig_applicationSignificantTimeChange cfg
+
+    -- AppDelegate notification configuration
     let ncfg = _appDelegateConfig_appDelegateNotificationConfig cfg
         (requestAuthorizationWithOptions, authorizationOptions) =
           case _appDelegateNotificationConfig_requestAuthorizationWithOptions ncfg of
@@ -99,6 +134,14 @@ run' mUrl cfg f = do
     withCString progName $ \pn -> runInWKWebView
       handler
       pn
+      willFinishLaunchingWithOptions
+      didFinishLaunchingWithOptions
+      applicationDidBecomeActive
+      applicationWillResignActive
+      applicationDidEnterBackground
+      applicationWillEnterForeground
+      applicationWillTerminate
+      applicationSignificantTimeChange
       (boolToCChar requestAuthorizationWithOptions)
       (boolToCChar $ Set.member AuthorizationOption_Badge authorizationOptions)
       (boolToCChar $ Set.member AuthorizationOption_Sound authorizationOptions)

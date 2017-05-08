@@ -33,6 +33,7 @@ foreign export ccall jsaddleStart :: StablePtr (IO ()) -> IO ()
 foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString -> IO ()
 foreign export ccall withWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
 foreign export ccall handlerCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
+foreign export ccall handlerIO :: StablePtr (IO ()) -> IO ()
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> IO ()
 foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
@@ -91,8 +92,13 @@ withWebView webView ptrF = do
 
 handlerCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
 handlerCString c fptr = do
-  f <- deRefStablePtr fptr
-  f c
+    f <- deRefStablePtr fptr
+    f c
+
+handlerIO :: StablePtr (IO ()) -> IO ()
+handlerIO ptr = do
+    f <- deRefStablePtr ptr
+    f
 
 boolToCChar :: Bool -> CChar
 boolToCChar a = if a then 1 else 0
