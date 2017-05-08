@@ -1,9 +1,10 @@
 #import "AppDelegate.h"
 #import "ViewController.h"
 #import <UserNotifications/UserNotifications.h>
+#import <stdint.h>
 
-extern void handlerIO(HsStablePtr);
-extern void handlerCString(const char * _Nonnull, HsStablePtr);
+extern void callIO(HsStablePtr);
+extern void callWithCString(const char * _Nonnull, HsStablePtr);
 
 @interface AppDelegate ()
 
@@ -18,12 +19,12 @@ HsStablePtr global_applicationDidEnterBackground = 0;
 HsStablePtr global_applicationWillEnterForeground = 0;
 HsStablePtr global_applicationWillTerminate = 0;
 HsStablePtr global_applicationSignificantTimeChange = 0;
-BOOL global_requestAuthorizationWithOptions = NO;
-BOOL global_requestAuthorizationOptionBadge = NO;
-BOOL global_requestAuthorizationOptionSound = NO;
-BOOL global_requestAuthorizationOptionAlert = NO;
-BOOL global_requestAuthorizationOptionCarPlay = NO;
-BOOL global_registerForRemoteNotifications = NO;
+uint64_t global_requestAuthorizationWithOptions = 0;
+uint64_t global_requestAuthorizationOptionBadge = 0;
+uint64_t global_requestAuthorizationOptionSound = 0;
+uint64_t global_requestAuthorizationOptionAlert = 0;
+uint64_t global_requestAuthorizationOptionCarPlay = 0;
+uint64_t global_registerForRemoteNotifications = 0;
 HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
 HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
 
@@ -31,7 +32,7 @@ HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
 
 - (BOOL)application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // Tells the delegate that the launch process has begun but that state restoration has not yet occurred.
-    handlerIO(global_willFinishLaunchingWithOptions);
+    callIO(global_willFinishLaunchingWithOptions);
     return YES;
 }
 
@@ -43,78 +44,79 @@ HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
     self.window.backgroundColor = [UIColor whiteColor];
     [self.window makeKeyAndVisible];
     UNUserNotificationCenter* center = [UNUserNotificationCenter currentNotificationCenter];
+    center.delegate = self;
     if (global_requestAuthorizationWithOptions) {
       UNAuthorizationOptions options = (UNAuthorizationOptions)0;
       if (global_requestAuthorizationOptionBadge) {
-        options = options + UNAuthorizationOptionBadge;
+        options = options | UNAuthorizationOptionBadge;
       }
       if (global_requestAuthorizationOptionSound) {
-        options = options + UNAuthorizationOptionSound;
+        options = options | UNAuthorizationOptionSound;
       }
       if (global_requestAuthorizationOptionAlert) {
-        options = options + UNAuthorizationOptionAlert;
+        options = options | UNAuthorizationOptionAlert;
       }
       if (global_requestAuthorizationOptionCarPlay) {
-        options = options + UNAuthorizationOptionCarPlay;
+        options = options | UNAuthorizationOptionCarPlay;
       }
       [center requestAuthorizationWithOptions:(options)
          completionHandler:^(BOOL granted, NSError * _Nullable error) {
            // Handler used to alter application behavior based on types of notifications authorized
       }];
+      if (global_registerForRemoteNotifications) {
+        [application registerForRemoteNotifications];
+      }
     }
-    if (global_registerForRemoteNotifications) {
-      [application registerForRemoteNotifications];
-    }
-    handlerIO(global_didFinishLaunchingWithOptions);
+    callIO(global_didFinishLaunchingWithOptions);
     return YES;
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application {
     // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
     // Use this method to pause ongoing tasks, disable timers, and invalidate graphics rendering callbacks. Games should use this method to pause the game.
-    handlerIO(global_applicationWillResignActive);
+    callIO(global_applicationWillResignActive);
 }
 
 
 - (void)applicationDidEnterBackground:(UIApplication *)application {
     // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
     // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
-    handlerIO(global_applicationDidEnterBackground);
+    callIO(global_applicationDidEnterBackground);
 }
 
 
 - (void)applicationWillEnterForeground:(UIApplication *)application {
     // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
-    handlerIO(global_applicationWillEnterForeground);
+    callIO(global_applicationWillEnterForeground);
 }
 
 
 - (void)applicationDidBecomeActive:(UIApplication *)application {
     // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
-    handlerIO(global_applicationDidBecomeActive);
+    callIO(global_applicationDidBecomeActive);
 }
 
 
 - (void)applicationWillTerminate:(UIApplication *)application {
     // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
-    handlerIO(global_applicationWillTerminate);
+    callIO(global_applicationWillTerminate);
 }
 
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken {
     // Tells the delegate that the app successfully registered with Apple Push Notification service (APNs).
     NSString *deviceTokenString = [deviceToken base64EncodedStringWithOptions: 0];
-    handlerCString([deviceTokenString UTF8String], global_didRegisterForRemoteNotificationsWithDeviceToken);
+    callWithCString([deviceTokenString UTF8String], global_didRegisterForRemoteNotificationsWithDeviceToken);
 }
 
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
     // Sent to the delegate when Apple Push Notification service cannot successfully complete the registration process.
     NSString *errorString = [error localizedDescription];
-    handlerCString([errorString UTF8String], global_didFailToRegisterForRemoteNotificationsWithError);
+    callWithCString([errorString UTF8String], global_didFailToRegisterForRemoteNotificationsWithError);
 }
 
 - (void)applicationSignificantTimeChange:(UIApplication *)application {
     // Tells the delegate when there is a significant change in the time.
-    handlerIO(global_applicationSignificantTimeChange);
+    callIO(global_applicationSignificantTimeChange);
 }
 
 @end
@@ -129,12 +131,12 @@ void runInWKWebView(HsStablePtr handler,
                     HsStablePtr hs_applicationWillEnterForeground,
                     HsStablePtr hs_applicationWillTerminate,
                     HsStablePtr hs_applicationSignificantTimeChange,
-                    const BOOL hs_requestAuthorizationWithOptions,
-                    const BOOL hs_requestAuthorizationOptionBadge,
-                    const BOOL hs_requestAuthorizationOptionSound,
-                    const BOOL hs_requestAuthorizationOptionAlert,
-                    const BOOL hs_requestAuthorizationOptionCarPlay,
-                    const BOOL hs_registerForRemoteNotifications,
+                    const uint64_t hs_requestAuthorizationWithOptions,
+                    const uint64_t hs_requestAuthorizationOptionBadge,
+                    const uint64_t hs_requestAuthorizationOptionSound,
+                    const uint64_t hs_requestAuthorizationOptionAlert,
+                    const uint64_t hs_requestAuthorizationOptionCarPlay,
+                    const uint64_t hs_registerForRemoteNotifications,
                     HsStablePtr hs_didRegisterForRemoteNotificationsWithDeviceToken,
                     HsStablePtr hs_didFailToRegisterForRemoteNotificationsWithError) {
     @autoreleasepool {

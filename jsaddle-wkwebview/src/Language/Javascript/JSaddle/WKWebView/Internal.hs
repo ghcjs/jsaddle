@@ -4,8 +4,6 @@ module Language.Javascript.JSaddle.WKWebView.Internal
     , jsaddleMainFile
     , WKWebView(..)
     , mainBundleResourcePath
-    , boolFromCChar
-    , boolToCChar
     ) where
 
 import Control.Monad (void, join)
@@ -19,7 +17,6 @@ import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
 import Data.Aeson (encode, decode)
 
 import Foreign.C.String (CString)
-import Foreign.C.Types (CChar (..))
 import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
@@ -31,9 +28,9 @@ newtype WKWebView = WKWebView (Ptr WKWebView)
 
 foreign export ccall jsaddleStart :: StablePtr (IO ()) -> IO ()
 foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString -> IO ()
-foreign export ccall withWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
-foreign export ccall handlerCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
-foreign export ccall handlerIO :: StablePtr (IO ()) -> IO ()
+foreign export ccall callWithWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
+foreign export ccall callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
+foreign export ccall callIO :: StablePtr (IO ()) -> IO ()
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> IO ()
 foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
@@ -85,26 +82,20 @@ jsaddleResult ptrHandler s = do
         Nothing -> error $ "jsaddle WebSocket decode failed : " <> show result
         Just r  -> processResult r
 
-withWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
-withWebView webView ptrF = do
+callWithWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
+callWithWebView webView ptrF = do
     f <- deRefStablePtr ptrF
     f webView
 
-handlerCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
-handlerCString c fptr = do
+callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
+callWithCString c fptr = do
     f <- deRefStablePtr fptr
     f c
 
-handlerIO :: StablePtr (IO ()) -> IO ()
-handlerIO ptr = do
+callIO :: StablePtr (IO ()) -> IO ()
+callIO ptr = do
     f <- deRefStablePtr ptr
     f
-
-boolToCChar :: Bool -> CChar
-boolToCChar a = if a then 1 else 0
-
-boolFromCChar :: CChar -> Bool
-boolFromCChar a = a /= 0
 
 jsaddleJs :: ByteString
 jsaddleJs = ghcjsHelpers <> "\

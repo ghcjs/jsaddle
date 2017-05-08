@@ -14,10 +14,11 @@ import Data.ByteString (ByteString)
 import Data.Default (Default, def)
 import Data.Set (Set)
 import qualified Data.Set as Set
-import Language.Javascript.JSaddle.WKWebView.Internal (jsaddleMain, jsaddleMainFile, WKWebView(..), mainBundleResourcePath, boolToCChar)
+import Data.Word
+import Foreign.Marshal.Utils (fromBool)
+import Language.Javascript.JSaddle.WKWebView.Internal (jsaddleMain, jsaddleMainFile, WKWebView(..), mainBundleResourcePath)
 import System.Environment (getProgName)
-import Foreign.C.String (CString, withCString, peekCString)
-import Foreign.C.Types
+import Foreign.C.String (CString, withCString)
 import Foreign.StablePtr (StablePtr, newStablePtr)
 import Language.Javascript.JSaddle (JSM)
 
@@ -32,12 +33,12 @@ foreign import ccall runInWKWebView
     -> StablePtr (IO ()) -- applicationWillEnterForeground
     -> StablePtr (IO ()) -- applicationWillTerminate
     -> StablePtr (IO ()) -- applicationSignificantTimeChange
-    -> CChar  -- whether to run requestAuthorizationWithOptions
-    -> CChar -- Ask for Badge authorization
-    -> CChar -- Ask for Sound authorization
-    -> CChar -- Ask for Alert authorization
-    -> CChar -- Ask for CarPlay authorization
-    -> CChar -- registerForRemoteNotifications
+    -> Word64  -- whether to run requestAuthorizationWithOptions
+    -> Word64 -- Ask for Badge authorization
+    -> Word64 -- Ask for Sound authorization
+    -> Word64 -- Ask for Alert authorization
+    -> Word64 -- Ask for CarPlay authorization
+    -> Word64 -- registerForRemoteNotifications
     -> StablePtr (CString -> IO ()) -- didRegisterForRemoteNotificationsWithDeviceToken
     -> StablePtr (CString -> IO ()) -- didFailToRegisterForRemoteNotificationsWithError
     -> IO ()
@@ -142,11 +143,11 @@ run' mUrl cfg f = do
       applicationWillEnterForeground
       applicationWillTerminate
       applicationSignificantTimeChange
-      (boolToCChar requestAuthorizationWithOptions)
-      (boolToCChar $ Set.member AuthorizationOption_Badge authorizationOptions)
-      (boolToCChar $ Set.member AuthorizationOption_Sound authorizationOptions)
-      (boolToCChar $ Set.member AuthorizationOption_Alert authorizationOptions)
-      (boolToCChar $ Set.member AuthorizationOption_CarPlay authorizationOptions)
-      (boolToCChar registerForRemoteNotifications)
+      (fromBool requestAuthorizationWithOptions)
+      (fromBool $ Set.member AuthorizationOption_Badge authorizationOptions)
+      (fromBool $ Set.member AuthorizationOption_Sound authorizationOptions)
+      (fromBool $ Set.member AuthorizationOption_Alert authorizationOptions)
+      (fromBool $ Set.member AuthorizationOption_CarPlay authorizationOptions)
+      (fromBool registerForRemoteNotifications)
       didRegisterForRemoteNotificationsWithDeviceToken
       didFailToRegisterForRemoteNotificationsWithError
