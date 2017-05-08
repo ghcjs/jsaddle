@@ -2,7 +2,7 @@
 #import "ViewController.h"
 #import <UserNotifications/UserNotifications.h>
 
-extern void didRegisterForRemoteNotificationsWithDeviceTokenCallback(HsStablePtr, const char * _Nonnull);
+extern void didRegisterForRemoteNotificationsWithDeviceTokenCallback(const char * _Nonnull, HsStablePtr);
 
 @interface AppDelegate ()
 
@@ -57,7 +57,7 @@ HsStablePtr globalDeviceTokenHook = 0;
 
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken {
     NSString *deviceTokenString = [deviceToken base64EncodedStringWithOptions: 0];
-    didRegisterForRemoteNotificationsWithDeviceTokenCallback(globalDeviceTokenHook, [deviceTokenString UTF8String]);
+    didRegisterForRemoteNotificationsWithDeviceTokenCallback([deviceTokenString UTF8String], globalDeviceTokenHook);
 }
 
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
