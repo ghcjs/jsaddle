@@ -97,13 +97,15 @@ handlerCString c fptr = do
   f c
 
 data AppDelegateConfig = AppDelegateConfig
-  { _appDelegateConfig_registerForRemoteNotifications :: Bool
+  { _appDelegateConfig_requestAuthorizationWithOptions :: Bool
+  , _appDelegateConfig_registerForRemoteNotifications :: Bool
   , _appDelegateConfig_didRegisterForRemoteNotificationsWithDeviceToken :: CString -> IO ()
   }
 
 instance Default AppDelegateConfig where
   def = AppDelegateConfig
-    { _appDelegateConfig_registerForRemoteNotifications = False
+    { _appDelegateConfig_requestAuthorizationWithOptions = False
+    , _appDelegateConfig_registerForRemoteNotifications = False
     , _appDelegateConfig_didRegisterForRemoteNotificationsWithDeviceToken = \_ -> return ()
     }
 

@@ -9,8 +9,9 @@ extern void handlerCString(const char * _Nonnull, HsStablePtr);
 @end
 
 HsStablePtr globalHandler = 0;
-HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
+BOOL global_requestAuthorizationWithOptions = NO;
 BOOL global_registerForRemoteNotifications = NO;
+HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
 
 @implementation AppDelegate
 
@@ -21,11 +22,13 @@ BOOL global_registerForRemoteNotifications = NO;
     self.window.backgroundColor = [UIColor whiteColor];
     [self.window makeKeyAndVisible];
     UNUserNotificationCenter* center = [UNUserNotificationCenter currentNotificationCenter];
-    [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert + UNAuthorizationOptionSound + UNAuthorizationOptionBadge)
-       completionHandler:^(BOOL granted, NSError * _Nullable error) {
-         // Handler used to alter application behavior based on types of notifications authorized
-         // Perhaps we don't need to do anything here.
-    }];
+    if (global_requestAuthorizationWithOptions) {
+      [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert + UNAuthorizationOptionSound + UNAuthorizationOptionBadge)
+         completionHandler:^(BOOL granted, NSError * _Nullable error) {
+           // Handler used to alter application behavior based on types of notifications authorized
+           // Perhaps we don't need to do anything here.
+      }];
+    }
     if (global_registerForRemoteNotifications) {
       [application registerForRemoteNotifications];
     }
@@ -71,12 +74,14 @@ BOOL global_registerForRemoteNotifications = NO;
 
 void runInWKWebView(HsStablePtr handler,
                     const char * _Nonnull progName,
+                    const BOOL hs_requestAuthorizationWithOptions,
                     const BOOL hs_registerForRemoteNotifications,
                     HsStablePtr hs_didRegisterForRemoteNotificationsWithDeviceToken) {
     @autoreleasepool {
         globalHandler = handler;
-        global_didRegisterForRemoteNotificationsWithDeviceToken = hs_didRegisterForRemoteNotificationsWithDeviceToken;
+        global_requestAuthorizationWithOptions = hs_requestAuthorizationWithOptions;
         global_registerForRemoteNotifications = hs_registerForRemoteNotifications;
+        global_didRegisterForRemoteNotificationsWithDeviceToken = hs_didRegisterForRemoteNotificationsWithDeviceToken;
         const char * _Nonnull argv [] =  {"", 0};
         UIApplicationMain(0, argv, nil, NSStringFromClass([AppDelegate class]));
     }
