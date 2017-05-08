@@ -9,7 +9,7 @@ extern void didRegisterForRemoteNotificationsWithDeviceTokenCallback(const char 
 @end
 
 HsStablePtr globalHandler = 0;
-HsStablePtr globalDeviceTokenHook = 0;
+HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
 
 @implementation AppDelegate
 
@@ -57,7 +57,7 @@ HsStablePtr globalDeviceTokenHook = 0;
 
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken {
     NSString *deviceTokenString = [deviceToken base64EncodedStringWithOptions: 0];
-    didRegisterForRemoteNotificationsWithDeviceTokenCallback([deviceTokenString UTF8String], globalDeviceTokenHook);
+    didRegisterForRemoteNotificationsWithDeviceTokenCallback([deviceTokenString UTF8String], global_didRegisterForRemoteNotificationsWithDeviceToken);
 }
 
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
@@ -66,10 +66,10 @@ HsStablePtr globalDeviceTokenHook = 0;
 
 @end
 
-void runInWKWebView(HsStablePtr handler, const char * _Nonnull progName, HsStablePtr deviceTokenHook) {
+void runInWKWebView(HsStablePtr handler, const char * _Nonnull progName, HsStablePtr hs_didRegisterForRemoteNotificationsWithDeviceToken) {
     @autoreleasepool {
         globalHandler = handler;
-        globalDeviceTokenHook = deviceTokenHook;
+        global_didRegisterForRemoteNotificationsWithDeviceToken = hs_didRegisterForRemoteNotificationsWithDeviceToken;
         const char * _Nonnull argv [] =  {"", 0};
         UIApplicationMain(0, argv, nil, NSStringFromClass([AppDelegate class]));
     }
