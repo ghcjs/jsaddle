@@ -21,16 +21,18 @@ import Foreign.C.Types
 import Foreign.StablePtr (StablePtr, newStablePtr)
 import Language.Javascript.JSaddle (JSM)
 
-foreign import ccall runInWKWebView :: StablePtr (WKWebView -> IO ())
-                                    -> CString
-                                    -> CChar  -- whether to run requestAuthorizationWithOptions
-                                    -> CChar -- Ask for Badge authorization
-                                    -> CChar -- Ask for Sound authorization
-                                    -> CChar -- Ask for Alert authorization
-                                    -> CChar -- Ask for CarPlay authorization
-                                    -> CChar -- registerForRemoteNotifications
-                                    -> StablePtr (CString -> IO ()) -- didRegisterForRemoteNotificationsWithDeviceToken
-                                    -> IO ()
+foreign import ccall runInWKWebView
+    :: StablePtr (WKWebView -> IO ())
+    -> CString
+    -> CChar  -- whether to run requestAuthorizationWithOptions
+    -> CChar -- Ask for Badge authorization
+    -> CChar -- Ask for Sound authorization
+    -> CChar -- Ask for Alert authorization
+    -> CChar -- Ask for CarPlay authorization
+    -> CChar -- registerForRemoteNotifications
+    -> StablePtr (CString -> IO ()) -- didRegisterForRemoteNotificationsWithDeviceToken
+    -> StablePtr (CString -> IO ()) -- didFailToRegisterForRemoteNotificationsWithError
+    -> IO ()
 
 
 data AppDelegateConfig = AppDelegateConfig
@@ -52,6 +54,7 @@ data AppDelegateNotificationConfig = AppDelegateNotificationConfig
     { _appDelegateNotificationConfig_requestAuthorizationWithOptions :: Maybe (Set AuthorizationOption)
     , _appDelegateNotificationConfig_registerForRemoteNotifications :: Bool
     , _appDelegateNotificationConfig_didRegisterForRemoteNotificationsWithDeviceToken :: CString -> IO ()
+    , _appDelegateNotificationConfig_didFailToRegisterForRemoteNotificationsWithError :: CString -> IO ()
     }
 
 instance Default AppDelegateNotificationConfig where
@@ -59,16 +62,13 @@ instance Default AppDelegateNotificationConfig where
     { _appDelegateNotificationConfig_requestAuthorizationWithOptions = Nothing
     , _appDelegateNotificationConfig_registerForRemoteNotifications = False
     , _appDelegateNotificationConfig_didRegisterForRemoteNotificationsWithDeviceToken = \_ -> return ()
+    , _appDelegateNotificationConfig_didFailToRegisterForRemoteNotificationsWithError = \_ -> return ()
     }
 
 
 -- | Run JSaddle in a WKWebView
-run :: (CString -> IO ()) -> JSM () -> IO ()
-run didRegisterForRemoteNotificationsWithDeviceToken f = do
-    handler <- newStablePtr (jsaddleMain f)
-    progName <- getProgName
-    deviceTokenHandler <- newStablePtr didRegisterForRemoteNotificationsWithDeviceToken
-    withCString progName $ \pn -> runInWKWebView handler pn 1 1 1 1 1 1 deviceTokenHandler
+run :: AppDelegateConfig -> JSM () -> IO ()
+run = run' Nothing
 
 -- | Run JSaddle in a WKWebView first loading the specified file
 --   from the mainBundle (relative to the resourcePath).
@@ -77,8 +77,16 @@ runFile :: ByteString -- ^ The file to navigate to.
         -> AppDelegateConfig
         -> JSM ()
         -> IO ()
-runFile url allowing cfg f = do
-    handler <- newStablePtr (jsaddleMainFile url allowing f)
+runFile url allowing = run' $ Just (url, allowing)
+
+run' :: Maybe (ByteString, ByteString)
+     -> AppDelegateConfig
+     -> JSM ()
+     -> IO ()
+run' mUrl cfg f = do
+    handler <- case mUrl of
+      Just (url, allowing) -> newStablePtr (jsaddleMainFile url allowing f)
+      Nothing -> newStablePtr (jsaddleMain f)
     progName <- getProgName
     let ncfg = _appDelegateConfig_appDelegateNotificationConfig cfg
         (requestAuthorizationWithOptions, authorizationOptions) =
@@ -87,6 +95,7 @@ runFile url allowing cfg f = do
             Just opts -> (True, opts)
         registerForRemoteNotifications = _appDelegateNotificationConfig_registerForRemoteNotifications ncfg
     didRegisterForRemoteNotificationsWithDeviceToken <- newStablePtr $ _appDelegateNotificationConfig_didRegisterForRemoteNotificationsWithDeviceToken ncfg
+    didFailToRegisterForRemoteNotificationsWithError <- newStablePtr $ _appDelegateNotificationConfig_didFailToRegisterForRemoteNotificationsWithError ncfg
     withCString progName $ \pn -> runInWKWebView
       handler
       pn
@@ -97,3 +106,4 @@ runFile url allowing cfg f = do
       (boolToCChar $ Set.member AuthorizationOption_CarPlay authorizationOptions)
       (boolToCChar registerForRemoteNotifications)
       didRegisterForRemoteNotificationsWithDeviceToken
+      didFailToRegisterForRemoteNotificationsWithError

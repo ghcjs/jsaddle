@@ -16,6 +16,7 @@ BOOL global_requestAuthorizationOptionAlert = NO;
 BOOL global_requestAuthorizationOptionCarPlay = NO;
 BOOL global_registerForRemoteNotifications = NO;
 HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
+HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
 
 @implementation AppDelegate
 
@@ -83,7 +84,8 @@ HsStablePtr global_didRegisterForRemoteNotificationsWithDeviceToken = 0;
 }
 
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
-    // Called when remote notification registration failed
+  NSString *errorString = [error localizedDescription];
+  handlerCString([errorString UTF8String], global_didFailToRegisterForRemoteNotificationsWithError);
 }
 
 @end
@@ -96,7 +98,8 @@ void runInWKWebView(HsStablePtr handler,
                     const BOOL hs_requestAuthorizationOptionAlert,
                     const BOOL hs_requestAuthorizationOptionCarPlay,
                     const BOOL hs_registerForRemoteNotifications,
-                    HsStablePtr hs_didRegisterForRemoteNotificationsWithDeviceToken) {
+                    HsStablePtr hs_didRegisterForRemoteNotificationsWithDeviceToken,
+                    HsStablePtr hs_didFailToRegisterForRemoteNotificationsWithError) {
     @autoreleasepool {
         globalHandler = handler;
         global_requestAuthorizationWithOptions = hs_requestAuthorizationWithOptions;
@@ -106,6 +109,7 @@ void runInWKWebView(HsStablePtr handler,
         global_requestAuthorizationOptionCarPlay = hs_requestAuthorizationOptionCarPlay;
         global_registerForRemoteNotifications = hs_registerForRemoteNotifications;
         global_didRegisterForRemoteNotificationsWithDeviceToken = hs_didRegisterForRemoteNotificationsWithDeviceToken;
+        global_didFailToRegisterForRemoteNotificationsWithError = hs_didFailToRegisterForRemoteNotificationsWithError;
         const char * _Nonnull argv [] =  {"", 0};
         UIApplicationMain(0, argv, nil, NSStringFromClass([AppDelegate class]));
     }
