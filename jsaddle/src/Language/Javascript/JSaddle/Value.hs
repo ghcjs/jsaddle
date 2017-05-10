@@ -110,6 +110,8 @@ import Language.Javascript.JSaddle.Marshal.String (ToJSString(..), FromJSString(
 import Language.Javascript.JSaddle.String (strToText, textToStr)
 import GHCJS.Foreign.Internal (jsTrue, jsFalse, jsNull, toJSBool, jsUndefined, isTruthy, isNull, isUndefined)
 
+import JavaScript.JSON.Types.ToJSVal ()
+
 -- $setup
 -- >>> import Language.Javascript.JSaddle.Test (testJSaddle)
 -- >>> import Language.Javascript.JSaddle.Monad (catch)

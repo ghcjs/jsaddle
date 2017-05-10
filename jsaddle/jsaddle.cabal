@@ -32,7 +32,8 @@ library
     if impl(ghcjs -any)
         build-depends:
             ghcjs-base -any,
-            ghcjs-prim -any
+            ghcjs-prim -any,
+            ghcjs-json -any
     else
         build-depends:
             attoparsec >=0.11 && <0.14,
