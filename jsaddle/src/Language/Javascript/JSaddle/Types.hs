@@ -14,6 +14,7 @@
 #endif
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE KindSignatures             #-}
+{-# LANGUAGE AllowAmbiguousTypes        #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Types
@@ -88,10 +89,19 @@ import GHCJS.Nullable (Nullable(..))
 import GHCJS.Prim.Internal (JSVal(..), JSValueRef)
 import Data.JSString.Internal.Type (JSString(..))
 import Control.DeepSeq (NFData(..))
+import Control.Monad.Trans.Cont (ContT(..))
+import Control.Monad.Trans.Error (Error(..), ErrorT(..))
+import Control.Monad.Trans.Except (ExceptT(..))
+import Control.Monad.Trans.Identity (IdentityT(..))
+import Control.Monad.Trans.List (ListT(..))
+import Control.Monad.Trans.Maybe (MaybeT(..))
 import Control.Monad.Trans.Reader (ReaderT(..))
-import Control.Monad.Trans.State.Lazy (StateT(..))
-import qualified Control.Monad.Trans.State.Strict as Strict
-       (StateT(..))
+import Control.Monad.Trans.RWS.Lazy as Lazy (RWST(..))
+import Control.Monad.Trans.RWS.Strict as Strict (RWST(..))
+import Control.Monad.Trans.State.Lazy as Lazy (StateT(..))
+import Control.Monad.Trans.State.Strict as Strict (StateT(..))
+import Control.Monad.Trans.Writer.Lazy as Lazy (WriterT(..))
+import Control.Monad.Trans.Writer.Strict as Strict (WriterT(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Fix (MonadFix)
 import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..))
@@ -192,23 +202,28 @@ type MonadJSM = MonadIO
 #else
 class (Applicative m, MonadIO m) => MonadJSM m where
     liftJSM' :: JSM a -> m a
-    {-# MINIMAL liftJSM' #-}
+
+    default liftJSM' :: (MonadJSM m', MonadTrans t) => JSM a' -> t m' a'
+    liftJSM' = lift . (liftJSM' :: MonadJSM m' => JSM a -> m' a)
+    {-# INLINE liftJSM' #-}
 
 instance MonadJSM JSM where
     liftJSM' = id
     {-# INLINE liftJSM' #-}
 
-instance MonadJSM m => MonadJSM (ReaderT e m) where
-    liftJSM' = lift . liftJSM'
-    {-# INLINE liftJSM' #-}
-
-instance MonadJSM m => MonadJSM (StateT r m) where
-    liftJSM' = lift . liftJSM'
-    {-# INLINE liftJSM' #-}
-
-instance MonadJSM m => MonadJSM (Strict.StateT r m) where
-    liftJSM' = lift . liftJSM'
-    {-# INLINE liftJSM' #-}
+instance (MonadJSM m) => MonadJSM (ContT r m)
+instance (Error e, MonadJSM m) => MonadJSM (ErrorT e m)
+instance (MonadJSM m) => MonadJSM (ExceptT e m)
+instance (MonadJSM m) => MonadJSM (IdentityT m)
+instance (MonadJSM m) => MonadJSM (ListT m)
+instance (MonadJSM m) => MonadJSM (MaybeT m)
+instance (MonadJSM m) => MonadJSM (ReaderT r m)
+instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.RWST r w s m)
+instance (Monoid w, MonadJSM m) => MonadJSM (Strict.RWST r w s m)
+instance (MonadJSM m) => MonadJSM (Lazy.StateT s m)
+instance (MonadJSM m) => MonadJSM (Strict.StateT s m)
+instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.WriterT w m)
+instance (Monoid w, MonadJSM m) => MonadJSM (Strict.WriterT w m)
 
 instance MonadRef JSM where
     type Ref JSM = Ref IO
