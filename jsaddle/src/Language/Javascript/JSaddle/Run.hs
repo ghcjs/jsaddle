@@ -49,7 +49,7 @@ import Control.Concurrent.STM.TChan
 import Control.Concurrent.STM.TVar
        (writeTVar, readTVar, readTVarIO, modifyTVar', newTVarIO)
 import Control.Concurrent.MVar
-       (tryTakeMVar, MVar, putMVar, takeMVar, newEmptyMVar)
+       (tryTakeMVar, MVar, putMVar, takeMVar, newEmptyMVar, readMVar)
 
 import System.IO.Unsafe (unsafeInterleaveIO)
 import System.Mem.Weak (addFinalizer)
@@ -61,7 +61,7 @@ import Data.Time.Clock (getCurrentTime,diffUTCTime)
 import Data.IORef (newIORef, atomicWriteIORef, readIORef)
 
 import Language.Javascript.JSaddle.Types
-       (Command(..), AsyncCommand(..), Result(..), Results(..), JSContextRef(..), JSVal(..),
+       (Command(..), AsyncCommand(..), Result(..), BatchResults(..), Results(..), JSContextRef(..), JSVal(..),
         Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..))
 import Language.Javascript.JSaddle.Exception (JSException(..))
 -- import Language.Javascript.JSaddle.Native.Internal (wrapJSVal)
@@ -152,7 +152,6 @@ runJavaScript :: (Batch -> IO ()) -> JSM () -> IO (Results -> IO (), Results -> 
 runJavaScript sendBatch entryPoint = do
     startTime' <- getCurrentTime
     recvMVar <- newEmptyMVar
-    syncSendBatch <- newEmptyMVar
     lastAsyncBatch <- newEmptyMVar
     commandChan <- newTChanIO
     callbacks <- newTVarIO M.empty
@@ -176,7 +175,8 @@ runJavaScript sendBatch entryPoint = do
     let processResults :: Bool -> Results -> IO ()
         processResults syncCallbacks = \case
             (ProtocolError err) -> error $ "Protocol error : " <> T.unpack err
-            (Callback f this a) -> do
+            (Callback n br f this a) -> do
+                putMVar recvMVar (n, br)
                 f'@(JSVal fNumber) <- runReaderT (unJSM $ wrapJSVal f) ctx
                 this' <- runReaderT  (unJSM $ wrapJSVal this) ctx
                 args <- runReaderT (unJSM $ mapM wrapJSVal a) ctx
@@ -185,27 +185,20 @@ runJavaScript sendBatch entryPoint = do
                     Nothing -> liftIO $ putStrLn "Callback called after it was freed"
                     Just cb -> void . forkIO $ do
                         runReaderT (unJSM $ cb f' this' args) ctx
-                        when syncCallbacks $ do
+                        when syncCallbacks $
                             doSendAsyncCommand ctx EndSyncBlock
-                            void $ doSendCommand ctx Sync
-            Duplicate           -> error "Error : Unexpected Duplicate"
-            m                   -> putMVar recvMVar m
+            Duplicate nBatch nExpected -> do
+                putStrLn $ "Error : Unexpected Duplicate. syncCallbacks=" <> show syncCallbacks <>
+                    " nBatch=" <> show nBatch <> " nExpected=" <> show nExpected
+                void $ doSendCommand ctx Sync
+            BatchResults n br -> putMVar recvMVar (n, br)
         asyncResults :: Results -> IO ()
-        asyncResults = processResults False
+        asyncResults results =
+            void . forkIO $ processResults False results
         syncResults :: Results -> IO Batch
         syncResults results = do
-            existing <- tryTakeMVar syncSendBatch
-            when (isJust existing) $ error "Error : Unexpected Sync Results"
-            tryTakeMVar lastAsyncBatch >>= \case
-                Just lastAsync -> processResults True results >> return lastAsync
-                Nothing -> do
-                    nextBatch <- newEmptyMVar
-                    putMVar syncSendBatch (\batch -> do
-                         existing <- tryTakeMVar nextBatch
-                         when (isJust existing) $ error "Error : Unexpected Sync Results"
-                         putMVar nextBatch batch)
-                    processResults True results
-                    takeMVar nextBatch
+            void . forkIO $ processResults True results
+            readMVar lastAsyncBatch
         logInfo s =
             readIORef loggingEnabled >>= \case
                 True -> do
@@ -219,24 +212,24 @@ runJavaScript sendBatch entryPoint = do
         readBatch nBatch commandChan >>= \case
             (batch@(Batch cmds _ _), resultMVars) -> do
                 logInfo (\x -> "Sync " <> x <> show (length cmds, last cmds))
-                tryTakeMVar syncSendBatch >>= \case
-                    Just send -> send batch
-                    Nothing   -> do
-                        putMVar lastAsyncBatch batch
-                        sendBatch batch
-                takeMVar recvMVar >>= \r -> do
-                    _ <- tryTakeMVar lastAsyncBatch
-                    case r of
-                        Success results | length results /= length resultMVars -> error "Unexpected number of jsaddle results"
-                                        | otherwise -> zipWithM_ putMVar resultMVars results
-                        Failure results exception -> do
+                _ <- tryTakeMVar lastAsyncBatch
+                putMVar lastAsyncBatch batch
+                sendBatch batch
+                takeResult recvMVar nBatch >>= \case
+                        (n, _) | n /= nBatch -> error $ "Unexpected jsaddle results (expected batch " <> show nBatch <> ", got batch " <> show n <> ")"
+                        (_, Success results) | length results /= length resultMVars -> error "Unexpected number of jsaddle results"
+                                             | otherwise -> zipWithM_ putMVar resultMVars results
+                        (_, Failure results exception) -> do
                             -- The exception will only be rethrown in Haskell if/when one of the
                             -- missing results (if any) is evaluated.
                             putStrLn "A JavaScript exception was thrown! (may not reach Haskell code)"
                             zipWithM_ putMVar resultMVars $ results <> repeat (ThrowJSValue exception)
-                        _ -> error "Unexpected jsaddle results"
     return (asyncResults, syncResults, runReaderT (unJSM entryPoint) ctx)
   where
+    takeResult recvMVar nBatch =
+        takeMVar recvMVar >>= \case
+            (n, _) | n < nBatch -> takeResult recvMVar nBatch
+            r -> return r
     readBatch :: Int -> TChan (Either AsyncCommand (Command, MVar Result)) -> IO (Batch, [MVar Result])
     readBatch nBatch chan = do
         first <- atomically $ readTChan chan -- We want at least one command to send

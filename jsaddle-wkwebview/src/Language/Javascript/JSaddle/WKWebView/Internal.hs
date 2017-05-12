@@ -81,7 +81,7 @@ jsaddleResult ptrHandler s = do
     processResult <- deRefStablePtr ptrHandler
     result <- packCString s
     case decode (fromStrict result) of
-        Nothing -> error $ "jsaddle WebSocket decode failed : " <> show result
+        Nothing -> error $ "jsaddle Results decode failed : " <> show result
         Just r  -> processResult r
 
 jsaddleSyncResult :: StablePtr (Results -> IO Batch) -> JSaddleHandler -> CString -> IO ()
@@ -89,7 +89,7 @@ jsaddleSyncResult ptrHandler jsaddleHandler s = do
     syncProcessResult <- deRefStablePtr ptrHandler
     result <- packCString s
     case decode (fromStrict result) of
-        Nothing -> error $ "jsaddle WebSocket decode failed : " <> show result
+        Nothing -> error $ "jsaddle Results decode failed : " <> show result
         Just r  -> do -- void . forkIO $ do
             batch <- syncProcessResult r
             useAsCString (toStrict $ encode batch) $

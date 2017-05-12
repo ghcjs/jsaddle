@@ -53,7 +53,7 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
             receiveDataMessage conn >>= \case
                 (WS.Text t) ->
                     case decode t of
-                        Nothing -> error $ "jsaddle WebSocket decode failed : " <> show t
+                        Nothing -> error $ "jsaddle Results decode failed : " <> show t
                         Just r  -> processResult r
                 _ -> error "jsaddle WebSocket unexpected binary data"
         start

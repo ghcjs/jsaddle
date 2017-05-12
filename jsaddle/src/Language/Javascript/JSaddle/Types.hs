@@ -73,6 +73,7 @@ module Language.Javascript.JSaddle.Types (
   , Command(..)
   , Batch(..)
   , Result(..)
+  , BatchResults(..)
   , Results(..)
 #endif
 ) where
@@ -385,10 +386,18 @@ instance ToJSON Result where
 
 instance FromJSON Result
 
-data Results = Success [Result]
-             | Failure [Result] JSValueReceived
-             | Duplicate
-             | Callback JSValueReceived JSValueReceived [JSValueReceived]
+data BatchResults = Success [Result]
+                  | Failure [Result] JSValueReceived
+             deriving (Show, Generic)
+
+instance ToJSON BatchResults where
+    toEncoding = genericToEncoding defaultOptions
+
+instance FromJSON BatchResults
+
+data Results = BatchResults Int BatchResults
+             | Duplicate Int Int
+             | Callback Int BatchResults JSValueReceived JSValueReceived [JSValueReceived]
              | ProtocolError Text
              deriving (Show, Generic)
 
