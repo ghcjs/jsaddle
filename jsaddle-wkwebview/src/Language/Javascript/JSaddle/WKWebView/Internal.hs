@@ -30,7 +30,9 @@ newtype JSaddleHandler = JSaddleHandler (Ptr JSaddleHandler)
 foreign export ccall jsaddleStart :: StablePtr (IO ()) -> IO ()
 foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString -> IO ()
 foreign export ccall jsaddleSyncResult :: StablePtr (Results -> IO Batch) -> JSaddleHandler -> CString -> IO ()
-foreign export ccall withWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
+foreign export ccall callWithWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
+foreign export ccall callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
+foreign export ccall callIO :: StablePtr (IO ()) -> IO ()
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> StablePtr (Results -> IO Batch) -> IO ()
 foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
@@ -95,10 +97,20 @@ jsaddleSyncResult ptrHandler jsaddleHandler s = do
             useAsCString (toStrict $ encode batch) $
                 completeSync jsaddleHandler
 
-withWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
-withWebView webView ptrF = do
+callWithWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
+callWithWebView webView ptrF = do
     f <- deRefStablePtr ptrF
     f webView
+
+callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
+callWithCString c fptr = do
+    f <- deRefStablePtr fptr
+    f c
+
+callIO :: StablePtr (IO ()) -> IO ()
+callIO ptr = do
+    f <- deRefStablePtr ptr
+    f
 
 jsaddleJs :: ByteString
 jsaddleJs = ghcjsHelpers <> "\
@@ -128,3 +140,4 @@ mainBundleResourcePath = do
     if bs == nullPtr
         then return Nothing
         else Just <$> packCString bs
+
