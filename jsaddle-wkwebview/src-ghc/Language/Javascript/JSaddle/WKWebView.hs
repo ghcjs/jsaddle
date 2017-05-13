@@ -3,6 +3,7 @@ module Language.Javascript.JSaddle.WKWebView
     , jsaddleMainFile
     , WKWebView(..)
     , run
+    , runWithAppConfig
     , runFile
     , mainBundleResourcePath
     , AppDelegateConfig (..)
@@ -91,8 +92,12 @@ instance Default AppDelegateNotificationConfig where
 
 
 -- | Run JSaddle in a WKWebView
-run :: AppDelegateConfig -> JSM () -> IO ()
-run = run' Nothing
+run :: JSM () -> IO ()
+run = run' Nothing def
+
+-- | Run JSaddle in a WKWebView
+runWithAppConfig :: AppDelegateConfig -> JSM () -> IO ()
+runWithAppConfig = run' Nothing
 
 -- | Run JSaddle in a WKWebView first loading the specified file
 --   from the mainBundle (relative to the resourcePath).
