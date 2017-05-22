@@ -26,3 +26,15 @@ instance Storable NativeCallbacks where
     <*> #{peek native_callbacks, jsaddleResult} p
     <*> #{peek native_callbacks, jsaddleJsData} p
     <*> #{peek native_callbacks, jsaddleHtmlData} p
+
+data AppCallbacks = AppCallbacks
+  { _appCallbacks_firebaseInstanceIdService_sendRegistrationToServer :: !(FunPtr (CString -> IO ()))
+  }
+
+instance Storable AppCallbacks where
+  sizeOf _ = #{size app_callbacks}
+  alignment _ = #{alignment app_callbacks}
+  poke p nc = do
+    #{poke app_callbacks, firebaseInstanceIdService_sendRegistrationToServer} p $ _appCallbacks_firebaseInstanceIdService_sendRegistrationToServer nc
+  peek p = AppCallbacks
+    <$> #{peek app_callbacks, firebaseInstanceIdService_sendRegistrationToServer} p

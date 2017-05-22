@@ -8,4 +8,8 @@ typedef struct native_callbacks {
   char * jsaddleHtmlData;
 } native_callbacks;
 
+typedef struct app_callbacks {
+  void (* firebaseInstanceIdService_sendRegistrationToServer) (char *);
+} app_callbacks;
+
 #endif
