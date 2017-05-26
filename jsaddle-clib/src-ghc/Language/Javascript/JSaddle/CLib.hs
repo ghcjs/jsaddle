@@ -62,17 +62,50 @@ jsaddleInit jsm evaluateJavascriptAsyncPtr = do
     }
 
 data AppConfig = AppConfig
-  { _appConfig_firebaseInstanceIdServiceSendRegistrationToServer :: Text -> IO ()
+  { _appConfig_mainActivityOnCreate :: IO ()
+  , _appConfig_mainActivityOnStart :: IO ()
+  , _appConfig_mainActivityOnResume :: IO ()
+  , _appConfig_mainActivityOnPause :: IO ()
+  , _appConfig_mainActivityOnStop :: IO ()
+  , _appConfig_mainActivityOnDestroy :: IO ()
+  , _appConfig_mainActivityOnRestart :: IO ()
+  , _appConfig_firebaseInstanceIdServiceSendRegistrationToServer :: Text -> IO ()
   }
 
 instance Default AppConfig where
-  def = AppConfig (\_ -> return ())
+  def = AppConfig
+    { _appConfig_mainActivityOnCreate = return ()
+    , _appConfig_mainActivityOnStart = return ()
+    , _appConfig_mainActivityOnResume = return ()
+    , _appConfig_mainActivityOnPause = return ()
+    , _appConfig_mainActivityOnStop = return ()
+    , _appConfig_mainActivityOnDestroy = return ()
+    , _appConfig_mainActivityOnRestart = return ()
+    , _appConfig_firebaseInstanceIdServiceSendRegistrationToServer = \_ -> return ()
+    }
 
 appConfigToAppCallbacks :: AppConfig -> IO AppCallbacks
-appConfigToAppCallbacks (AppConfig firebaseReg) = do
-  firebaseRegPtr <- wrapMessageCallback $ \token ->
-    firebaseReg =<< (T.pack <$> peekCString token)
-  return $ AppCallbacks firebaseRegPtr
+appConfigToAppCallbacks c = do
+  create <- wrapStartCallback $ _appConfig_mainActivityOnCreate c
+  start <- wrapStartCallback $ _appConfig_mainActivityOnStart c
+  resume <- wrapStartCallback $ _appConfig_mainActivityOnResume c
+  pause <- wrapStartCallback $ _appConfig_mainActivityOnPause c
+  stop <- wrapStartCallback $ _appConfig_mainActivityOnStop c
+  destroy <- wrapStartCallback $ _appConfig_mainActivityOnDestroy c
+  restart <- wrapStartCallback $ _appConfig_mainActivityOnRestart c
+  firebaseRegPtr <- wrapMessageCallback $ \token -> do
+    token' <- T.pack <$> peekCString token
+    _appConfig_firebaseInstanceIdServiceSendRegistrationToServer c token'
+  return $ AppCallbacks
+    { _appCallbacks_mainActivity_onCreate = create
+    , _appCallbacks_mainActivity_onStart = start
+    , _appCallbacks_mainActivity_onResume = resume
+    , _appCallbacks_mainActivity_onPause = pause
+    , _appCallbacks_mainActivity_onStop = stop
+    , _appCallbacks_mainActivity_onDestroy = destroy
+    , _appCallbacks_mainActivity_onRestart = restart
+    , _appCallbacks_firebaseInstanceIdService_sendRegistrationToServer = firebaseRegPtr
+    }
 
 pokeAppConfig :: Ptr AppCallbacks -> AppConfig -> IO ()
 pokeAppConfig ptr cfg = poke ptr =<< appConfigToAppCallbacks cfg
