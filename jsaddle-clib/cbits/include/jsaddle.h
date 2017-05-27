@@ -4,6 +4,7 @@
 typedef struct native_callbacks {
   void (* jsaddleStart) ();
   void (* jsaddleResult) (char *);
+  char * (* jsaddleSyncResult) (char *);
   char * jsaddleJsData;
   char * jsaddleHtmlData;
 } native_callbacks;

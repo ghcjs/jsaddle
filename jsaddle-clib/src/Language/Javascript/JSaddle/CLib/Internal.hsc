@@ -9,6 +9,7 @@ import Foreign.C
 data NativeCallbacks = NativeCallbacks
   { _nativeCallbacks_jsaddleStart :: !(FunPtr (IO ())) -- void (jsaddleStart *)()
   , _nativeCallbacks_jsaddleResult :: !(FunPtr (CString -> IO ())) -- void (jsaddleResult *)(char *)
+  , _nativeCallbacks_jsaddleSyncResult :: !(FunPtr (CString -> IO CString)) -- char * (jsaddleSyncResult *)(char *)
   , _nativeCallbacks_jsaddleJsData :: !CString -- char * jsaddleJsData
   , _nativeCallbacks_jsaddleHtmlData :: !CString -- char * jsaddleHtmlData
   }
@@ -19,11 +20,13 @@ instance Storable NativeCallbacks where
   poke p nc = do
     #{poke native_callbacks, jsaddleStart} p $ _nativeCallbacks_jsaddleStart nc
     #{poke native_callbacks, jsaddleResult} p $ _nativeCallbacks_jsaddleResult nc
+    #{poke native_callbacks, jsaddleSyncResult} p $ _nativeCallbacks_jsaddleSyncResult nc
     #{poke native_callbacks, jsaddleJsData} p $ _nativeCallbacks_jsaddleJsData nc
     #{poke native_callbacks, jsaddleHtmlData} p $ _nativeCallbacks_jsaddleHtmlData nc
   peek p = NativeCallbacks
     <$> #{peek native_callbacks, jsaddleStart} p
     <*> #{peek native_callbacks, jsaddleResult} p
+    <*> #{peek native_callbacks, jsaddleSyncResult} p
     <*> #{peek native_callbacks, jsaddleJsData} p
     <*> #{peek native_callbacks, jsaddleHtmlData} p
 

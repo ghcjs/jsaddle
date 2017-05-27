@@ -40,23 +40,32 @@ foreign import ccall safe "wrapper"
 foreign import ccall safe "wrapper"
   wrapMessageCallback :: (CString -> IO ()) -> IO (FunPtr (CString -> IO ()))
 
+foreign import ccall safe "wrapper"
+  wrapSyncCallback :: (CString -> IO CString) -> IO (FunPtr (CString -> IO CString))
+
 jsaddleInit :: JSM () -> FunPtr (CString -> IO ()) -> IO (Ptr NativeCallbacks)
 jsaddleInit jsm evaluateJavascriptAsyncPtr = do
   let evaluateJavascriptAsync = mkCallback evaluateJavascriptAsyncPtr
-  (processResult, _, start) <- runJavaScript (\batch ->
-    useAsCString (toStrict $ "runJSaddleBatch(" <> encode batch <> ");") $
+  (processResult, processSyncResult, start) <- runJavaScript (\batch ->
+    useAsCString (toStrict $ "runJSaddleBatch(" <> encode batch <> ");")
       evaluateJavascriptAsync) jsm
-  jsaddleStartPtr <- wrapStartCallback $ void $ forkIO $ start
+  jsaddleStartPtr <- wrapStartCallback $ void $ forkIO start
   jsaddleResultPtr <- wrapMessageCallback $ \s -> do
     result <- decode . fromStrict <$> packCString s
     case result of
       Nothing -> error $ "jsaddle message decode failed: " <> show result
       Just r -> processResult r
+  jsaddleSyncResultPtr <- wrapSyncCallback $ \s -> do
+    result <- decode . fromStrict <$> packCString s
+    case result of
+      Nothing -> error $ "jsaddle message decode failed: " <> show result
+      Just r -> newCString =<< unpack . toStrict . encode <$> processSyncResult r
   jsaddleJsPtr <- newCString $ unpack $ toStrict jsaddleJs
   jsaddleHtmlPtr <- newCString $ unpack $ toStrict indexHtml
-  new $ NativeCallbacks
+  new NativeCallbacks
     { _nativeCallbacks_jsaddleStart = jsaddleStartPtr
     , _nativeCallbacks_jsaddleResult = jsaddleResultPtr
+    , _nativeCallbacks_jsaddleSyncResult = jsaddleSyncResultPtr
     , _nativeCallbacks_jsaddleJsData = jsaddleJsPtr
     , _nativeCallbacks_jsaddleHtmlData = jsaddleHtmlPtr
     }
@@ -115,7 +124,8 @@ jsaddleJs = ghcjsHelpers <> "\
     \runJSaddleBatch = (function() {\n\
     \ " <> initState <> "\n\
     \ return function(batch) {\n\
-    \ " <> runBatch (\a -> "jsaddle.postMessage(JSON.stringify(" <> a <> "));") Nothing <> "\
+    \ " <> runBatch (\a -> "jsaddle.postMessage(JSON.stringify(" <> a <> "));")
+              (Just (\a -> "JSON.parse(jsaddle.syncMessage(JSON.stringify(" <> a <> ")))")) <> "\
     \ };\n\
     \})();\n\
     \jsaddle.postReady();\n"
