@@ -4,7 +4,7 @@
 }:
 mkDerivation {
   pname = "jsaddle-webkitgtk";
-  version = "0.8.2.2";
+  version = "0.9.0.0";
   src = builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "dist" ])) ./.;
   libraryHaskellDepends = [
     aeson base bytestring directory gi-glib gi-gtk gi-javascriptcore
