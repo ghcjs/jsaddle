@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -208,7 +209,7 @@ runJavaScript sendBatch entryPoint = do
                     cbCount <- M.size <$> readTVarIO callbacks
                     putStrLn . s $ "M " <> currentBytesUsedStr <> "CB " <> show cbCount
                 False -> return ()
-    _ <- forkIO . forM_ [1..] $ \nBatch ->
+    _ <- forkIO . numberForeverFromM_ 1 $ \nBatch ->
         readBatch nBatch commandChan >>= \case
             (batch@(Batch cmds _ _), resultMVars) -> do
                 logInfo (\x -> "Sync " <> x <> show (length cmds, last cmds))
@@ -226,6 +227,10 @@ runJavaScript sendBatch entryPoint = do
                             zipWithM_ putMVar resultMVars $ results <> repeat (ThrowJSValue exception)
     return (asyncResults, syncResults, runReaderT (unJSM entryPoint) ctx)
   where
+    numberForeverFromM_ :: (Monad m, Enum n) => n -> (n -> m a) -> m ()
+    numberForeverFromM_ !n f = do
+      f n
+      numberForeverFromM_ (succ n) f
     takeResult recvMVar nBatch =
         takeMVar recvMVar >>= \case
             (n, _) | n < nBatch -> takeResult recvMVar nBatch
