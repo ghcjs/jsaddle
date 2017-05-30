@@ -16,6 +16,7 @@ typedef struct app_callbacks {
   void (* mainActivity_onStop) ();
   void (* mainActivity_onDestroy) ();
   void (* mainActivity_onRestart) ();
+  void (* mainActivity_onNewIntent) (char *, char *);
   void (* firebaseInstanceIdService_sendRegistrationToServer) (char *);
 } app_callbacks;
 
