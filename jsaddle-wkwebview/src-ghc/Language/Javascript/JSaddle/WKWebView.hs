@@ -33,6 +33,7 @@ foreign import ccall runInWKWebView
     -> StablePtr (IO ()) -- applicationWillEnterForeground
     -> StablePtr (IO ()) -- applicationWillTerminate
     -> StablePtr (IO ()) -- applicationSignificantTimeChange
+    -> StablePtr (CString -> IO ()) -- applicationUniversalLink
     -> Word64  -- whether to run requestAuthorizationWithOptions
     -> Word64 -- Ask for Badge authorization
     -> Word64 -- Ask for Sound authorization
@@ -52,6 +53,7 @@ data AppDelegateConfig = AppDelegateConfig
     , _appDelegateConfig_applicationWillEnterForeground :: IO ()
     , _appDelegateConfig_applicationWillTerminate :: IO ()
     , _appDelegateConfig_applicationSignificantTimeChange :: IO ()
+    , _appDelegateConfig_applicationUniversalLink :: CString -> IO ()
     , _appDelegateConfig_appDelegateNotificationConfig :: AppDelegateNotificationConfig
     }
 
@@ -65,6 +67,7 @@ instance Default AppDelegateConfig where
         , _appDelegateConfig_applicationWillEnterForeground = return ()
         , _appDelegateConfig_applicationWillTerminate = return ()
         , _appDelegateConfig_applicationSignificantTimeChange = return ()
+        , _appDelegateConfig_applicationUniversalLink = \_ -> return ()
         , _appDelegateConfig_appDelegateNotificationConfig = def
         }
 
@@ -122,6 +125,7 @@ run' mUrl cfg f = do
     applicationWillEnterForeground <- newStablePtr $ _appDelegateConfig_applicationWillEnterForeground cfg
     applicationWillTerminate <- newStablePtr $ _appDelegateConfig_applicationWillTerminate cfg
     applicationSignificantTimeChange <- newStablePtr $ _appDelegateConfig_applicationSignificantTimeChange cfg
+    applicationUniversalLink <- newStablePtr $ _appDelegateConfig_applicationUniversalLink cfg
 
     -- AppDelegate notification configuration
     let ncfg = _appDelegateConfig_appDelegateNotificationConfig cfg
@@ -143,6 +147,7 @@ run' mUrl cfg f = do
       applicationWillEnterForeground
       applicationWillTerminate
       applicationSignificantTimeChange
+      applicationUniversalLink
       (fromBool requestAuthorizationWithOptions)
       (fromBool $ Set.member AuthorizationOption_Badge authorizationOptions)
       (fromBool $ Set.member AuthorizationOption_Sound authorizationOptions)
