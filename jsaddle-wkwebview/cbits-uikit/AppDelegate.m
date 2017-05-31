@@ -19,6 +19,7 @@ HsStablePtr global_applicationDidEnterBackground = 0;
 HsStablePtr global_applicationWillEnterForeground = 0;
 HsStablePtr global_applicationWillTerminate = 0;
 HsStablePtr global_applicationSignificantTimeChange = 0;
+HsStablePtr global_applicationUniversalLink = 0;
 uint64_t global_requestAuthorizationWithOptions = 0;
 uint64_t global_requestAuthorizationOptionBadge = 0;
 uint64_t global_requestAuthorizationOptionSound = 0;
@@ -119,6 +120,16 @@ HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
     callIO(global_applicationSignificantTimeChange);
 }
 
+- (BOOL)application:(UIApplication *)application continueUserActivity:(NSUserActivity *)userActivity restorationHandler:(void (^)(NSArray *restorableObjects))restorationHandler {
+    // TODO: Reroute universal links when they're clicked in-app.
+    // https://developer.apple.com/reference/webkit/wknavigationdelegate/1455643-webview?language=objc
+    if ([userActivity.activityType isEqualToString:NSUserActivityTypeBrowsingWeb] && userActivity.webpageURL) {
+        callWithCString([userActivity.webpageURL.absoluteString UTF8String], global_applicationUniversalLink);
+        return YES;
+    }
+    return NO;
+}
+
 @end
 
 void runInWKWebView(HsStablePtr handler,
@@ -131,6 +142,7 @@ void runInWKWebView(HsStablePtr handler,
                     HsStablePtr hs_applicationWillEnterForeground,
                     HsStablePtr hs_applicationWillTerminate,
                     HsStablePtr hs_applicationSignificantTimeChange,
+                    HsStablePtr hs_applicationUniversalLink,
                     const uint64_t hs_requestAuthorizationWithOptions,
                     const uint64_t hs_requestAuthorizationOptionBadge,
                     const uint64_t hs_requestAuthorizationOptionSound,
@@ -149,6 +161,7 @@ void runInWKWebView(HsStablePtr handler,
         global_applicationWillEnterForeground = hs_applicationWillEnterForeground;
         global_applicationWillTerminate = hs_applicationWillTerminate;
         global_applicationSignificantTimeChange = hs_applicationSignificantTimeChange;
+        global_applicationUniversalLink = hs_applicationUniversalLink;
         global_requestAuthorizationWithOptions = hs_requestAuthorizationWithOptions;
         global_requestAuthorizationOptionBadge = hs_requestAuthorizationOptionBadge;
         global_requestAuthorizationOptionSound = hs_requestAuthorizationOptionSound;

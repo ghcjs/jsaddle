@@ -38,6 +38,7 @@ data AppCallbacks = AppCallbacks
   , _appCallbacks_mainActivity_onStop :: !(FunPtr (IO ()))
   , _appCallbacks_mainActivity_onDestroy :: !(FunPtr (IO ()))
   , _appCallbacks_mainActivity_onRestart :: !(FunPtr (IO ()))
+  , _appCallbacks_mainActivity_onNewIntent :: !(FunPtr (CString -> CString -> IO ()))
   , _appCallbacks_firebaseInstanceIdService_sendRegistrationToServer :: !(FunPtr (CString -> IO ()))
   }
 
@@ -52,6 +53,7 @@ instance Storable AppCallbacks where
     #{poke app_callbacks, mainActivity_onStop} p $ _appCallbacks_mainActivity_onStop nc
     #{poke app_callbacks, mainActivity_onDestroy} p $ _appCallbacks_mainActivity_onDestroy nc
     #{poke app_callbacks, mainActivity_onRestart} p $ _appCallbacks_mainActivity_onRestart nc
+    #{poke app_callbacks, mainActivity_onNewIntent} p $ _appCallbacks_mainActivity_onNewIntent nc
     #{poke app_callbacks, firebaseInstanceIdService_sendRegistrationToServer} p $ _appCallbacks_firebaseInstanceIdService_sendRegistrationToServer nc
   peek p = AppCallbacks
     <$> #{peek app_callbacks, mainActivity_onCreate} p
@@ -61,4 +63,5 @@ instance Storable AppCallbacks where
     <*> #{peek app_callbacks, mainActivity_onStop} p
     <*> #{peek app_callbacks, mainActivity_onDestroy} p
     <*> #{peek app_callbacks, mainActivity_onRestart} p
+    <*> #{peek app_callbacks, mainActivity_onNewIntent} p
     <*> #{peek app_callbacks, firebaseInstanceIdService_sendRegistrationToServer} p

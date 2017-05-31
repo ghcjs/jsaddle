@@ -18,9 +18,9 @@ import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
 import Data.Default (def, Default)
 import Data.Monoid ((<>))
 import Data.Text (Text)
-import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 
-import Foreign.C.String (CString, newCString, peekCString)
+import Foreign.C.String (CString, newCString)
 import Foreign.Ptr (FunPtr, Ptr)
 import Foreign.Storable (poke)
 import Foreign.Marshal.Utils (new)
@@ -39,6 +39,9 @@ foreign import ccall safe "wrapper"
 
 foreign import ccall safe "wrapper"
   wrapMessageCallback :: (CString -> IO ()) -> IO (FunPtr (CString -> IO ()))
+
+foreign import ccall safe "wrapper"
+  wrapMessageCallback2 :: (CString -> CString -> IO ()) -> IO (FunPtr (CString -> CString -> IO ()))
 
 foreign import ccall safe "wrapper"
   wrapSyncCallback :: (CString -> IO CString) -> IO (FunPtr (CString -> IO CString))
@@ -78,6 +81,7 @@ data AppConfig = AppConfig
   , _appConfig_mainActivityOnStop :: IO ()
   , _appConfig_mainActivityOnDestroy :: IO ()
   , _appConfig_mainActivityOnRestart :: IO ()
+  , _appConfig_mainActivityOnNewIntent :: (Text -> Text -> IO ())
   , _appConfig_firebaseInstanceIdServiceSendRegistrationToServer :: Text -> IO ()
   }
 
@@ -90,6 +94,7 @@ instance Default AppConfig where
     , _appConfig_mainActivityOnStop = return ()
     , _appConfig_mainActivityOnDestroy = return ()
     , _appConfig_mainActivityOnRestart = return ()
+    , _appConfig_mainActivityOnNewIntent = \_ _ -> return ()
     , _appConfig_firebaseInstanceIdServiceSendRegistrationToServer = \_ -> return ()
     }
 
@@ -102,8 +107,12 @@ appConfigToAppCallbacks c = do
   stop <- wrapStartCallback $ _appConfig_mainActivityOnStop c
   destroy <- wrapStartCallback $ _appConfig_mainActivityOnDestroy c
   restart <- wrapStartCallback $ _appConfig_mainActivityOnRestart c
+  newIntent <- wrapMessageCallback2 $ \intentAction intentData -> do
+    intentAction' <- fromUtf8CString intentAction
+    intentData' <- fromUtf8CString intentData
+    _appConfig_mainActivityOnNewIntent c intentAction' intentData'
   firebaseRegPtr <- wrapMessageCallback $ \token -> do
-    token' <- T.pack <$> peekCString token
+    token' <- fromUtf8CString token
     _appConfig_firebaseInstanceIdServiceSendRegistrationToServer c token'
   return $ AppCallbacks
     { _appCallbacks_mainActivity_onCreate = create
@@ -113,8 +122,12 @@ appConfigToAppCallbacks c = do
     , _appCallbacks_mainActivity_onStop = stop
     , _appCallbacks_mainActivity_onDestroy = destroy
     , _appCallbacks_mainActivity_onRestart = restart
+    , _appCallbacks_mainActivity_onNewIntent = newIntent
     , _appCallbacks_firebaseInstanceIdService_sendRegistrationToServer = firebaseRegPtr
     }
+
+fromUtf8CString :: CString -> IO Text
+fromUtf8CString = fmap T.decodeUtf8 . packCString
 
 pokeAppConfig :: Ptr AppCallbacks -> AppConfig -> IO ()
 pokeAppConfig ptr cfg = poke ptr =<< appConfigToAppCallbacks cfg
