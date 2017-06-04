@@ -16,6 +16,8 @@ module Language.Javascript.JSaddle.WebSockets (
   -- * Running JSM over WebSockets
     jsaddleOr
   , jsaddleApp
+  , jsaddleWithAppOr
+  , jsaddleAppPartial
 ) where
 
 import Control.Monad (forever)
@@ -25,7 +27,7 @@ import Control.Exception (handle, AsyncException, throwIO, fromException)
 import Data.Monoid ((<>))
 import Data.Aeson (encode, decode)
 
-import Network.Wai (Application)
+import Network.Wai (Application, Request, Response, ResponseReceived)
 import Network.WebSockets
        (ConnectionOptions(..), sendTextData, receiveDataMessage,
         acceptRequest, ServerApp, sendPing)
@@ -34,11 +36,10 @@ import Network.Wai.Handler.WebSockets (websocketsOr)
 
 import Language.Javascript.JSaddle.Types (JSM(..))
 import qualified Network.Wai as W
-       (responseLBS, requestMethod, Application, pathInfo)
-import Data.Text (Text)
+       (responseLBS, requestMethod, pathInfo)
 import qualified Data.Text as T (pack)
 import qualified Network.HTTP.Types as H
-       (status403, status200, status405)
+       (status403, status200)
 import Language.Javascript.JSaddle.Run (runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (indexHtml, jsaddleJs)
 
@@ -73,16 +74,20 @@ jsaddleOr opts entryPoint = websocketsOr opts wsApp
         Nothing    -> return ()
 
 jsaddleApp :: Application
-jsaddleApp req = jsaddleAppPieces (W.pathInfo req) req
+jsaddleApp req sendResponse = jsaddleAppPartial req sendResponse >>= \case
+  Just r -> return r
+  Nothing -> sendResponse $ W.responseLBS H.status403
+    [ ("Content-Type", "text/plain")
+    ] "Forbidden"
 
-jsaddleAppPieces :: [Text] -> W.Application
-jsaddleAppPieces _ req sendResponse
-    | W.requestMethod req `notElem` ["GET", "HEAD"] = sendResponse $ W.responseLBS
-        H.status405
-        [("Content-Type", "text/plain")]
-        "Only GET or HEAD is supported"
-jsaddleAppPieces [] _req sendResponse = sendResponse $ W.responseLBS H.status200 [("Content-Type", "text/html")] indexHtml
-jsaddleAppPieces ["jsaddle.js"] _req sendResponse = sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/javascript")] jsaddleJs
-jsaddleAppPieces _rawPieces _req sendResponse = sendResponse $ W.responseLBS H.status403
-            [ ("Content-Type", "text/plain")
-            ] "Forbidden"
+jsaddleWithAppOr :: ConnectionOptions -> JSM () -> Application -> Application
+jsaddleWithAppOr opts entryPoint otherApp = jsaddleOr opts entryPoint $ \req sendResponse ->
+  jsaddleAppPartial req sendResponse >>= \case
+    Just r -> return r
+    Nothing -> otherApp req sendResponse
+
+jsaddleAppPartial :: Request -> (Response -> IO ResponseReceived) -> IO (Maybe ResponseReceived)
+jsaddleAppPartial req sendResponse = case (W.requestMethod req, W.pathInfo req) of
+  ("GET", []) -> fmap Just $ sendResponse $ W.responseLBS H.status200 [("Content-Type", "text/html")] indexHtml
+  ("GET", ["jsaddle.js"]) -> fmap Just $ sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/javascript")] jsaddleJs
+  _ -> return Nothing
