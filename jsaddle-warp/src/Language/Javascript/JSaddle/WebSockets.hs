@@ -133,9 +133,11 @@ jsaddleJs = "\
     \    var syncKey = \"\";\n\
     \\n\
     \    ws.onopen = function(e) {\n\
-    \ " <> initState <> "\
+    \ " <> initState <> "\n\
+    \        var inXhrSend = false;\n\
     \\n\
     \        ws.onmessage = function(e) {\n\
+    \            if(inXhrSend) return;\n\
     \            var batch = JSON.parse(e.data);\n\
     \            if(typeof batch === \"string\") {\n\
     \                syncKey = batch;\n\
@@ -144,10 +146,12 @@ jsaddleJs = "\
     \\n\
     \ " <> runBatch (\a -> "ws.send(JSON.stringify(" <> a <> "));")
               (Just (\a -> "(function(){\n\
+                  \                       inXhrSend = true;\n\
                   \                       var xhr = new XMLHttpRequest();\n\
                   \                       xhr.open('POST', '/sync/'+syncKey, false);\n\
                   \                       xhr.setRequestHeader(\"Content-type\", \"application/json\");\n\
                   \                       xhr.send(JSON.stringify(" <> a <> "));\n\
+                  \                       inXhrSend = false;\n\
                   \                       return JSON.parse(xhr.response);})()")) <> "\
     \        };\n\
     \    };\n\
