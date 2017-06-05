@@ -28,7 +28,7 @@ import Data.Monoid ((<>))
 import Data.Aeson (encode, decode)
 
 import Network.Wai
-       (requestBody, Application, Request, Response, ResponseReceived)
+       (lazyRequestBody, Application, Request, Response, ResponseReceived)
 import Network.WebSockets
        (ConnectionOptions(..), sendTextData, receiveDataMessage,
         acceptRequest, ServerApp, sendPing)
@@ -87,8 +87,8 @@ jsaddleOr opts entryPoint otherApp = do
         syncHandler :: Application
         syncHandler req sendResponse = case (W.requestMethod req, W.pathInfo req) of
             ("POST", ["sync", syncKey]) -> do
-                body <- requestBody req
-                case decode $ fromStrict body of
+                body <- lazyRequestBody req
+                case decode body of
                     Nothing -> error $ "jsaddle sync message decode failed : " <> show body
                     Just result ->
                         M.lookup syncKey <$> readIORef syncHandlers >>= \case
