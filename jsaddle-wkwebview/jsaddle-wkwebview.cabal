@@ -1,5 +1,5 @@
 name: jsaddle-wkwebview
-version: 0.8.3.2
+version: 0.9.0.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -14,6 +14,10 @@ description:
 category: Web, Javascript
 author: Hamish Mackenzie
 
+flag include-app-delegate
+    description: Include default AppDelegate C sources.
+    default: True
+
 source-repository head
     type: git
     location: https://github.com/ghcjs/jsaddle
@@ -26,7 +30,9 @@ library
         aeson >=0.8.0.2 && <1.3,
         base <5,
         bytestring >=0.10.6.0 && <0.11,
-        jsaddle >= 0.8.0.0 && <0.9
+        jsaddle >= 0.9.0.0 && <0.10,
+        data-default,
+        containers
     default-language: Haskell2010
     hs-source-dirs: src
     frameworks: Foundation, WebKit
@@ -38,11 +44,13 @@ library
     else
         hs-source-dirs: src-ghc
         if os(ios)
-            frameworks: UIKit
-            c-sources:
-                cbits-uikit/AppDelegate.m
-                cbits-uikit/ViewController.m
+            frameworks: UIKit, UserNotifications
+            if flag(include-app-delegate)
+              c-sources:
+                  cbits-uikit/AppDelegate.m
+                  cbits-uikit/ViewController.m
         else
             frameworks: Cocoa
-            c-sources:
-                cbits-cocoa/AppDelegate.m
+            if flag(include-app-delegate)
+              c-sources:
+                  cbits-cocoa/AppDelegate.m

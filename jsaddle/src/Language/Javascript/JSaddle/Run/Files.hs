@@ -44,6 +44,8 @@ initState = "\
     \        jsaddle_values.set(4, window);\n\
     \        var jsaddle_index = 100;\n\
     \        var expectedBatch = 1;\n\
+    \        var lastResults = [0, {}];\n\
+    \        var inCallback = 0;\n\
     \"
 
 runBatch :: (ByteString -> ByteString) -> Maybe (ByteString -> ByteString) -> ByteString
@@ -52,6 +54,7 @@ runBatch send sendSync = "\
     \    var processBatch = function(timestamp) {\n\
     \      var batch = firstBatch;\n\
     \      var results = [];\n\
+    \      inCallback++;\n\
     \      try {\n\
     \        syncDepth = initialSyncDepth || 0;\n\
     \        for(;;){\n\
@@ -108,7 +111,7 @@ runBatch send sendSync = "\
     \                                            jsaddle_values.set(nArg, arguments[i]);\n\
     \                                            args[i] = nArg;\n\
     \                                        }\n\
-    \                                        " <> send "{\"tag\": \"Callback\", \"contents\": [nFunction, nThis, args]}" <> "\n\
+    \                                        " <> send "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nThis, args]}" <> "\n\
     \                                    })})();\n\
     \                                break;\n\
     \                            case \"NewSyncCallback\":\n\
@@ -125,9 +128,13 @@ runBatch send sendSync = "\
     \                                        }\n" <> (
     case sendSync of
       Just s  ->
-        "                                        runBatch(" <> s "{\"tag\": \"Callback\", \"contents\": [nFunction, nThis, args]}" <> ", 1);\n"
+        "                                        if(inCallback > 0) {\n\
+        \                                          " <> send "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nThis, args]}" <> "\n\
+        \                                        } else {\n\
+        \                                          runBatch(" <> s "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nThis, args]}" <> ", 1);\n\
+        \                                        }\n"
       Nothing ->
-        "                                        " <> send "{\"tag\": \"Callback\", \"contents\": [nFunction, nThis, args]}" <> "\n"
+        "                                        " <> send "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nThis, args]}" <> "\n"
     ) <>
     "                                    })})();\n\
     \                                break;\n\
@@ -243,29 +250,35 @@ runBatch send sendSync = "\
     \                        }\n\
     \                }\n\
     \            }\n\
-    \            if(syncDepth === 0) {\n\
-    \              " <> send "{\"tag\": \"Success\", \"contents\": results}" <> "\n\
+    \            if(syncDepth <= 0) {\n\
+    \              lastResults = [batch[2], {\"tag\": \"Success\", \"contents\": results}];\n\
+    \              " <> send "{\"tag\": \"BatchResults\", \"contents\": [lastResults[0], lastResults[1]]}" <> "\n\
     \              break;\n\
     \            } else {\n" <> (
     case sendSync of
       Just s  ->
-        "              batch = " <> s "{\"tag\": \"Success\", \"contents\": results}" <> "\n\
+        "              lastResults = [batch[2], {\"tag\": \"Success\", \"contents\": results}];\n\
+        \              batch = " <> s "{\"tag\": \"BatchResults\", \"contents\": [lastResults[0], lastResults[1]]}" <> ";\n\
         \              results = [];\n"
       Nothing ->
-        "              " <> send "{\"tag\": \"Success\", \"contents\": results}" <> "\n\
+        "              " <> send "{\"tag\": \"BatchResults\", \"contents\": [batch[2], {\"tag\": \"Success\", \"contents\": results}]}" <> "\n\
         \              break;\n"
     ) <>
     "            }\n\
     \          } else {\n\
-    \            if(syncDepth === 0) {\n\
+    \            if(syncDepth <= 0) {\n\
     \              break;\n\
     \            } else {\n" <> (
     case sendSync of
       Just s  ->
-        "              batch = " <> s "{\"tag\": \"Duplicate\"}" <> "\n\
+        "              if(batch[2] === expectedBatch - 1) {\n\
+        \                batch = " <> s "{\"tag\": \"BatchResults\", \"contents\": [lastResults[0], lastResults[1]]}" <> ";\n\
+        \              } else {\n\
+        \                batch = " <> s "{\"tag\": \"Duplicate\", \"contents\": [batch[2], expectedBatch]}" <> ";\n\
+        \              }\n\
         \              results = [];\n"
       Nothing ->
-        "              " <> send "{\"tag\": \"Duplicate\"}" <> "\n\
+        "              " <> send "{\"tag\": \"Duplicate\", \"contents\": [batch[2], expectedBatch]}" <> "\n\
         \              break;\n"
     ) <>
     "            }\n\
@@ -275,8 +288,9 @@ runBatch send sendSync = "\
     \      catch (err) {\n\
     \        var n = ++jsaddle_index;\n\
     \        jsaddle_values.set(n, err);\n\
-    \        " <> send "{\"tag\": \"Failure\", \"contents\": [results,n]}" <> "\n\
+    \        " <> send "{\"tag\": \"BatchResults\", \"contents\": [batch[2], {\"tag\": \"Failure\", \"contents\": [results, n]}]}" <> "\n\
     \      }\n\
+    \      inCallback--;\n\
     \    };\n\
     \    if(batch[1] && (initialSyncDepth || 0) === 0) {\n\
     \        window.requestAnimationFrame(processBatch);\n\

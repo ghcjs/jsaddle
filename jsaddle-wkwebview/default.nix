@@ -1,12 +1,12 @@
-{ mkDerivation, stdenv, aeson, base, bytestring, jsaddle
+{ mkDerivation, stdenv, aeson, base, bytestring, jsaddle, data-default
 , buildPackages
 }:
 
 mkDerivation {
   pname = "jsaddle-wkwebview";
-  version = "0.8.3.2";
+  version = "0.9.0.0";
   src = ./.;
-  libraryHaskellDepends = [ aeson base bytestring jsaddle ]
+  libraryHaskellDepends = [ aeson base bytestring jsaddle data-default ]
     # should use `librarySystemDepends` but it is not propagated
     ++ (with buildPackages; [
       darwin.libobjc
