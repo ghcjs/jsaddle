@@ -2,7 +2,7 @@
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 
-extern void withWebView(WKWebView *, HsStablePtr);
+extern void callWithWebView(WKWebView *, HsStablePtr);
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @property (nonatomic, assign) IBOutlet NSWindow *window;
@@ -36,7 +36,7 @@ extern void withWebView(WKWebView *, HsStablePtr);
     [theConfiguration.preferences setValue:@YES forKey:@"developerExtrasEnabled"];
     WKWebView *webView = [[WKWebView alloc] initWithFrame: [_window.contentView frame] configuration:theConfiguration];
     [_window setContentView:webView];
-    withWebView(webView, _handler);
+    callWithWebView(webView, _handler);
 }
 
 -(void)applicationDidFinishLaunching:(NSNotification *)notification {

@@ -1,24 +1,22 @@
 { mkDerivation, aeson, base, bytestring, containers, deepseq
-, doctest, filepath, ghc-prim, http-types, jsaddle, lens, primitive
-, process, QuickCheck, ref-tf, stdenv, stm, text, time
-, transformers, wai, wai-websockets, warp, websockets, osx_sdk
-, darwin, webdriver, phantomjs, ghc
+, doctest, filepath, ghc-prim, http-types, jsaddle, lens, network
+, primitive, process, QuickCheck, ref-tf, stdenv, stm, text, time
+, transformers, uuid, uuid-types, wai, wai-websockets, warp
+, webdriver, websockets
 }:
 mkDerivation {
   pname = "jsaddle-warp";
-  version = "0.8.2.0";
+  version = "0.9.1.0";
   src = builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "dist" ])) ./.;
   libraryHaskellDepends = [
-    aeson base containers http-types jsaddle stm text time transformers
-    wai wai-websockets warp websockets
-  ] ++ (if ghc.isGhcjs or false then [
-  ] else if stdenv.isDarwin then [
-#    osx_sdk darwin.libobjc darwin.apple_sdk.libs.xpc
-  ] else [
-  ]);
+    aeson base bytestring containers http-types jsaddle stm text time
+    transformers uuid uuid-types wai wai-websockets warp websockets
+  ];
   testHaskellDepends = [
-    base bytestring deepseq doctest filepath ghc-prim jsaddle lens
-    primitive process QuickCheck ref-tf webdriver phantomjs
+    aeson base bytestring containers deepseq doctest filepath ghc-prim
+    http-types jsaddle lens network primitive process QuickCheck ref-tf
+    stm text time transformers wai wai-websockets warp webdriver
+    websockets
   ];
   testTarget = "--test-option=${jsaddle.src}";
   description = "Interface for JavaScript that works with GHCJS and GHC";

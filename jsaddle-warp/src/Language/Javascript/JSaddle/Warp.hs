@@ -17,8 +17,7 @@ module Language.Javascript.JSaddle.Warp (
   -- * Running JSM over WebSockets
     run
 #ifndef ghcjs_HOST_OS
-  , jsaddleOr
-  , jsaddleApp
+  , module Language.Javascript.JSaddle.WebSockets
 #endif
 ) where
 
@@ -29,7 +28,7 @@ import Network.WebSockets (defaultConnectionOptions)
 
 import Language.Javascript.JSaddle.Types (JSM)
 import Language.Javascript.JSaddle.Run (syncPoint)
-import Language.Javascript.JSaddle.WebSockets (jsaddleOr, jsaddleApp)
+import Language.Javascript.JSaddle.WebSockets
 #endif
 
 -- | Run the given 'JSM' action as the main entry point.  Either directly
@@ -40,6 +39,6 @@ run _port = id
 #else
 run :: Int -> JSM () -> IO ()
 run port f =
-    runSettings (setPort port (setTimeout 3600 defaultSettings)) $
+    runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
         jsaddleOr defaultConnectionOptions (f >> syncPoint) jsaddleApp
 #endif

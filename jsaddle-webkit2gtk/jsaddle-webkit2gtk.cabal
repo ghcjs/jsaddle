@@ -1,5 +1,5 @@
 name: jsaddle-webkit2gtk
-version: 0.8.3.1
+version: 0.9.0.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -36,7 +36,7 @@ library
         gi-webkit2 >=4.0.6 && <4.1,
         gi-javascriptcore >=4.0.6 && <4.1,
         haskell-gi-base >=0.20 && <0.21,
-        jsaddle >=0.8.0.0 && <0.9,
+        jsaddle >=0.9.0.0 && <0.10,
         text >=1.2.1.3 && <1.3,
         webkit2gtk3-javascriptcore >=0.14.0.0 && <0.15
     if !os(windows)

@@ -1,6 +1,6 @@
 #import "ViewController.h"
 
-extern void withWebView(WKWebView *, HsStablePtr);
+extern void callWithWebView(WKWebView *, HsStablePtr);
 
 @interface ViewController ()
 
@@ -27,7 +27,7 @@ extern void withWebView(WKWebView *, HsStablePtr);
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    withWebView(_webView, _handler);
+    callWithWebView(_webView, _handler);
 }
 
 
