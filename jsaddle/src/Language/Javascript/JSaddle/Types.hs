@@ -211,19 +211,57 @@ instance MonadJSM JSM where
     liftJSM' = id
     {-# INLINE liftJSM' #-}
 
-instance (MonadJSM m) => MonadJSM (ContT r m)
-instance (Error e, MonadJSM m) => MonadJSM (ErrorT e m)
-instance (MonadJSM m) => MonadJSM (ExceptT e m)
-instance (MonadJSM m) => MonadJSM (IdentityT m)
-instance (MonadJSM m) => MonadJSM (ListT m)
-instance (MonadJSM m) => MonadJSM (MaybeT m)
-instance (MonadJSM m) => MonadJSM (ReaderT r m)
-instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.RWST r w s m)
-instance (Monoid w, MonadJSM m) => MonadJSM (Strict.RWST r w s m)
-instance (MonadJSM m) => MonadJSM (Lazy.StateT s m)
-instance (MonadJSM m) => MonadJSM (Strict.StateT s m)
-instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.WriterT w m)
-instance (Monoid w, MonadJSM m) => MonadJSM (Strict.WriterT w m)
+instance (MonadJSM m) => MonadJSM (ContT r m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (Error e, MonadJSM m) => MonadJSM (ErrorT e m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (ExceptT e m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (IdentityT m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (ListT m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (MaybeT m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (ReaderT r m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.RWST r w s m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (Monoid w, MonadJSM m) => MonadJSM (Strict.RWST r w s m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (Lazy.StateT s m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (Strict.StateT s m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.WriterT w m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (Monoid w, MonadJSM m) => MonadJSM (Strict.WriterT w m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
 
 instance MonadRef JSM where
     type Ref JSM = Ref IO
