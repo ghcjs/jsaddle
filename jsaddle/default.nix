@@ -1,7 +1,7 @@
 { mkDerivation, aeson, attoparsec, base, base64-bytestring
 , bytestring, containers, deepseq, filepath, ghc-prim, http-types
 , lens, primitive, process, ref-tf, scientific, stdenv, stm, text
-, time, transformers, unordered-containers, vector
+, time, transformers, unordered-containers, vector, uuid, uuid-types
 }:
 mkDerivation {
   pname = "jsaddle";
@@ -11,6 +11,7 @@ mkDerivation {
     aeson attoparsec base base64-bytestring bytestring containers
     deepseq filepath ghc-prim http-types lens primitive process ref-tf
     scientific stm text time transformers unordered-containers vector
+    uuid uuid-types
   ];
   description = "Interface for JavaScript that works with GHCJS and GHC";
   license = stdenv.lib.licenses.mit;

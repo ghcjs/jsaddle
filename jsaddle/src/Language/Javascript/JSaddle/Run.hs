@@ -40,7 +40,7 @@ import qualified JavaScript.Web.AnimationFrame as GHCJS
        (waitForAnimationFrame)
 #else
 import Control.Exception (throwIO)
-import Control.Monad (void, when, forever, zipWithM_)
+import Control.Monad (void, when, zipWithM_)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Reader (ask, runReaderT)
 import Control.Monad.STM (atomically)
@@ -58,6 +58,7 @@ import System.Mem.Weak (addFinalizer)
 import Data.Monoid ((<>))
 import qualified Data.Text as T (unpack)
 import qualified Data.Map as M (lookup, delete, insert, empty, size)
+import Data.UUID.V4 (nextRandom)
 import Data.Time.Clock (getCurrentTime,diffUTCTime)
 import Data.IORef (newIORef, atomicWriteIORef, readIORef)
 
@@ -68,8 +69,6 @@ import Language.Javascript.JSaddle.Exception (JSException(..))
 -- import Language.Javascript.JSaddle.Native.Internal (wrapJSVal)
 import Control.DeepSeq (deepseq)
 import GHC.Stats (getGCStatsEnabled, getGCStats, GCStats(..))
-import Data.Maybe (isJust)
-import Data.Foldable (forM_)
 #endif
 
 -- | Enable (or disable) JSaddle logging
@@ -151,6 +150,7 @@ sendAsyncCommand cmd = do
 
 runJavaScript :: (Batch -> IO ()) -> JSM () -> IO (Results -> IO (), Results -> IO Batch, IO ())
 runJavaScript sendBatch entryPoint = do
+    contextId' <- nextRandom
     startTime' <- getCurrentTime
     recvMVar <- newEmptyMVar
     lastAsyncBatch <- newEmptyMVar
@@ -159,7 +159,8 @@ runJavaScript sendBatch entryPoint = do
     nextRef' <- newTVarIO 0
     loggingEnabled <- newIORef False
     let ctx = JSContextRef {
-        startTime = startTime'
+        contextId = contextId'
+      , startTime = startTime'
       , doSendCommand = \cmd -> cmd `deepseq` do
             result <- newEmptyMVar
             atomically $ writeTChan commandChan (Right (cmd, result))

@@ -1,5 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecursiveDo #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.WebSockets
@@ -18,38 +20,50 @@ module Language.Javascript.JSaddle.WebSockets (
   , jsaddleApp
   , jsaddleWithAppOr
   , jsaddleAppPartial
+  , debug
+  , debugWrapper
 ) where
 
-import Control.Monad (forever)
-import Control.Concurrent (forkIO, threadDelay)
-import Control.Exception (handle, AsyncException, throwIO, fromException)
+import Control.Monad (when, join, void, forever)
+import Control.Concurrent (killThread, forkIO, threadDelay)
+import Control.Exception (handle, AsyncException, throwIO, fromException, finally)
 
 import Data.Monoid ((<>))
 import Data.Aeson (encode, decode)
 
 import Network.Wai
-       (lazyRequestBody, Application, Request, Response, ResponseReceived)
+       (Middleware, lazyRequestBody, Application, Request, Response,
+        ResponseReceived)
 import Network.WebSockets
-       (ConnectionOptions(..), sendTextData, receiveDataMessage,
-        acceptRequest, ServerApp, sendPing)
+       (defaultConnectionOptions, ConnectionOptions(..), sendTextData,
+        receiveDataMessage, acceptRequest, ServerApp, sendPing)
 import qualified Network.WebSockets as WS (DataMessage(..))
 import Network.Wai.Handler.WebSockets (websocketsOr)
 
-import Language.Javascript.JSaddle.Types (JSM(..))
+import Language.Javascript.JSaddle.Types (JSM(..), JSContextRef(..))
 import qualified Network.Wai as W
        (responseLBS, requestMethod, pathInfo)
 import qualified Data.Text as T (pack)
 import qualified Network.HTTP.Types as H
        (status403, status200)
-import Language.Javascript.JSaddle.Run (runJavaScript)
+import Language.Javascript.JSaddle.Run (syncPoint, runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (indexHtml, runBatch, ghcjsHelpers, initState)
+import Language.Javascript.JSaddle.Debug
+       (removeContext, addContext)
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M (empty, insert, lookup)
-import Data.IORef (readIORef, newIORef, atomicModifyIORef')
-import Data.ByteString.Lazy (fromStrict, ByteString)
-import Data.Text (Text)
+import Data.IORef
+       (writeIORef, IORef, readIORef, newIORef, atomicModifyIORef')
+import Data.ByteString.Lazy (ByteString)
 import Data.UUID.Types (toText)
-import Data.UUID.V4 (nextRandom)
+import Control.Concurrent.MVar
+       (tryPutMVar, modifyMVar_, putMVar, takeMVar, readMVar, newMVar,
+        newEmptyMVar, modifyMVar)
+import Network.Wai.Handler.Warp
+       (defaultSettings, setTimeout, setPort, runSettings)
+import Foreign.Store (newStore, readStore, lookupStore)
+import Language.Javascript.JSaddle (askJSM)
+import Control.Monad.IO.Class (MonadIO(..))
 
 jsaddleOr :: ConnectionOptions -> JSM () -> Application -> IO Application
 jsaddleOr opts entryPoint otherApp = do
@@ -57,7 +71,11 @@ jsaddleOr opts entryPoint otherApp = do
     let wsApp :: ServerApp
         wsApp pending_conn = do
             conn <- acceptRequest pending_conn
-            (processResult, processSyncResult, start) <- runJavaScript (sendTextData conn . encode) entryPoint
+            rec (processResult, processSyncResult, start) <- runJavaScript (sendTextData conn . encode) $ do
+                    syncKey <- toText . contextId <$> askJSM
+                    liftIO $ atomicModifyIORef' syncHandlers (\m -> (M.insert syncKey processSyncResult m, ()))
+                    liftIO $ sendTextData conn (encode syncKey)
+                    entryPoint
             _ <- forkIO . forever $
                 receiveDataMessage conn >>= \case
                     (WS.Text t) ->
@@ -65,9 +83,6 @@ jsaddleOr opts entryPoint otherApp = do
                             Nothing -> error $ "jsaddle Results decode failed : " <> show t
                             Just r  -> processResult r
                     _ -> error "jsaddle WebSocket unexpected binary data"
-            syncKey <- toText <$> nextRandom
-            atomicModifyIORef' syncHandlers (\m -> (M.insert syncKey processSyncResult m, ()))
-            sendTextData conn (encode syncKey)
             start
             waitTillClosed conn
 
@@ -141,6 +156,13 @@ jsaddleJs = "\
     \            var batch = JSON.parse(e.data);\n\
     \            if(typeof batch === \"string\") {\n\
     \                syncKey = batch;\n\
+    \                var xhr = new XMLHttpRequest();\n\
+    \                xhr.open('POST', '/reload/'+syncKey, true);\n\
+    \                xhr.onreadystatechange = function() {\n\
+    \                    if(xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200)\n\
+    \                        setTimeout(function(){window.location.reload();}, 500);\n\
+    \                };\n\
+    \                xhr.send();\n\
     \                return;\n\
     \            }\n\
     \\n\
@@ -164,3 +186,60 @@ jsaddleJs = "\
     \connect();\n\
     \"
 
+-- | Start or restart the server.
+-- To run this as part of every :reload use
+-- > :def! reload (const $ return "::reload\nLanguage.Javascript.JSaddle.Warp.debug 3708 SomeMainModule.someMainFunction")
+debug :: Int -> JSM () -> IO ()
+debug port f = do
+    debugWrapper $ \refreshMiddleware registerContext ->
+        runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
+            jsaddleOr defaultConnectionOptions (registerContext >> f >> syncPoint) (refreshMiddleware jsaddleApp)
+    putStrLn $ "<a href=\"http://localhost:" <> show port <> "\">run</a>"
+
+debugWrapper :: (Middleware -> JSM () -> IO ()) -> IO ()
+debugWrapper run = do
+    reloadMVar <- newEmptyMVar
+    reloadDoneMVars <- newMVar []
+    contexts <- newMVar []
+    let refreshMiddleware :: Middleware
+        refreshMiddleware otherApp req sendResponse = case (W.requestMethod req, W.pathInfo req) of
+            ("POST", ["reload", _syncKey]) -> do
+                reloadDone <- newEmptyMVar
+                modifyMVar_ reloadDoneMVars (return . (reloadDone:))
+                readMVar reloadMVar
+                r <- sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/json")] ("reload" :: ByteString)
+                putMVar reloadDone ()
+                return r
+            _ -> otherApp req sendResponse
+        start :: Int -> IO (IO Int)
+        start expectedConnections = do
+            serverDone <- newEmptyMVar
+            ready <- newEmptyMVar
+            let registerContext :: JSM ()
+                registerContext = do
+                    uuid <- contextId <$> askJSM
+                    browsersConnected <- liftIO $ modifyMVar contexts (\ctxs -> return (uuid:ctxs, length ctxs + 1))
+                    addContext
+                    when (browsersConnected == expectedConnections) . void . liftIO $ tryPutMVar ready ()
+            thread <- forkIO $
+                finally (run refreshMiddleware registerContext)
+                    (putMVar serverDone ())
+            forkIO $ threadDelay 10000000 >> void (tryPutMVar ready ())
+            when (expectedConnections /= 0) $ takeMVar ready
+            return $ do
+                putMVar reloadMVar ()
+                ctxs <- takeMVar contexts
+                mapM_ removeContext ctxs
+                takeMVar reloadDoneMVars >>= mapM_ takeMVar
+                killThread thread
+                takeMVar serverDone
+                return $ length ctxs
+    lookupStore shutdown_0 >>= \case
+        Nothing -> do
+            shutdownRef <- newIORef =<< start 0
+            void $ newStore shutdownRef
+        Just shutdownStore -> do
+            shutdownRef :: IORef (IO Int) <- readStore shutdownStore
+            expectedConnections <- join (readIORef shutdownRef)
+            writeIORef shutdownRef =<< start expectedConnections
+  where shutdown_0 = 0
