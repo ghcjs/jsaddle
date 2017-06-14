@@ -224,7 +224,7 @@ debugWrapper run = do
             thread <- forkIO $
                 finally (run refreshMiddleware registerContext)
                     (putMVar serverDone ())
-            forkIO $ threadDelay 10000000 >> void (tryPutMVar ready ())
+            _ <- forkIO $ threadDelay 10000000 >> void (tryPutMVar ready ())
             when (expectedConnections /= 0) $ takeMVar ready
             return $ do
                 putMVar reloadMVar ()
