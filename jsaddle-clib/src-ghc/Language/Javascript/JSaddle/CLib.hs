@@ -31,9 +31,6 @@ import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
 
 import Language.Javascript.JSaddle.CLib.Internal
 
-foreign import ccall safe "dynamic"
-  mkCallback :: FunPtr (CString -> IO ()) -> CString -> IO ()
-
 foreign import ccall safe "wrapper"
   wrapStartCallback :: IO () -> IO (FunPtr (IO ()))
 
@@ -46,9 +43,8 @@ foreign import ccall safe "wrapper"
 foreign import ccall safe "wrapper"
   wrapSyncCallback :: (CString -> IO CString) -> IO (FunPtr (CString -> IO CString))
 
-jsaddleInit :: JSM () -> FunPtr (CString -> IO ()) -> IO (Ptr NativeCallbacks)
-jsaddleInit jsm evaluateJavascriptAsyncPtr = do
-  let evaluateJavascriptAsync = mkCallback evaluateJavascriptAsyncPtr
+jsaddleInit :: JSM () -> (CString -> IO ()) -> IO (Ptr NativeCallbacks)
+jsaddleInit jsm evaluateJavascriptAsync = do
   (processResult, processSyncResult, start) <- runJavaScript (\batch ->
     useAsCString (toStrict $ "runJSaddleBatch(" <> encode batch <> ");")
       evaluateJavascriptAsync) jsm
