@@ -106,6 +106,8 @@ import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Fix (MonadFix)
 import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..))
 import Control.Concurrent.STM.TVar (TVar)
+import Control.Concurrent.MVar (MVar)
+import Data.Set (Set)
 import Data.Text (Text)
 import Data.UUID (UUID)
 import Data.Time.Clock (UTCTime(..))
@@ -138,6 +140,7 @@ data JSContextRef = JSContextRef {
   , freeCallback       :: Object -> IO ()
   , nextRef            :: TVar JSValueRef
   , doEnableLogging    :: Bool -> IO ()
+  , finalizerThreads   :: MVar (Set Text)
 }
 #endif
 
@@ -360,7 +363,8 @@ newtype JSStringForSend = JSStringForSend Text deriving(Show, ToJSON, FromJSON, 
 instance NFData JSStringForSend
 
 -- | Command sent to a JavaScript context for execution asynchronously
-data AsyncCommand = FreeRef JSValueForSend
+data AsyncCommand = FreeRef Text JSValueForSend
+                  | FreeRefs Text
                   | SetPropertyByName JSObjectForSend JSStringForSend JSValueForSend
                   | SetPropertyAtIndex JSObjectForSend Int JSValueForSend
                   | StringToValue JSStringForSend JSValueForSend
@@ -452,7 +456,7 @@ instance FromJSON BatchResults
 
 data Results = BatchResults Int BatchResults
              | Duplicate Int Int
-             | Callback Int BatchResults JSValueReceived JSValueReceived [JSValueReceived]
+             | Callback Int BatchResults JSValueReceived JSValueReceived JSValueReceived [JSValueReceived]
              | ProtocolError Text
              deriving (Show, Generic)
 

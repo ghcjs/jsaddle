@@ -37,6 +37,7 @@ indexHtml =
 initState :: ByteString
 initState = "\
     \        var jsaddle_values = new Map();\n\
+    \        var jsaddle_free = new Map();\n\
     \        jsaddle_values.set(0, null);\n\
     \        jsaddle_values.set(1, undefined);\n\
     \        jsaddle_values.set(2, false);\n\
@@ -67,7 +68,15 @@ runBatch send sendSync = "\
     \                    var d = cmd.Left;\n\
     \                    switch (d.tag) {\n\
     \                            case \"FreeRef\":\n\
-    \                                jsaddle_values.delete(d.contents);\n\
+    \                                var refsToFree = jsaddle_free.get(d.contents[0]) || [];\n\
+    \                                refsToFree.push(d.contents[1]);\n\
+    \                                jsaddle_free.set(d.contents[0], refsToFree);\n\
+    \                                break;\n\
+    \                            case \"FreeRefs\":\n\
+    \                                var refsToFree = jsaddle_free.get(d.contents) || [];\n\
+    \                                for(var nRef = 0; nRef != refsToFree.length; nRef++)\n\
+    \                                    jsaddle_values.delete(refsToFree[nRef]);\n\
+    \                                jsaddle_free.delete(d.contents);\n\
     \                                break;\n\
     \                            case \"SetPropertyByName\":\n\
     \                                jsaddle_values.get(d.contents[0])[d.contents[1]]=jsaddle_values.get(d.contents[2]);\n\
@@ -102,7 +111,9 @@ runBatch send sendSync = "\
     \                            case \"NewAsyncCallback\":\n\
     \                                (function() {\n\
     \                                    var nFunction = d.contents;\n\
-    \                                    jsaddle_values.set(nFunction, function() {\n\
+    \                                    var func = function() {\n\
+    \                                        var nFunctionInFunc = ++jsaddle_index;\n\
+    \                                        jsaddle_values.set(nFunctionInFunc, func);\n\
     \                                        var nThis = ++jsaddle_index;\n\
     \                                        jsaddle_values.set(nThis, this);\n\
     \                                        var args = [];\n\
@@ -111,13 +122,17 @@ runBatch send sendSync = "\
     \                                            jsaddle_values.set(nArg, arguments[i]);\n\
     \                                            args[i] = nArg;\n\
     \                                        }\n\
-    \                                        " <> send "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nThis, args]}" <> "\n\
-    \                                    })})();\n\
+    \                                        " <> send "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nFunctionInFunc, nThis, args]}" <> "\n\
+    \                                    };\n\
+    \                                    jsaddle_values.set(nFunction, func);\n\
+    \                                })();\n\
     \                                break;\n\
     \                            case \"NewSyncCallback\":\n\
     \                                (function() {\n\
     \                                    var nFunction = d.contents;\n\
-    \                                    jsaddle_values.set(nFunction, function() {\n\
+    \                                    var func = function() {\n\
+    \                                        var nFunctionInFunc = ++jsaddle_index;\n\
+    \                                        jsaddle_values.set(nFunctionInFunc, func);\n\
     \                                        var nThis = ++jsaddle_index;\n\
     \                                        jsaddle_values.set(nThis, this);\n\
     \                                        var args = [];\n\
@@ -129,14 +144,16 @@ runBatch send sendSync = "\
     case sendSync of
       Just s  ->
         "                                        if(inCallback > 0) {\n\
-        \                                          " <> send "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nThis, args]}" <> "\n\
+        \                                          " <> send "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nFunctionInFunc, nThis, args]}" <> "\n\
         \                                        } else {\n\
-        \                                          runBatch(" <> s "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nThis, args]}" <> ", 1);\n\
+        \                                          runBatch(" <> s "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nFunctionInFunc, nThis, args]}" <> ", 1);\n\
         \                                        }\n"
       Nothing ->
-        "                                        " <> send "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nThis, args]}" <> "\n"
+        "                                        " <> send "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nFunctionInFunc, nThis, args]}" <> "\n"
     ) <>
-    "                                    })})();\n\
+    "                                    };\n\
+    \                                    jsaddle_values.set(nFunction, func);\n\
+    \                                })();\n\
     \                                break;\n\
     \                            case \"CallAsFunction\":\n\
     \                                var n = d.contents[3];\n\
@@ -179,7 +196,7 @@ runBatch send sendSync = "\
     \                                jsaddle_values.set(n, d.contents[0].map(function(v){return jsaddle_values.get(v);}));\n\
     \                                break;\n\
     \                            case \"SyncWithAnimationFrame\":\n\
-    \                                var n = d.contents[0];\n\
+    \                                var n = d.contents;\n\
     \                                jsaddle_values.set(n, timestamp);\n\
     \                                break;\n\
     \                            case \"StartSyncBlock\":\n\
