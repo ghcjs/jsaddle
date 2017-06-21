@@ -55,15 +55,13 @@ import Control.Concurrent.MVar
        (tryTakeMVar, MVar, putMVar, takeMVar, newMVar, newEmptyMVar, readMVar, modifyMVar)
 
 import System.IO.Unsafe (unsafeInterleaveIO)
-import System.Mem.Weak (addFinalizer, mkWeak)
+import System.Mem.Weak (addFinalizer)
 
-import GHC.Int (Int64(..))
 import GHC.Base (IO(..), mkWeak#)
 import GHC.Conc (ThreadId(..))
 import Data.Monoid ((<>))
 import qualified Data.Text as T (unpack, pack)
 import qualified Data.Map as M (lookup, delete, insert, empty, size)
-import Data.Set (Set)
 import qualified Data.Set as S (empty, member, insert, delete)
 import Data.UUID.V4 (nextRandom)
 import Data.Time.Clock (getCurrentTime,diffUTCTime)
@@ -163,7 +161,7 @@ runJavaScript sendBatch entryPoint = do
     commandChan <- newTChanIO
     callbacks <- newTVarIO M.empty
     nextRef' <- newTVarIO 0
-    finalizerThreads <- newMVar S.empty
+    finalizerThreads' <- newMVar S.empty
     loggingEnabled <- newIORef False
     let ctx = JSContextRef {
         contextId = contextId'
@@ -180,7 +178,7 @@ runJavaScript sendBatch entryPoint = do
       , freeCallback = \(Object (JSVal val)) -> atomically $ modifyTVar' callbacks (M.delete val)
       , nextRef = nextRef'
       , doEnableLogging = atomicWriteIORef loggingEnabled
-      , finalizerThreads = finalizerThreads
+      , finalizerThreads = finalizerThreads'
       }
     let processResults :: Bool -> Results -> IO ()
         processResults syncCallbacks = \case
@@ -238,7 +236,7 @@ runJavaScript sendBatch entryPoint = do
   where
     numberForeverFromM_ :: (Monad m, Enum n) => n -> (n -> m a) -> m ()
     numberForeverFromM_ !n f = do
-      f n
+      _ <- f n
       numberForeverFromM_ (succ n) f
     takeResult recvMVar nBatch =
         takeMVar recvMVar >>= \case
@@ -284,7 +282,7 @@ wrapJSVal (JSValueReceived ref) = do
         ctx <- JSM ask
         liftIO . addFinalizer ref $ do
             ft <- takeMVar $ finalizerThreads ctx
-            t@(ThreadId t#) <- myThreadId
+            t <- myThreadId
             let tname = T.pack $ show t
             doSendAsyncCommand ctx $ FreeRef tname $ JSValueForSend ref
             if tname `S.member` ft
