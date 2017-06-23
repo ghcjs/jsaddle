@@ -1,5 +1,5 @@
 { mkDerivation, stdenv, aeson, base, bytestring, jsaddle, data-default
-, buildPackages
+, buildPackages, hostPlatform
 }:
 
 mkDerivation {
@@ -7,7 +7,9 @@ mkDerivation {
   version = "0.9.0.0";
   src = ./.;
   libraryHaskellDepends = [ aeson base bytestring jsaddle data-default ];
-  libraryDarwinFrameworkDepends = with buildPackages; [
+  libraryDarwinFrameworkDepends = with buildPackages; if hostPlatform.useiOSCross or false then [
+    (assert osx_sdk != null; osx_sdk)
+  ] else [
     darwin.libobjc
     darwin.apple_sdk.libs.xpc
     darwin.apple_sdk.frameworks.Foundation
