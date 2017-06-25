@@ -62,9 +62,9 @@ wrapJSString :: MonadIO m => JSStringReceived -> m JSString
 wrapJSString (JSStringReceived ref) = return $ JSString ref
 
 withJSVal :: MonadIO m => JSVal -> (JSValueForSend -> m a) -> m a
-withJSVal v@(JSVal ref) f =
- do result <- f (JSValueForSend ref)
-    liftIO $ touch v
+withJSVal (JSVal ref) f = do
+    result <- f (JSValueForSend ref)
+    liftIO $ touch ref
     return result
 
 withJSVals :: MonadIO m => [JSVal] -> ([JSValueForSend] -> m a) -> m a

@@ -106,7 +106,10 @@ import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Fix (MonadFix)
 import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..))
 import Control.Concurrent.STM.TVar (TVar)
+import Control.Concurrent.MVar (MVar)
+import Data.Set (Set)
 import Data.Text (Text)
+import Data.UUID (UUID)
 import Data.Time.Clock (UTCTime(..))
 import Data.Typeable (Typeable)
 import Data.Coerce (coerce, Coercible)
@@ -129,13 +132,15 @@ import GHC.Exts (Constraint)
 type JSContextRef = ()
 #else
 data JSContextRef = JSContextRef {
-    startTime          :: UTCTime
+    contextId          :: UUID
+  , startTime          :: UTCTime
   , doSendCommand      :: Command -> IO Result
   , doSendAsyncCommand :: AsyncCommand -> IO ()
   , addCallback        :: Object -> JSCallAsFunction -> IO ()
   , freeCallback       :: Object -> IO ()
   , nextRef            :: TVar JSValueRef
   , doEnableLogging    :: Bool -> IO ()
+  , finalizerThreads   :: MVar (Set Text)
 }
 #endif
 
@@ -211,19 +216,57 @@ instance MonadJSM JSM where
     liftJSM' = id
     {-# INLINE liftJSM' #-}
 
-instance (MonadJSM m) => MonadJSM (ContT r m)
-instance (Error e, MonadJSM m) => MonadJSM (ErrorT e m)
-instance (MonadJSM m) => MonadJSM (ExceptT e m)
-instance (MonadJSM m) => MonadJSM (IdentityT m)
-instance (MonadJSM m) => MonadJSM (ListT m)
-instance (MonadJSM m) => MonadJSM (MaybeT m)
-instance (MonadJSM m) => MonadJSM (ReaderT r m)
-instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.RWST r w s m)
-instance (Monoid w, MonadJSM m) => MonadJSM (Strict.RWST r w s m)
-instance (MonadJSM m) => MonadJSM (Lazy.StateT s m)
-instance (MonadJSM m) => MonadJSM (Strict.StateT s m)
-instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.WriterT w m)
-instance (Monoid w, MonadJSM m) => MonadJSM (Strict.WriterT w m)
+instance (MonadJSM m) => MonadJSM (ContT r m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (Error e, MonadJSM m) => MonadJSM (ErrorT e m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (ExceptT e m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (IdentityT m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (ListT m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (MaybeT m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (ReaderT r m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.RWST r w s m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (Monoid w, MonadJSM m) => MonadJSM (Strict.RWST r w s m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (Lazy.StateT s m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (MonadJSM m) => MonadJSM (Strict.StateT s m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.WriterT w m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
+
+instance (Monoid w, MonadJSM m) => MonadJSM (Strict.WriterT w m) where
+    liftJSM' = lift . liftJSM'
+    {-# INLINE liftJSM' #-}
 
 instance MonadRef JSM where
     type Ref JSM = Ref IO
@@ -320,7 +363,8 @@ newtype JSStringForSend = JSStringForSend Text deriving(Show, ToJSON, FromJSON, 
 instance NFData JSStringForSend
 
 -- | Command sent to a JavaScript context for execution asynchronously
-data AsyncCommand = FreeRef JSValueForSend
+data AsyncCommand = FreeRef Text JSValueForSend
+                  | FreeRefs Text
                   | SetPropertyByName JSObjectForSend JSStringForSend JSValueForSend
                   | SetPropertyAtIndex JSObjectForSend Int JSValueForSend
                   | StringToValue JSStringForSend JSValueForSend
@@ -412,7 +456,7 @@ instance FromJSON BatchResults
 
 data Results = BatchResults Int BatchResults
              | Duplicate Int Int
-             | Callback Int BatchResults JSValueReceived JSValueReceived [JSValueReceived]
+             | Callback Int BatchResults JSValueReceived JSValueReceived JSValueReceived [JSValueReceived]
              | ProtocolError Text
              deriving (Show, Generic)
 

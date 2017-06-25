@@ -2,6 +2,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Run
@@ -39,25 +41,29 @@ import Language.Javascript.JSaddle.Types (JSM)
 import qualified JavaScript.Web.AnimationFrame as GHCJS
        (waitForAnimationFrame)
 #else
-import Control.Exception (throwIO)
-import Control.Monad (void, when, forever, zipWithM_)
+import Control.Exception (throwIO, evaluate)
+import Control.Monad (void, when, zipWithM_)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Reader (ask, runReaderT)
 import Control.Monad.STM (atomically)
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, myThreadId)
 import Control.Concurrent.STM.TChan
        (tryReadTChan, TChan, readTChan, writeTChan, newTChanIO)
 import Control.Concurrent.STM.TVar
        (writeTVar, readTVar, readTVarIO, modifyTVar', newTVarIO)
 import Control.Concurrent.MVar
-       (tryTakeMVar, MVar, putMVar, takeMVar, newEmptyMVar, readMVar)
+       (tryTakeMVar, MVar, putMVar, takeMVar, newMVar, newEmptyMVar, readMVar, modifyMVar)
 
 import System.IO.Unsafe (unsafeInterleaveIO)
 import System.Mem.Weak (addFinalizer)
 
+import GHC.Base (IO(..), mkWeak#)
+import GHC.Conc (ThreadId(..))
 import Data.Monoid ((<>))
-import qualified Data.Text as T (unpack)
+import qualified Data.Text as T (unpack, pack)
 import qualified Data.Map as M (lookup, delete, insert, empty, size)
+import qualified Data.Set as S (empty, member, insert, delete)
+import Data.UUID.V4 (nextRandom)
 import Data.Time.Clock (getCurrentTime,diffUTCTime)
 import Data.IORef (newIORef, atomicWriteIORef, readIORef)
 
@@ -65,11 +71,8 @@ import Language.Javascript.JSaddle.Types
        (Command(..), AsyncCommand(..), Result(..), BatchResults(..), Results(..), JSContextRef(..), JSVal(..),
         Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..))
 import Language.Javascript.JSaddle.Exception (JSException(..))
--- import Language.Javascript.JSaddle.Native.Internal (wrapJSVal)
 import Control.DeepSeq (deepseq)
 import GHC.Stats (getGCStatsEnabled, getGCStats, GCStats(..))
-import Data.Maybe (isJust)
-import Data.Foldable (forM_)
 #endif
 
 -- | Enable (or disable) JSaddle logging
@@ -138,7 +141,7 @@ sendLazyCommand cmd = do
     nextRefTVar <- nextRef <$> JSM ask
     n <- liftIO . atomically $ do
         n <- subtract 1 <$> readTVar nextRefTVar
-        writeTVar nextRefTVar n
+        writeTVar nextRefTVar $! n
         return n
     s <- doSendAsyncCommand <$> JSM ask
     liftIO $ s (cmd $ JSValueForSend n)
@@ -151,15 +154,18 @@ sendAsyncCommand cmd = do
 
 runJavaScript :: (Batch -> IO ()) -> JSM () -> IO (Results -> IO (), Results -> IO Batch, IO ())
 runJavaScript sendBatch entryPoint = do
+    contextId' <- nextRandom
     startTime' <- getCurrentTime
     recvMVar <- newEmptyMVar
     lastAsyncBatch <- newEmptyMVar
     commandChan <- newTChanIO
     callbacks <- newTVarIO M.empty
     nextRef' <- newTVarIO 0
+    finalizerThreads' <- newMVar S.empty
     loggingEnabled <- newIORef False
     let ctx = JSContextRef {
-        startTime = startTime'
+        contextId = contextId'
+      , startTime = startTime'
       , doSendCommand = \cmd -> cmd `deepseq` do
             result <- newEmptyMVar
             atomically $ writeTChan commandChan (Right (cmd, result))
@@ -172,13 +178,14 @@ runJavaScript sendBatch entryPoint = do
       , freeCallback = \(Object (JSVal val)) -> atomically $ modifyTVar' callbacks (M.delete val)
       , nextRef = nextRef'
       , doEnableLogging = atomicWriteIORef loggingEnabled
+      , finalizerThreads = finalizerThreads'
       }
     let processResults :: Bool -> Results -> IO ()
         processResults syncCallbacks = \case
             (ProtocolError err) -> error $ "Protocol error : " <> T.unpack err
-            (Callback n br f this a) -> do
+            (Callback n br (JSValueReceived fNumber) f this a) -> do
                 putMVar recvMVar (n, br)
-                f'@(JSVal fNumber) <- runReaderT (unJSM $ wrapJSVal f) ctx
+                f' <- runReaderT (unJSM $ wrapJSVal f) ctx
                 this' <- runReaderT  (unJSM $ wrapJSVal this) ctx
                 args <- runReaderT (unJSM $ mapM wrapJSVal a) ctx
                 logInfo (("Call " <> show fNumber <> " ") <>)
@@ -207,7 +214,7 @@ runJavaScript sendBatch entryPoint = do
                         True  -> show . currentBytesUsed <$> getGCStats
                         False -> return "??"
                     cbCount <- M.size <$> readTVarIO callbacks
-                    putStrLn . s $ "M " <> currentBytesUsedStr <> "CB " <> show cbCount
+                    putStrLn . s $ "M " <> currentBytesUsedStr <> " CB " <> show cbCount <> " "
                 False -> return ()
     _ <- forkIO . numberForeverFromM_ 1 $ \nBatch ->
         readBatch nBatch commandChan >>= \case
@@ -229,7 +236,7 @@ runJavaScript sendBatch entryPoint = do
   where
     numberForeverFromM_ :: (Monad m, Enum n) => n -> (n -> m a) -> m ()
     numberForeverFromM_ !n f = do
-      f n
+      _ <- f n
       numberForeverFromM_ (succ n) f
     takeResult recvMVar nBatch =
         takeMVar recvMVar >>= \case
@@ -263,12 +270,27 @@ runJavaScript sendBatch entryPoint = do
         loopAnimation (Left asyncCmd) (cmds, resultMVars) =
             atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (Left asyncCmd:cmds, resultMVars)
 
+addThreadFinalizer :: ThreadId -> IO () -> IO ()
+addThreadFinalizer t@(ThreadId t#) (IO finalizer) =
+    IO $ \s -> case mkWeak# t# t finalizer s of { (# s1, _ #) -> (# s1, () #) }
+
 wrapJSVal :: JSValueReceived -> JSM JSVal
 wrapJSVal (JSValueReceived ref) = do
     -- TODO make sure this ref has not already been wrapped (perhaps only in debug version)
     let result = JSVal ref
-    when (ref >= 5) $ do
+    when (ref >= 5 || ref < 0) $ do
         ctx <- JSM ask
-        liftIO . addFinalizer result $ doSendAsyncCommand ctx $ FreeRef $ JSValueForSend ref
+        liftIO . addFinalizer ref $ do
+            ft <- takeMVar $ finalizerThreads ctx
+            t <- myThreadId
+            let tname = T.pack $ show t
+            doSendAsyncCommand ctx $ FreeRef tname $ JSValueForSend ref
+            if tname `S.member` ft
+                then putMVar (finalizerThreads ctx) ft
+                else do
+                    addThreadFinalizer t $ do
+                        modifyMVar (finalizerThreads ctx) $ \s -> return (S.delete tname s, ())
+                        doSendAsyncCommand ctx $ FreeRefs tname
+                    putMVar (finalizerThreads ctx) =<< evaluate (S.insert tname ft)
     return result
 #endif
