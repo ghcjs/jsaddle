@@ -26,7 +26,7 @@ import Data.IORef (readIORef, atomicModifyIORef', newIORef, IORef)
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Monoid ((<>))
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.UUID (UUID)
+import Data.Int (Int64)
 
 contexts :: IORef [JSContextRef]
 contexts = unsafePerformIO $ newIORef []
@@ -37,9 +37,9 @@ addContext = do
     ctx <- askJSM
     liftIO $ atomicModifyIORef' contexts $ \c -> (c <> [ctx], ())
 
-removeContext :: MonadIO m => UUID -> m ()
-removeContext uuid =
-    liftIO $ atomicModifyIORef' contexts $ \c -> (filter ((/= uuid) . contextId) c, ())
+removeContext :: MonadIO m => Int64 -> m ()
+removeContext cid =
+    liftIO $ atomicModifyIORef' contexts $ \c -> (filter ((/= cid) . contextId) c, ())
 
 runOnAll :: MonadIO m => JSM a -> m [a]
 runOnAll f = liftIO (readIORef contexts) >>= mapM (runJSM f)
