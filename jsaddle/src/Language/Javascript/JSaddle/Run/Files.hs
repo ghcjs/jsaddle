@@ -54,6 +54,7 @@ runBatch send sendSync = "\
     \  var runBatch = function(firstBatch, initialSyncDepth) {\n\
     \    var processBatch = function(timestamp) {\n\
     \      var batch = firstBatch;\n\
+    \      var callbacksToFree = [];\n\
     \      var results = [];\n\
     \      inCallback++;\n\
     \      try {\n\
@@ -154,6 +155,9 @@ runBatch send sendSync = "\
     "                                    };\n\
     \                                    jsaddle_values.set(nFunction, func);\n\
     \                                })();\n\
+    \                                break;\n\
+    \                            case \"FreeCallback\":\n\
+    \                                callbacksToFree.push(d.contents);\n\
     \                                break;\n\
     \                            case \"CallAsFunction\":\n\
     \                                var n = d.contents[3];\n\
@@ -268,17 +272,18 @@ runBatch send sendSync = "\
     \                }\n\
     \            }\n\
     \            if(syncDepth <= 0) {\n\
-    \              lastResults = [batch[2], {\"tag\": \"Success\", \"contents\": results}];\n\
+    \              lastResults = [batch[2], {\"tag\": \"Success\", \"contents\": [callbacksToFree, results]}];\n\
     \              " <> send "{\"tag\": \"BatchResults\", \"contents\": [lastResults[0], lastResults[1]]}" <> "\n\
     \              break;\n\
     \            } else {\n" <> (
     case sendSync of
       Just s  ->
-        "              lastResults = [batch[2], {\"tag\": \"Success\", \"contents\": results}];\n\
+        "              lastResults = [batch[2], {\"tag\": \"Success\", \"contents\": [callbacksToFree, results]}];\n\
         \              batch = " <> s "{\"tag\": \"BatchResults\", \"contents\": [lastResults[0], lastResults[1]]}" <> ";\n\
-        \              results = [];\n"
+        \              results = [];\n\
+        \              callbacksToFree = [];\n"
       Nothing ->
-        "              " <> send "{\"tag\": \"BatchResults\", \"contents\": [batch[2], {\"tag\": \"Success\", \"contents\": results}]}" <> "\n\
+        "              " <> send "{\"tag\": \"BatchResults\", \"contents\": [batch[2], {\"tag\": \"Success\", \"contents\": [callbacksToFree, results]}]}" <> "\n\
         \              break;\n"
     ) <>
     "            }\n\
@@ -293,7 +298,8 @@ runBatch send sendSync = "\
         \              } else {\n\
         \                batch = " <> s "{\"tag\": \"Duplicate\", \"contents\": [batch[2], expectedBatch]}" <> ";\n\
         \              }\n\
-        \              results = [];\n"
+        \              results = [];\n\
+        \              callbacksToFree = [];\n"
       Nothing ->
         "              " <> send "{\"tag\": \"Duplicate\", \"contents\": [batch[2], expectedBatch]}" <> "\n\
         \              break;\n"
@@ -305,7 +311,7 @@ runBatch send sendSync = "\
     \      catch (err) {\n\
     \        var n = ++jsaddle_index;\n\
     \        jsaddle_values.set(n, err);\n\
-    \        " <> send "{\"tag\": \"BatchResults\", \"contents\": [batch[2], {\"tag\": \"Failure\", \"contents\": [results, n]}]}" <> "\n\
+    \        " <> send "{\"tag\": \"BatchResults\", \"contents\": [batch[2], {\"tag\": \"Failure\", \"contents\": [callbacksToFree, results, n]}]}" <> "\n\
     \      }\n\
     \      inCallback--;\n\
     \    };\n\

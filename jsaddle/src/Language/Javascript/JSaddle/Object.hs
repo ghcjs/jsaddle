@@ -119,9 +119,10 @@ import Language.Javascript.JSaddle.Native
        (newAsyncCallback, newSyncCallback, callAsFunction, callAsConstructor)
 import Language.Javascript.JSaddle.Monad (askJSM, JSM)
 import Language.Javascript.JSaddle.Types
-       (JSString, Object(..), SomeJSArray(..),
-        JSVal(..), JSCallAsFunction, JSContextRef(..))
+       (JSValueForSend(..), AsyncCommand(..), JSString, Object(..),
+        SomeJSArray(..), JSVal(..), JSCallAsFunction, JSContextRef(..))
 import JavaScript.Object.Internal (create, listProps)
+import Language.Javascript.JSaddle.Run (sendAsyncCommand)
 #endif
 import JavaScript.Array.Internal (fromListIO)
 import Language.Javascript.JSaddle.Value (valToObject)
@@ -481,9 +482,8 @@ freeFunction :: Function -> JSM ()
 freeFunction (Function callback _) = liftIO $
     releaseCallback callback
 #else
-freeFunction (Function object) = do
-    free <- freeCallback <$> askJSM
-    liftIO $ free object
+freeFunction (Function (Object (JSVal objectRef))) =
+    sendAsyncCommand (FreeCallback (JSValueForSend objectRef))
 #endif
 
 instance ToJSVal Function where

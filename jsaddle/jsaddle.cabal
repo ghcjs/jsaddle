@@ -63,6 +63,7 @@ library
             GHCJS.Prim
             GHCJS.Prim.Internal
             GHCJS.Types
+            GHCJS.Concurrent
             GHCJS.Foreign
             GHCJS.Foreign.Internal
             GHCJS.Internal.Types

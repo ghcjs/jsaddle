@@ -37,7 +37,7 @@ run f = do
     _ <- forkIO $ forever $
         readChan batches >>= \case
             Batch commands _ batchNumber ->
-                processResult $ BatchResults batchNumber . Success $ mapMaybe (\case
+                processResult $ BatchResults batchNumber . Success [] $ mapMaybe (\case
                         Left _ -> Nothing
                         Right command -> Just $
                             case command of

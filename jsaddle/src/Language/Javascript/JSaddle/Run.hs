@@ -73,6 +73,7 @@ import Language.Javascript.JSaddle.Types
 import Language.Javascript.JSaddle.Exception (JSException(..))
 import Control.DeepSeq (deepseq)
 import GHC.Stats (getGCStatsEnabled, getGCStats, GCStats(..))
+import Data.Foldable (forM_)
 #endif
 
 -- | Enable (or disable) JSaddle logging
@@ -162,25 +163,26 @@ runJavaScript sendBatch entryPoint = do
     callbacks <- newTVarIO M.empty
     nextRef' <- newTVarIO 0
     finalizerThreads' <- newMVar S.empty
+    animationFrameHandlers' <- newMVar []
     loggingEnabled <- newIORef False
     let ctx = JSContextRef {
-        contextId = contextId'
-      , startTime = startTime'
-      , doSendCommand = \cmd -> cmd `deepseq` do
-            result <- newEmptyMVar
-            atomically $ writeTChan commandChan (Right (cmd, result))
-            unsafeInterleaveIO $
-                takeMVar result >>= \case
-                    (ThrowJSValue (JSValueReceived v)) -> throwIO $ JSException (JSVal v)
-                    r -> return r
-      , doSendAsyncCommand = \cmd -> cmd `deepseq` atomically (writeTChan commandChan $ Left cmd)
-      , addCallback = \(Object (JSVal val)) cb -> atomically $ modifyTVar' callbacks (M.insert val cb)
-      , freeCallback = \(Object (JSVal val)) -> atomically $ modifyTVar' callbacks (M.delete val)
-      , nextRef = nextRef'
-      , doEnableLogging = atomicWriteIORef loggingEnabled
-      , finalizerThreads = finalizerThreads'
-      }
-    let processResults :: Bool -> Results -> IO ()
+            contextId = contextId'
+          , startTime = startTime'
+          , doSendCommand = \cmd -> cmd `deepseq` do
+                result <- newEmptyMVar
+                atomically $ writeTChan commandChan (Right (cmd, result))
+                unsafeInterleaveIO $
+                    takeMVar result >>= \case
+                        (ThrowJSValue (JSValueReceived v)) -> throwIO $ JSException (JSVal v)
+                        r -> return r
+          , doSendAsyncCommand = \cmd -> cmd `deepseq` atomically (writeTChan commandChan $ Left cmd)
+          , addCallback = \(Object (JSVal val)) cb -> atomically $ modifyTVar' callbacks (M.insert val cb)
+          , nextRef = nextRef'
+          , doEnableLogging = atomicWriteIORef loggingEnabled
+          , finalizerThreads = finalizerThreads'
+          , animationFrameHandlers = animationFrameHandlers'
+          }
+        processResults :: Bool -> Results -> IO ()
         processResults syncCallbacks = \case
             (ProtocolError err) -> error $ "Protocol error : " <> T.unpack err
             (Callback n br (JSValueReceived fNumber) f this a) -> do
@@ -224,14 +226,20 @@ runJavaScript sendBatch entryPoint = do
                 putMVar lastAsyncBatch batch
                 sendBatch batch
                 takeResult recvMVar nBatch >>= \case
-                        (n, _) | n /= nBatch -> error $ "Unexpected jsaddle results (expected batch " <> show nBatch <> ", got batch " <> show n <> ")"
-                        (_, Success results) | length results /= length resultMVars -> error "Unexpected number of jsaddle results"
-                                             | otherwise -> zipWithM_ putMVar resultMVars results
-                        (_, Failure results exception) -> do
-                            -- The exception will only be rethrown in Haskell if/when one of the
-                            -- missing results (if any) is evaluated.
-                            putStrLn "A JavaScript exception was thrown! (may not reach Haskell code)"
-                            zipWithM_ putMVar resultMVars $ results <> repeat (ThrowJSValue exception)
+                    (n, _) | n /= nBatch -> error $ "Unexpected jsaddle results (expected batch " <> show nBatch <> ", got batch " <> show n <> ")"
+                    (_, Success callbacksToFree results)
+                           | length results /= length resultMVars -> error "Unexpected number of jsaddle results"
+                           | otherwise -> do
+                        zipWithM_ putMVar resultMVars results
+                        forM_ callbacksToFree $ \(JSValueReceived val) ->
+                            atomically (modifyTVar' callbacks (M.delete val))
+                    (_, Failure callbacksToFree results exception) -> do
+                        -- The exception will only be rethrown in Haskell if/when one of the
+                        -- missing results (if any) is evaluated.
+                        putStrLn "A JavaScript exception was thrown! (may not reach Haskell code)"
+                        zipWithM_ putMVar resultMVars $ results <> repeat (ThrowJSValue exception)
+                        forM_ callbacksToFree $ \(JSValueReceived val) ->
+                            atomically (modifyTVar' callbacks (M.delete val))
     return (asyncResults, syncResults, runReaderT (unJSM entryPoint) ctx)
   where
     numberForeverFromM_ :: (Monad m, Enum n) => n -> (n -> m a) -> m ()

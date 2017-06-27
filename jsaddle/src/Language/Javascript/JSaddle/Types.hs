@@ -132,15 +132,15 @@ import GHC.Exts (Constraint)
 type JSContextRef = ()
 #else
 data JSContextRef = JSContextRef {
-    contextId          :: UUID
-  , startTime          :: UTCTime
-  , doSendCommand      :: Command -> IO Result
-  , doSendAsyncCommand :: AsyncCommand -> IO ()
-  , addCallback        :: Object -> JSCallAsFunction -> IO ()
-  , freeCallback       :: Object -> IO ()
-  , nextRef            :: TVar JSValueRef
-  , doEnableLogging    :: Bool -> IO ()
-  , finalizerThreads   :: MVar (Set Text)
+    contextId              :: UUID
+  , startTime              :: UTCTime
+  , doSendCommand          :: Command -> IO Result
+  , doSendAsyncCommand     :: AsyncCommand -> IO ()
+  , addCallback            :: Object -> JSCallAsFunction -> IO ()
+  , nextRef                :: TVar JSValueRef
+  , doEnableLogging        :: Bool -> IO ()
+  , finalizerThreads       :: MVar (Set Text)
+  , animationFrameHandlers :: MVar [Double -> JSM ()]
 }
 #endif
 
@@ -377,6 +377,7 @@ data AsyncCommand = FreeRef Text JSValueForSend
                   | NewEmptyObject JSValueForSend
                   | NewAsyncCallback JSValueForSend
                   | NewSyncCallback JSValueForSend
+                  | FreeCallback JSValueForSend
                   | NewArray [JSValueForSend] JSValueForSend
                   | EvaluateScript JSStringForSend JSValueForSend
                   | SyncWithAnimationFrame JSValueForSend
@@ -445,8 +446,8 @@ instance ToJSON Result where
 
 instance FromJSON Result
 
-data BatchResults = Success [Result]
-                  | Failure [Result] JSValueReceived
+data BatchResults = Success [JSValueReceived] [Result]
+                  | Failure [JSValueReceived] [Result] JSValueReceived
              deriving (Show, Generic)
 
 instance ToJSON BatchResults where
