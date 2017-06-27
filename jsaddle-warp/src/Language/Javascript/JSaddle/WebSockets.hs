@@ -55,7 +55,6 @@ import qualified Data.Map as M (empty, insert, lookup)
 import Data.IORef
        (writeIORef, IORef, readIORef, newIORef, atomicModifyIORef')
 import Data.ByteString.Lazy (ByteString)
-import Data.UUID.Types (toText)
 import Control.Concurrent.MVar
        (tryPutMVar, modifyMVar_, putMVar, takeMVar, readMVar, newMVar,
         newEmptyMVar, modifyMVar)
@@ -72,7 +71,7 @@ jsaddleOr opts entryPoint otherApp = do
         wsApp pending_conn = do
             conn <- acceptRequest pending_conn
             rec (processResult, processSyncResult, start) <- runJavaScript (sendTextData conn . encode) $ do
-                    syncKey <- toText . contextId <$> askJSM
+                    syncKey <- T.pack . show . contextId <$> askJSM
                     liftIO $ atomicModifyIORef' syncHandlers (\m -> (M.insert syncKey processSyncResult m, ()))
                     liftIO $ sendTextData conn (encode syncKey)
                     entryPoint

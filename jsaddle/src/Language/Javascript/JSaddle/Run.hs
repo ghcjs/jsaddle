@@ -56,6 +56,7 @@ import Control.Concurrent.MVar
 
 import System.IO.Unsafe (unsafeInterleaveIO)
 import System.Mem.Weak (addFinalizer)
+import System.Random
 
 import GHC.Base (IO(..), mkWeak#)
 import GHC.Conc (ThreadId(..))
@@ -63,7 +64,6 @@ import Data.Monoid ((<>))
 import qualified Data.Text as T (unpack, pack)
 import qualified Data.Map as M (lookup, delete, insert, empty, size)
 import qualified Data.Set as S (empty, member, insert, delete)
-import Data.UUID.V4 (nextRandom)
 import Data.Time.Clock (getCurrentTime,diffUTCTime)
 import Data.IORef (newIORef, atomicWriteIORef, readIORef)
 
@@ -155,7 +155,7 @@ sendAsyncCommand cmd = do
 
 runJavaScript :: (Batch -> IO ()) -> JSM () -> IO (Results -> IO (), Results -> IO Batch, IO ())
 runJavaScript sendBatch entryPoint = do
-    contextId' <- nextRandom
+    contextId' <- randomIO
     startTime' <- getCurrentTime
     recvMVar <- newEmptyMVar
     lastAsyncBatch <- newEmptyMVar

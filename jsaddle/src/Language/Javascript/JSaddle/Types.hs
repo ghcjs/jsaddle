@@ -107,9 +107,9 @@ import Control.Monad.Fix (MonadFix)
 import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..))
 import Control.Concurrent.STM.TVar (TVar)
 import Control.Concurrent.MVar (MVar)
+import Data.Int (Int64)
 import Data.Set (Set)
 import Data.Text (Text)
-import Data.UUID (UUID)
 import Data.Time.Clock (UTCTime(..))
 import Data.Typeable (Typeable)
 import Data.Coerce (coerce, Coercible)
@@ -132,7 +132,7 @@ import GHC.Exts (Constraint)
 type JSContextRef = ()
 #else
 data JSContextRef = JSContextRef {
-    contextId              :: UUID
+    contextId              :: Int64
   , startTime              :: UTCTime
   , doSendCommand          :: Command -> IO Result
   , doSendAsyncCommand     :: AsyncCommand -> IO ()
