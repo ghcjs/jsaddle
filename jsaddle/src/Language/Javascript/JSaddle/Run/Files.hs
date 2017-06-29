@@ -47,6 +47,7 @@ initState = "\
     \        var expectedBatch = 1;\n\
     \        var lastResults = [0, {}];\n\
     \        var inCallback = 0;\n\
+    \        var asyncBatch = null;\n\
     \"
 
 runBatch :: (ByteString -> ByteString) -> Maybe (ByteString -> ByteString) -> ByteString
@@ -312,6 +313,13 @@ runBatch send sendSync = "\
     \        var n = ++jsaddle_index;\n\
     \        jsaddle_values.set(n, err);\n\
     \        " <> send "{\"tag\": \"BatchResults\", \"contents\": [batch[2], {\"tag\": \"Failure\", \"contents\": [callbacksToFree, results, n]}]}" <> "\n\
+    \      }\n\
+    \      if(inCallback == 1) {\n\
+    \          while(asyncBatch !== null) {\n\
+    \              var b = asyncBatch;\n\
+    \              asyncBatch = null;\n\
+    \              if(b[2] == expectedBatch) runBatch(b);\n\
+    \          }\n\
     \      }\n\
     \      inCallback--;\n\
     \    };\n\
