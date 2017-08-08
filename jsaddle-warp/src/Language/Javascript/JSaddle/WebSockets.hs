@@ -115,10 +115,13 @@ jsaddleOr opts entryPoint otherApp = do
 
 
 jsaddleApp :: Application
-jsaddleApp req sendResponse =
+jsaddleApp = jsaddleAppWithJs $ jsaddleJs False
+
+jsaddleAppWithJs :: ByteString -> Application
+jsaddleAppWithJs js req sendResponse =
     fromMaybe
         (sendResponse $  W.responseLBS H.status403 [("Content-Type", "text/plain")] "Forbidden")
-        (jsaddleAppPartial req sendResponse)
+        (jsaddleAppPartialWithJs js req sendResponse)
 
 jsaddleWithAppOr :: ConnectionOptions -> JSM () -> Application -> IO Application
 jsaddleWithAppOr opts entryPoint otherApp = jsaddleOr opts entryPoint $ \req sendResponse ->
@@ -126,15 +129,18 @@ jsaddleWithAppOr opts entryPoint otherApp = jsaddleOr opts entryPoint $ \req sen
      (jsaddleAppPartial req sendResponse))
 
 jsaddleAppPartial :: Request -> (Response -> IO ResponseReceived) -> Maybe (IO ResponseReceived)
-jsaddleAppPartial req sendResponse = case (W.requestMethod req, W.pathInfo req) of
+jsaddleAppPartial = jsaddleAppPartialWithJs $ jsaddleJs False
+
+jsaddleAppPartialWithJs :: ByteString -> Request -> (Response -> IO ResponseReceived) -> Maybe (IO ResponseReceived)
+jsaddleAppPartialWithJs js req sendResponse = case (W.requestMethod req, W.pathInfo req) of
     ("GET", []) -> Just $ sendResponse $ W.responseLBS H.status200 [("Content-Type", "text/html")] indexHtml
-    ("GET", ["jsaddle.js"]) -> Just $ sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/javascript")] jsaddleJs
+    ("GET", ["jsaddle.js"]) -> Just $ sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/javascript")] js
     _ -> Nothing
 
 -- Use this to generate this string for embedding
 -- sed -e 's|\\|\\\\|g' -e 's|^|    \\|' -e 's|$|\\n\\|' -e 's|"|\\"|g' data/jsaddle.js | pbcopy
-jsaddleJs :: ByteString
-jsaddleJs = "\
+jsaddleJs :: Bool -> ByteString
+jsaddleJs refreshOnLoad = "\
     \if(typeof global !== \"undefined\") {\n\
     \    global.window = global;\n\
     \    global.WebSocket = require('ws');\n\
@@ -156,15 +162,17 @@ jsaddleJs = "\
     \                return;\n\
     \            }\n\
     \            if(typeof batch === \"string\") {\n\
-    \                syncKey = batch;\n\
-    \                var xhr = new XMLHttpRequest();\n\
-    \                xhr.open('POST', '/reload/'+syncKey, true);\n\
-    \                xhr.onreadystatechange = function() {\n\
-    \                    if(xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200)\n\
-    \                        setTimeout(function(){window.location.reload();}, 500);\n\
-    \                };\n\
-    \                xhr.send();\n\
-    \                return;\n\
+    \                syncKey = batch;\n" <>
+    (if refreshOnLoad
+     then "                var xhr = new XMLHttpRequest();\n\
+          \                xhr.open('POST', '/reload/'+syncKey, true);\n\
+          \                xhr.onreadystatechange = function() {\n\
+          \                    if(xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200)\n\
+          \                        setTimeout(function(){window.location.reload();}, 500);\n\
+          \                };\n\
+          \                xhr.send();\n"
+     else "") <>
+    "                return;\n\
     \            }\n\
     \\n\
     \ " <> runBatch (\a -> "ws.send(JSON.stringify(" <> a <> "));")
@@ -190,26 +198,28 @@ jsaddleJs = "\
 -- > :def! reload (const $ return "::reload\nLanguage.Javascript.JSaddle.Warp.debug 3708 SomeMainModule.someMainFunction")
 debug :: Int -> JSM () -> IO ()
 debug port f = do
-    debugWrapper $ \refreshMiddleware registerContext ->
+    debugWrapper $ \withRefresh registerContext ->
         runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
-            jsaddleOr defaultConnectionOptions (registerContext >> f >> syncPoint) (refreshMiddleware jsaddleApp)
+            jsaddleOr defaultConnectionOptions (registerContext >> f >> syncPoint) (withRefresh $ jsaddleAppWithJs $ jsaddleJs True)
     putStrLn $ "<a href=\"http://localhost:" <> show port <> "\">run</a>"
+
+refreshMiddleware :: ((Response -> IO ResponseReceived) -> IO ResponseReceived) -> Middleware
+refreshMiddleware refresh otherApp req sendResponse = case (W.requestMethod req, W.pathInfo req) of
+    ("POST", ["reload", _syncKey]) -> refresh sendResponse
+    _ -> otherApp req sendResponse
 
 debugWrapper :: (Middleware -> JSM () -> IO ()) -> IO ()
 debugWrapper run = do
     reloadMVar <- newEmptyMVar
     reloadDoneMVars <- newMVar []
     contexts <- newMVar []
-    let refreshMiddleware :: Middleware
-        refreshMiddleware otherApp req sendResponse = case (W.requestMethod req, W.pathInfo req) of
-            ("POST", ["reload", _syncKey]) -> do
-                reloadDone <- newEmptyMVar
-                modifyMVar_ reloadDoneMVars (return . (reloadDone:))
-                readMVar reloadMVar
-                r <- sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/json")] ("reload" :: ByteString)
-                putMVar reloadDone ()
-                return r
-            _ -> otherApp req sendResponse
+    let refresh sendResponse = do
+          reloadDone <- newEmptyMVar
+          modifyMVar_ reloadDoneMVars (return . (reloadDone:))
+          readMVar reloadMVar
+          r <- sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/json")] ("reload" :: ByteString)
+          putMVar reloadDone ()
+          return r
         start :: Int -> IO (IO Int)
         start expectedConnections = do
             serverDone <- newEmptyMVar
@@ -221,7 +231,7 @@ debugWrapper run = do
                     addContext
                     when (browsersConnected == expectedConnections) . void . liftIO $ tryPutMVar ready ()
             thread <- forkIO $
-                finally (run refreshMiddleware registerContext)
+                finally (run (refreshMiddleware refresh) registerContext)
                     (putMVar serverDone ())
             _ <- forkIO $ threadDelay 10000000 >> void (tryPutMVar ready ())
             when (expectedConnections /= 0) $ takeMVar ready
