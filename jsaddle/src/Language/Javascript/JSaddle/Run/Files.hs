@@ -244,7 +244,7 @@ runBatch send sendSync = "\
     \                                        (v === true           ) ? [3, \"\"] :\n\
     \                                        (typeof v === \"number\") ? [-1, v.toString()] :\n\
     \                                        (typeof v === \"string\") ? [-2, v]\n\
-    \                                                                : [n, \"\"];\n\
+    \                                                                : [-3, \"\"];\n\
     \                                results.push({\"tag\": \"DeRefValResult\", \"contents\": c});\n\
     \                                break;\n\
     \                            case \"IsNull\":\n\

@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.9.3.0
+version: 0.9.4.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -41,12 +41,12 @@ library
             filepath >=1.4.0.0 && <1.5,
             ghc-prim,
             http-types >=0.8.6 && <0.10,
-            process >=1.2.3.0 && <1.5,
+            process >=1.2.3.0 && <1.7,
             random >= 1.1 && < 1.2,
             ref-tf >=0.4.0.1 && <0.5,
             scientific >=0.3 && <0.4,
             stm >=2.4.4 && <2.5,
-            time >=1.5.0.1 && <1.8,
+            time >=1.5.0.1 && <1.9,
             unordered-containers >=0.2 && <0.3,
             vector >=0.10 && <0.13
         exposed-modules:

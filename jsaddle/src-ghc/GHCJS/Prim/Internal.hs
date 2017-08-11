@@ -17,6 +17,8 @@ import           Unsafe.Coerce (unsafeCoerce)
 import           Data.Aeson (ToJSON(..), FromJSON(..))
 
 import qualified GHC.Exception as Ex
+import Data.IORef (newIORef, IORef)
+import System.IO.Unsafe (unsafePerformIO)
 
 -- A reference to a particular JavaScript value inside the JavaScript context
 type JSValueRef = Int64
@@ -25,7 +27,7 @@ type JSValueRef = Int64
   JSVal is a boxed type that can be used as FFI
   argument or result.
 -}
-newtype JSVal = JSVal JSValueRef deriving(Show, ToJSON, FromJSON)
+newtype JSVal = JSVal (IORef JSValueRef)
 
 instance NFData JSVal where
   rnf x = x `seq` ()
@@ -49,8 +51,8 @@ mkJSException ref =
   return (JSException (unsafeCoerce ref) "")
 
 jsNull :: JSVal
-jsNull = JSVal 0
-{-# INLINE jsNull #-}
+jsNull = JSVal . unsafePerformIO $ newIORef 0
+{-# NOINLINE jsNull #-}
 
 {- | If a synchronous thread tries to do something that can only
      be done asynchronously, and the thread is set up to not

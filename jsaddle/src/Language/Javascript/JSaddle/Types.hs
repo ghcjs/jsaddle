@@ -141,6 +141,7 @@ data JSContextRef = JSContextRef {
   , doEnableLogging        :: Bool -> IO ()
   , finalizerThreads       :: MVar (Set Text)
   , animationFrameHandlers :: MVar [Double -> JSM ()]
+  , liveRefs               :: MVar (Set Int64)
 }
 #endif
 
@@ -339,7 +340,7 @@ type MutableJSArray = SomeJSArray Mutable
 type STJSArray s    = SomeJSArray (STMutable s)
 
 -- | See 'JavaScript.Object.Internal.Object'
-newtype Object = Object JSVal deriving(Show, ToJSON, FromJSON)
+newtype Object = Object JSVal
 
 -- | See 'GHCJS.Nullable.Nullable'
 newtype Nullable a = Nullable a

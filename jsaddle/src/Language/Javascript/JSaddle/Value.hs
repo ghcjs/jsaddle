@@ -618,15 +618,17 @@ foreign import javascript unsafe "$r = ($1 === undefined)?0:\
                                        (typeof $1===\"string\")?4:\
                                        (typeof $1===\"object\")?5:-1;" jsrefGetType :: JSVal -> Int
 #else
-deRefVal value = toJSVal value >>= N.deRefVal >>= \result -> return $
-    case result of
+deRefVal value = do
+    v <- toJSVal value
+    result <- N.deRefVal v
+    return $ case result of
         DeRefValResult 0    _ -> ValNull
         DeRefValResult 1    _ -> ValUndefined
         DeRefValResult 2    _ -> ValBool False
         DeRefValResult 3    _ -> ValBool True
         DeRefValResult (-1) s -> ValNumber (read (T.unpack s))
         DeRefValResult (-2) s -> ValString s
-        DeRefValResult ref  _ -> ValObject (Object (JSVal ref))
+        DeRefValResult (-3) _ -> ValObject (Object v)
         _                     -> error "Unexpected result dereferencing JSaddle value"
 #endif
 

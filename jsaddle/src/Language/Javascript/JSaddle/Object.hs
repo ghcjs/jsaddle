@@ -132,6 +132,8 @@ import Language.Javascript.JSaddle.Arguments (MakeArgs(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Properties
 import Control.Lens (IndexPreservingGetter, to)
+import Data.IORef (newIORef, readIORef)
+import System.IO.Unsafe (unsafePerformIO)
 
 -- $setup
 -- >>> import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
@@ -482,8 +484,16 @@ freeFunction :: Function -> JSM ()
 freeFunction (Function callback _) = liftIO $
     releaseCallback callback
 #else
-freeFunction (Function (Object (JSVal objectRef))) =
-    sendAsyncCommand (FreeCallback (JSValueForSend objectRef))
+freeFunction (Function (Object (JSVal objectRef))) = do
+    -- By now the callback should ideally have been removed from whatever
+    -- events it was added to.
+    -- In case a call to the callback is still pending (perhaps just being sent
+    -- on the JS side) we use FreeCallback to queue the callback to be freed when
+    -- the next batch of results comes back fro JS.
+    -- We are not using withJSVal to keep JS value "alive" because FreeCallback
+    -- does not use the it.
+    n <- liftIO $ readIORef objectRef
+    sendAsyncCommand (FreeCallback (JSValueForSend n))
 #endif
 
 instance ToJSVal Function where
@@ -522,7 +532,7 @@ global = js_window
 foreign import javascript unsafe "$r = window"
     js_window :: Object
 #else
-global = Object (JSVal 4)
+global = Object . JSVal . unsafePerformIO $ newIORef 4
 #endif
 
 -- | Get a list containing the property names present on a given object
@@ -603,5 +613,5 @@ nullObject :: Object
 #ifdef ghcjs_HOST_OS
 nullObject = Object nullRef
 #else
-nullObject = Object (JSVal 0)
+nullObject = Object . JSVal . unsafePerformIO $ newIORef 0
 #endif

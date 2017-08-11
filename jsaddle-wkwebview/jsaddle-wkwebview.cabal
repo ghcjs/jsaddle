@@ -1,5 +1,5 @@
 name: jsaddle-wkwebview
-version: 0.9.0.0
+version: 0.9.4.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -30,7 +30,7 @@ library
         aeson >=0.8.0.2 && <1.3,
         base <5,
         bytestring >=0.10.6.0 && <0.11,
-        jsaddle >= 0.9.0.0 && <0.10,
+        jsaddle >= 0.9.4.0 && <0.10,
         data-default,
         containers
     default-language: Haskell2010

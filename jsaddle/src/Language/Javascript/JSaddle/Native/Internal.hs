@@ -1,3 +1,6 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Native
@@ -45,7 +48,6 @@ module Language.Javascript.JSaddle.Native.Internal (
 ) where
 
 import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Primitive (touch)
 
 import Data.Aeson (Value)
 
@@ -57,30 +59,34 @@ import Language.Javascript.JSaddle.Monad (askJSM)
 import Language.Javascript.JSaddle.Run
        (Command(..), Result(..), sendCommand,
         sendAsyncCommand, sendLazyCommand, wrapJSVal)
+import GHC.IORef (IORef(..), readIORef)
+import GHC.STRef (STRef(..))
+import GHC.IO (IO(..))
+import GHC.Base (touch#)
 
 wrapJSString :: MonadIO m => JSStringReceived -> m JSString
 wrapJSString (JSStringReceived ref) = return $ JSString ref
 
+touchIORef :: IORef a -> IO ()
+touchIORef (IORef (STRef r#)) = IO $ \s -> case touch# r# s of s' -> (# s', () #)
+
 withJSVal :: MonadIO m => JSVal -> (JSValueForSend -> m a) -> m a
 withJSVal (JSVal ref) f = do
-    result <- f (JSValueForSend ref)
-    liftIO $ touch ref
+    result <- (f . JSValueForSend) =<< liftIO (readIORef ref)
+    liftIO $ touchIORef ref
     return result
 
 withJSVals :: MonadIO m => [JSVal] -> ([JSValueForSend] -> m a) -> m a
 withJSVals v f =
- do result <- f (map (\(JSVal ref) -> JSValueForSend ref) v)
-    liftIO $ mapM_ touch v
+ do result <- f =<< mapM (\(JSVal ref) -> liftIO $ JSValueForSend <$> readIORef ref) v
+    liftIO $ mapM_ (\(JSVal ref) -> touchIORef ref) v
     return result
 
 withObject :: MonadIO m => Object -> (JSObjectForSend -> m a) -> m a
 withObject (Object o) f = withJSVal o (f . JSObjectForSend)
 
 withJSString :: MonadIO m => JSString -> (JSStringForSend -> m a) -> m a
-withJSString v@(JSString ref) f =
- do result <- f (JSStringForSend ref)
-    liftIO $ touch v
-    return result
+withJSString (JSString ref) f = f (JSStringForSend ref)
 
 setPropertyByName :: JSString -> JSVal -> Object -> JSM ()
 setPropertyByName name val this =
@@ -166,13 +172,14 @@ deRefVal value = withJSVal value $ sendCommand . DeRefVal
 {-# INLINE deRefVal #-}
 
 valueToBool :: JSVal -> JSM Bool
-valueToBool (JSVal 0) = return False -- null
-valueToBool (JSVal 1) = return False -- undefined
-valueToBool (JSVal 2) = return False -- false
-valueToBool (JSVal 3) = return True  -- true
-valueToBool v = withJSVal v $ \rval -> do
-    ~(ValueToBoolResult result) <- sendCommand (ValueToBool rval)
-    return result
+valueToBool v@(JSVal ref) = liftIO (readIORef ref) >>= \case
+    0 -> return False -- null
+    1 -> return False -- undefined
+    2 -> return False -- false
+    3 -> return True  -- true
+    _ -> withJSVal v $ \rval -> do
+        ~(ValueToBoolResult result) <- sendCommand (ValueToBool rval)
+        return result
 {-# INLINE valueToBool #-}
 
 valueToNumber :: JSVal -> JSM Double
@@ -201,17 +208,25 @@ valueToJSONValue value = withJSVal value $ \rval -> do
 {-# INLINE valueToJSONValue #-}
 
 isNull :: JSVal -> JSM Bool
-isNull (JSVal 0) = return True
-isNull v = withJSVal v $ \rval -> do
-    ~(IsNullResult result) <- sendCommand $ IsNull rval
-    return result
+isNull v@(JSVal ref) = liftIO (readIORef ref) >>= \case
+    0 -> return True  -- null
+    1 -> return False -- undefined
+    2 -> return False -- false
+    3 -> return False -- true
+    _ -> withJSVal v $ \rval -> do
+        ~(IsNullResult result) <- sendCommand $ IsNull rval
+        return result
 {-# INLINE isNull #-}
 
 isUndefined :: JSVal -> JSM Bool
-isUndefined (JSVal 1) = return True
-isUndefined v = withJSVal v $ \rval -> do
-    ~(IsUndefinedResult result) <- sendCommand $ IsUndefined rval
-    return result
+isUndefined v@(JSVal ref) = liftIO (readIORef ref) >>= \case
+    0 -> return False -- null
+    1 -> return True  -- undefined
+    2 -> return False -- false
+    3 -> return False -- true
+    _ -> withJSVal v $ \rval -> do
+        ~(IsUndefinedResult result) <- sendCommand $ IsUndefined rval
+        return result
 {-# INLINE isUndefined #-}
 
 strictEqual :: JSVal -> JSVal -> JSM Bool

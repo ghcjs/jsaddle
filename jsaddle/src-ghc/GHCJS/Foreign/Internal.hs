@@ -27,26 +27,28 @@ import Language.Javascript.JSaddle.Native.Internal
        (valueToBool)
 import Data.Typeable (Typeable)
 import GHCJS.Prim (isNull, isUndefined)
+import System.IO.Unsafe (unsafePerformIO)
+import Data.IORef (newIORef)
 
 jsTrue :: JSVal
-jsTrue = JSVal 3
-{-# INLINE jsTrue #-}
+jsTrue = JSVal . unsafePerformIO $ newIORef 3
+{-# NOINLINE jsTrue #-}
 
 jsFalse :: JSVal
-jsFalse = JSVal 2
-{-# INLINE jsFalse #-}
+jsFalse = JSVal . unsafePerformIO $ newIORef 2
+{-# NOINLINE jsFalse #-}
 
 jsNull :: JSVal
-jsNull = JSVal 0
-{-# INLINE jsNull #-}
+jsNull = JSVal . unsafePerformIO $ newIORef 0
+{-# NOINLINE jsNull #-}
 
 toJSBool :: Bool -> JSVal
-toJSBool b = JSVal $ if b then 3 else 2
-{-# INLINE toJSBool #-}
+toJSBool b = JSVal . unsafePerformIO . newIORef $ if b then 3 else 2
+{-# NOINLINE toJSBool #-}
 
 jsUndefined :: JSVal
-jsUndefined = JSVal 1
-{-# INLINE jsUndefined #-}
+jsUndefined = JSVal . unsafePerformIO $ newIORef 1
+{-# NOINLINE jsUndefined #-}
 
 isTruthy :: JSVal -> GHCJSPure Bool
 isTruthy = GHCJSPure . valueToBool

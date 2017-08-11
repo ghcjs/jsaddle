@@ -206,9 +206,7 @@ jsaddleJs = ghcjsHelpers <> mconcat
     , initState
     , "\nreturn function(batch) {\n"
     , runBatch (\a -> "window.webkit.messageHandlers.jsaddle.postMessage(JSON.stringify(" <> a <> "));\n")
-               Nothing
-               -- TODO fix https://github.com/haskell-gi/haskell-gi/issues/97 then use
-               -- (Just (\a -> "JSON.parse(window.prompt(\"JSaddleSync\", JSON.stringify(" <> a <> ")))"))
+               (Just (\a -> "JSON.parse(window.prompt(\"JSaddleSync\", JSON.stringify(" <> a <> ")))"))
     , "};\n"
     , "})()"
     ]

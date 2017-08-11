@@ -4,7 +4,7 @@
 
 mkDerivation {
   pname = "jsaddle-wkwebview";
-  version = "0.9.0.0";
+  version = "0.9.4.0";
   src = ./.;
   libraryHaskellDepends = [ aeson base bytestring jsaddle data-default ];
   libraryDarwinFrameworkDepends = with buildPackages; if hostPlatform.useiOSCross or false then [

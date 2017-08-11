@@ -65,13 +65,14 @@ import qualified Data.Text as T (unpack, pack)
 import qualified Data.Map as M (lookup, delete, insert, empty, size)
 import qualified Data.Set as S (empty, member, insert, delete)
 import Data.Time.Clock (getCurrentTime,diffUTCTime)
-import Data.IORef (newIORef, atomicWriteIORef, readIORef)
+import Data.IORef
+       (mkWeakIORef, newIORef, atomicWriteIORef, readIORef)
 
 import Language.Javascript.JSaddle.Types
        (Command(..), AsyncCommand(..), Result(..), BatchResults(..), Results(..), JSContextRef(..), JSVal(..),
         Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..))
 import Language.Javascript.JSaddle.Exception (JSException(..))
-import Control.DeepSeq (deepseq)
+import Control.DeepSeq (force, deepseq)
 import GHC.Stats (getGCStatsEnabled, getGCStats, GCStats(..))
 import Data.Foldable (forM_)
 #endif
@@ -165,6 +166,7 @@ runJavaScript sendBatch entryPoint = do
     finalizerThreads' <- newMVar S.empty
     animationFrameHandlers' <- newMVar []
     loggingEnabled <- newIORef False
+    liveRefs' <- newMVar S.empty
     let ctx = JSContextRef {
             contextId = contextId'
           , startTime = startTime'
@@ -173,14 +175,19 @@ runJavaScript sendBatch entryPoint = do
                 atomically $ writeTChan commandChan (Right (cmd, result))
                 unsafeInterleaveIO $
                     takeMVar result >>= \case
-                        (ThrowJSValue (JSValueReceived v)) -> throwIO $ JSException (JSVal v)
+                        (ThrowJSValue v) -> do
+                            jsval <- wrapJSVal' ctx v
+                            throwIO $ JSException jsval
                         r -> return r
           , doSendAsyncCommand = \cmd -> cmd `deepseq` atomically (writeTChan commandChan $ Left cmd)
-          , addCallback = \(Object (JSVal val)) cb -> atomically $ modifyTVar' callbacks (M.insert val cb)
+          , addCallback = \(Object (JSVal ioref)) cb -> do
+                val <- readIORef ioref
+                atomically $ modifyTVar' callbacks (M.insert val cb)
           , nextRef = nextRef'
           , doEnableLogging = atomicWriteIORef loggingEnabled
           , finalizerThreads = finalizerThreads'
           , animationFrameHandlers = animationFrameHandlers'
+          , liveRefs = liveRefs'
           }
         processResults :: Bool -> Results -> IO ()
         processResults syncCallbacks = \case
@@ -282,17 +289,29 @@ addThreadFinalizer :: ThreadId -> IO () -> IO ()
 addThreadFinalizer t@(ThreadId t#) (IO finalizer) =
     IO $ \s -> case mkWeak# t# t finalizer s of { (# s1, _ #) -> (# s1, () #) }
 
+
 wrapJSVal :: JSValueReceived -> JSM JSVal
-wrapJSVal (JSValueReceived ref) = do
-    -- TODO make sure this ref has not already been wrapped (perhaps only in debug version)
-    let result = JSVal ref
-    when (ref >= 5 || ref < 0) $ do
-        ctx <- JSM ask
-        liftIO . addFinalizer ref $ do
+wrapJSVal v = do
+    ctx <- JSM ask
+    liftIO $ wrapJSVal' ctx v
+
+wrapJSVal' :: JSContextRef -> JSValueReceived -> IO JSVal
+wrapJSVal' ctx (JSValueReceived n) = do
+    ref <- liftIO $ newIORef n
+    when (n >= 5 || n < 0) $
+#ifdef JSADDLE_CHECK_WRAPJSVAL
+     do lr <- takeMVar $ liveRefs ctx
+        if n `S.member` lr
+            then do
+                putStrLn $ "JS Value Ref " <> show n <> " already wrapped"
+                putMVar (liveRefs ctx) lr
+            else putMVar (liveRefs ctx) =<< evaluate (S.insert n lr)
+#endif
+        void . mkWeakIORef ref $ do
             ft <- takeMVar $ finalizerThreads ctx
             t <- myThreadId
             let tname = T.pack $ show t
-            doSendAsyncCommand ctx $ FreeRef tname $ JSValueForSend ref
+            doSendAsyncCommand ctx $ FreeRef tname $ JSValueForSend n
             if tname `S.member` ft
                 then putMVar (finalizerThreads ctx) ft
                 else do
@@ -300,5 +319,5 @@ wrapJSVal (JSValueReceived ref) = do
                         modifyMVar (finalizerThreads ctx) $ \s -> return (S.delete tname s, ())
                         doSendAsyncCommand ctx $ FreeRefs tname
                     putMVar (finalizerThreads ctx) =<< evaluate (S.insert tname ft)
-    return result
+    return (JSVal ref)
 #endif

@@ -27,19 +27,21 @@ import GHC.Int
 import GHC.Types
 import GHC.Prim
 import GHC.Ptr
+import GHC.IORef
+import GHC.IO.Unsafe (unsafePerformIO)
 
 import Control.DeepSeq
 import Unsafe.Coerce
 
-type Ref# = Int64
+type Ref# = IORef Int64
 
 mkRef :: Ref# -> JSVal
 mkRef = JSVal
 {-# INLINE mkRef #-}
 
 nullRef :: JSVal
-nullRef = JSVal 0
-{-# INLINE nullRef #-}
+nullRef = JSVal . unsafePerformIO $ newIORef 0
+{-# NOINLINE nullRef #-}
 
 --toPtr :: JSVal -> Ptr a
 --toPtr (JSVal x) = unsafeCoerce (Ptr' x 0#)
