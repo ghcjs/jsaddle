@@ -209,7 +209,7 @@ type MonadJSM = MonadIO
 class (Applicative m, MonadIO m) => MonadJSM m where
     liftJSM' :: JSM a -> m a
 
-    default liftJSM' :: (MonadJSM m', MonadTrans t) => JSM a' -> t m' a'
+    default liftJSM' :: (MonadJSM m', MonadTrans t, m ~ t m') => JSM a -> m a
     liftJSM' = lift . (liftJSM' :: MonadJSM m' => JSM a -> m' a)
     {-# INLINE liftJSM' #-}
 
