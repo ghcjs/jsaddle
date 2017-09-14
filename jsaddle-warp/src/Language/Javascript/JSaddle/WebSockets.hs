@@ -24,7 +24,7 @@ module Language.Javascript.JSaddle.WebSockets (
   , debugWrapper
 ) where
 
-import Control.Monad (when, join, void, forever)
+import Control.Monad (when, void, forever)
 import Control.Concurrent (killThread, forkIO, threadDelay)
 import Control.Exception (handle, AsyncException, throwIO, fromException, finally)
 
@@ -53,11 +53,11 @@ import Language.Javascript.JSaddle.Debug
 import Data.Maybe (fromMaybe)
 import qualified Data.Map as M (empty, insert, lookup)
 import Data.IORef
-       (writeIORef, IORef, readIORef, newIORef, atomicModifyIORef')
+       (readIORef, newIORef, atomicModifyIORef')
 import Data.ByteString.Lazy (ByteString)
 import Control.Concurrent.MVar
-       (tryPutMVar, modifyMVar_, putMVar, takeMVar, readMVar, newMVar,
-        newEmptyMVar, modifyMVar)
+       (tryTakeMVar, MVar, tryPutMVar, modifyMVar_, putMVar, takeMVar,
+        readMVar, newMVar, newEmptyMVar, modifyMVar)
 import Network.Wai.Handler.Warp
        (defaultSettings, setTimeout, setPort, runSettings)
 import Foreign.Store (newStore, readStore, lookupStore)
@@ -168,7 +168,7 @@ jsaddleJs refreshOnLoad = "\
           \                xhr.open('POST', '/reload/'+syncKey, true);\n\
           \                xhr.onreadystatechange = function() {\n\
           \                    if(xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200)\n\
-          \                        setTimeout(function(){window.location.reload();}, 500);\n\
+          \                        setTimeout(function(){window.location.reload();}, 100);\n\
           \                };\n\
           \                xhr.send();\n"
      else "") <>
@@ -240,15 +240,24 @@ debugWrapper run = do
                 ctxs <- takeMVar contexts
                 mapM_ removeContext ctxs
                 takeMVar reloadDoneMVars >>= mapM_ takeMVar
-                killThread thread
-                takeMVar serverDone
+                tryTakeMVar serverDone >>= \case
+                    Nothing -> do
+                        killThread thread
+                        takeMVar serverDone
+                    Just _ -> return ()
                 return $ length ctxs
+        restarter :: MVar (Int -> IO (IO Int)) -> IO Int -> IO ()
+        restarter mvar stop = do
+             start' <- takeMVar mvar
+             n <- stop
+             start' n >>= restarter mvar
     lookupStore shutdown_0 >>= \case
         Nothing -> do
-            shutdownRef <- newIORef =<< start 0
-            void $ newStore shutdownRef
+            restartMVar <- newMVar start
+            void . forkIO $ restarter restartMVar (return 0)
+            void $ newStore restartMVar
         Just shutdownStore -> do
-            shutdownRef :: IORef (IO Int) <- readStore shutdownStore
-            expectedConnections <- join (readIORef shutdownRef)
-            writeIORef shutdownRef =<< start expectedConnections
+            restartMVar :: MVar (Int -> IO (IO Int)) <- readStore shutdownStore
+            void $ tryTakeMVar restartMVar
+            putMVar restartMVar start
   where shutdown_0 = 0
