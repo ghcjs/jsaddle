@@ -102,15 +102,31 @@ When compiled with GHC this code will run a Warp web server you can connect to a
 
 ## How does it work on GHC
 
-As of version 0.5 it runs a small warp server that provides [index.html](https://github.com/ghcjs/jsaddle/blob/master/data/index.html) and
-[jsaddle.js](https://github.com/ghcjs/jsaddle/blob/master/data/jsaddle.js).  The [jsaddle.js](https://github.com/ghcjs/jsaddle/blob/master/data/jsaddle.js) code connects to the server using WebSockets and processes JSON commands from the server and sends the result back over the same WebSocket.
+There are a number of different JSaddle runners to choose from
 
-### Why use WebSockets?
+* [jsaddle-warp](https://hackage.haskell.org/package/jsaddle-warp) - runs JSaddle in a warp server with a web browser connected to it.
+* [jsaddle-webkit2gtk](https://hackage.haskell.org/package/jsaddle-webkit2gtk) - runs JSaddle in a WebKitGTK window.
+* [jsaddle-wkwebview](https://hackage.haskell.org/package/jsaddle-wkwebview) - runs JSaddle in a WKWebView on iOS or macOS.
+* [jsaddle-clib](https://hackage.haskell.org/package/jsaddle-clib) - C interface used to run JSaddle on Android using JNI.
 
-Older versions relied on WebKitGTK and JavaScriptCore, but in WekKit2 the interface JSaddle used is only available to WebKit Extensions
-so most of the benefits of this interface are lost (extensions are not in the same process as Gtk and RPC would have been needed).
-The general advice for people migrating from WebKit1 to WebKit2 seems to be to use JavaScript.  There is an interface in WebKit2
-to send JavaScript code from the host application, but it does not seem to provide any advantages over the WebSockets approach.
+In all of these cases a web control or browser of some sort is used.  An
+[HTML file](https://github.com/ghcjs/jsaddle/blob/master/data/index.html)
+and a [small JavaScript command interpreter](https://github.com/ghcjs/jsaddle/blob/master/data/jsaddle.js)
+are loaded into it.  Then the native GHC compiled JSaddle code runs.  In order to interact with the browser
+it sends commands to the JavaScript command interpreter.  The mechanism for sending the commands differs
+for the different runners, but they are always combined into batches and encoded in JSON.
+
+Haskell callbacks from JavaScript are supported by sending JSON back from the command interpreter.  These can be synchronous (blocking the
+JavaScript thread until the Haskell callback completes) or asynchronous.
+
+### Why use a JavaScript command interpreter?
+
+Older versions of JSaddle relied on the WebKit1 interface to WebKitGTK and JavaScriptCore that is only supported in older versions of
+WebKitGTK.  With the newer WekKit2 interface this level of access is only available to WebKit Extensions.
+The general advice for people migrating from WebKit1 to WebKit2 seems to be to use JavaScript.
+
+As a bonus we have been able to support a number of different platforms with the JavaScript command interpreter and it should
+be easy to support more in the future.
 
 ### JSVal
 
@@ -161,7 +177,7 @@ force all the pending asynchronous commands to be executed.
 It uses a handful of JS FFI calls to execute JavaScript functions indirectly.  This indirection will be small compared to the overhead of the WebSockets approach (used when JSaddle is compiled with GHC), but it will be significant compared to hand crafted JS FFI calls.
 
 For the best performance you may want to write both JS FFI and JSaddle wrappers
-For your JavaScript code.  This is the approach taken by recent versions of `ghcjs-dom`.
+For your JavaScript code.  This is the approach taken by `ghcjs-dom`.
 
 For instance here is `getElementById` from the `ghcjs-dom-jsffi` (used by `ghcjs-dom` when compiled with GHCJS)
 
@@ -200,3 +216,6 @@ When using GHC the Haskell executions will probably continue for a while before 
 When it reaches the synchronous command a haskell type JSException will be thrown (this may not be the thread that initiated the
 command that caused the exception).  You can use `syncPoint` and `syncAfter` to force the exception to be thrown.
 There are `JSM` versions of `catch` and `bracket` that also include a `syncPoint` call.
+
+## Building with Stack
+The `jsaddle-webkit2gtk` runner can be difficult to build with stack.  See [this issue](https://github.com/ghcjs/jsaddle/issues/38#issuecomment-331392995) if you get stuck.
