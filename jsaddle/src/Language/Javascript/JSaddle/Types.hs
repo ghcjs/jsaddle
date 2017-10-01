@@ -89,6 +89,7 @@ import GHCJS.Nullable (Nullable(..))
 import GHCJS.Prim.Internal (JSVal(..), JSValueRef)
 import Data.JSString.Internal.Type (JSString(..))
 import Control.DeepSeq (NFData(..))
+import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
 import Control.Monad.Trans.Cont (ContT(..))
 import Control.Monad.Trans.Error (Error(..), ErrorT(..))
 import Control.Monad.Trans.Except (ExceptT(..))
@@ -157,7 +158,7 @@ data JSContextRef = JSContextRef {
 type JSM = IO
 #else
 newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a }
-    deriving (Functor, Applicative, Monad, MonadIO, MonadFix)
+    deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadCatch, MonadThrow, MonadMask)
 #endif
 
 
