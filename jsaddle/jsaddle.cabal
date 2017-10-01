@@ -48,7 +48,8 @@ library
             stm >=2.4.4 && <2.5,
             time >=1.5.0.1 && <1.9,
             unordered-containers >=0.2 && <0.3,
-            vector >=0.10 && <0.13
+            vector >=0.10 && <0.13,
+            exceptions >=0.8 && <0.9
         exposed-modules:
             Data.JSString
             Data.JSString.Internal
