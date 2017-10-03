@@ -20,6 +20,7 @@ module Language.Javascript.JSaddle.WebSockets (
   , jsaddleApp
   , jsaddleWithAppOr
   , jsaddleAppPartial
+  , jsaddleJs
   , debug
   , debugWrapper
 ) where
