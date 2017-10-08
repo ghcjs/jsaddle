@@ -37,7 +37,7 @@ module Language.Javascript.JSaddle.Run (
 ) where
 
 #ifdef ghcjs_HOST_OS
-import Language.Javascript.JSaddle.Types (JSM)
+import Language.Javascript.JSaddle.Types (JSM, syncPoint, syncAfter)
 import qualified JavaScript.Web.AnimationFrame as GHCJS
        (waitForAnimationFrame)
 #else
