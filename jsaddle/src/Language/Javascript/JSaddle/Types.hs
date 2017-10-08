@@ -58,8 +58,14 @@ module Language.Javascript.JSaddle.Types (
   -- * Debugging
   , JSadddleHasCallStack
 
-  -- * JavaScript Context Commands
+  -- * Sync JSM
+  , syncPoint
+  , syncAfter
+
 #ifndef ghcjs_HOST_OS
+  , sendCommand
+
+  -- * JavaScript Context Commands
   , MutabilityType(..)
   , Mutable
   , Immutable
@@ -89,14 +95,14 @@ import GHCJS.Nullable (Nullable(..))
 import GHCJS.Prim.Internal (JSVal(..), JSValueRef)
 import Data.JSString.Internal.Type (JSString(..))
 import Control.DeepSeq (NFData(..))
-import Control.Monad.Catch (MonadThrow, MonadCatch, MonadMask)
+import Control.Monad.Catch (MonadThrow, MonadCatch(..), MonadMask(..))
 import Control.Monad.Trans.Cont (ContT(..))
 import Control.Monad.Trans.Error (Error(..), ErrorT(..))
 import Control.Monad.Trans.Except (ExceptT(..))
 import Control.Monad.Trans.Identity (IdentityT(..))
 import Control.Monad.Trans.List (ListT(..))
 import Control.Monad.Trans.Maybe (MaybeT(..))
-import Control.Monad.Trans.Reader (ReaderT(..))
+import Control.Monad.Trans.Reader (ReaderT(..), ask)
 import Control.Monad.Trans.RWS.Lazy as Lazy (RWST(..))
 import Control.Monad.Trans.RWS.Strict as Strict (RWST(..))
 import Control.Monad.Trans.State.Lazy as Lazy (StateT(..))
@@ -158,9 +164,48 @@ data JSContextRef = JSContextRef {
 type JSM = IO
 #else
 newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a }
-    deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadCatch, MonadThrow, MonadMask)
+    deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadThrow)
+
+instance MonadCatch JSM where
+    t `catch` c = JSM (unJSM (syncAfter t) `catch` \e -> unJSM (c e))
+
+instance MonadMask JSM where
+  mask a = JSM $ mask $ \unmask -> unJSM (a $ q unmask)
+    where q :: (ReaderT JSContextRef IO a -> ReaderT JSContextRef IO a) -> JSM a -> JSM a
+          q unmask (JSM b) = syncAfter . JSM $ unmask b
+  uninterruptibleMask a =
+    JSM $ uninterruptibleMask $ \unmask -> unJSM (a $ q unmask)
+      where q :: (ReaderT JSContextRef IO a -> ReaderT JSContextRef IO a) -> JSM a -> JSM a
+            q unmask (JSM b) = syncAfter . JSM $ unmask b
 #endif
 
+-- | Forces execution of pending asyncronous code
+syncPoint :: JSM ()
+#ifdef ghcjs_HOST_OS
+syncPoint = return ()
+#else
+syncPoint = do
+    SyncResult <- sendCommand Sync
+    return ()
+#endif
+
+-- | Forces execution of pending asyncronous code after performing `f`
+syncAfter :: JSM a -> JSM a
+#ifdef ghcjs_HOST_OS
+syncAfter = id
+#else
+syncAfter f = do
+    result <- f
+    syncPoint
+    return result
+#endif
+
+#ifndef ghcjs_HOST_OS
+sendCommand :: Command -> JSM Result
+sendCommand cmd = do
+    s <- doSendCommand <$> JSM ask
+    liftIO $ s cmd
+#endif
 
 -- | Type we can give to functions that are pure when using ghcjs, but
 --   live in JSM when using jsaddle.

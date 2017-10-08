@@ -70,7 +70,7 @@ import Data.IORef
 
 import Language.Javascript.JSaddle.Types
        (Command(..), AsyncCommand(..), Result(..), BatchResults(..), Results(..), JSContextRef(..), JSVal(..),
-        Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..))
+        Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..), syncPoint, syncAfter, sendCommand)
 import Language.Javascript.JSaddle.Exception (JSException(..))
 import Control.DeepSeq (force, deepseq)
 import GHC.Stats (getGCStatsEnabled, getGCStats, GCStats(..))
@@ -85,27 +85,6 @@ enableLogging _ = return ()
 enableLogging v = do
     f <- doEnableLogging <$> JSM ask
     liftIO $ f v
-#endif
-
--- | Forces execution of pending asyncronous code
-syncPoint :: JSM ()
-#ifdef ghcjs_HOST_OS
-syncPoint = return ()
-#else
-syncPoint = do
-    SyncResult <- sendCommand Sync
-    return ()
-#endif
-
--- | Forces execution of pending asyncronous code after performing `f`
-syncAfter :: JSM a -> JSM a
-#ifdef ghcjs_HOST_OS
-syncAfter = id
-#else
-syncAfter f = do
-    result <- f
-    syncPoint
-    return result
 #endif
 
 -- | On GHCJS this is 'JavaScript.Web.AnimationFrame.waitForAnimationFrame'.
@@ -133,11 +112,6 @@ nextAnimationFrame f = do
     syncAfter (f t)
 
 #ifndef ghcjs_HOST_OS
-sendCommand :: Command -> JSM Result
-sendCommand cmd = do
-    s <- doSendCommand <$> JSM ask
-    liftIO $ s cmd
-
 sendLazyCommand :: (JSValueForSend -> AsyncCommand) -> JSM JSVal
 sendLazyCommand cmd = do
     nextRefTVar <- nextRef <$> JSM ask

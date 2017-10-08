@@ -38,13 +38,12 @@ module Language.Javascript.JSaddle.Monad (
   , bracket
 ) where
 
-import Prelude hiding (read)
 #ifndef ghcjs_HOST_OS
-import Control.Monad.Trans.Reader (runReaderT, ask, ReaderT(..))
+import Control.Monad.Trans.Reader (runReaderT, ask)
 #endif
 import Control.Monad.IO.Class (MonadIO(..))
-import qualified Control.Exception as E (Exception, catch, bracket)
-import Language.Javascript.JSaddle.Types (JSM(..), MonadJSM, liftJSM, JSContextRef(..))
+import Control.Monad.Catch (catch, bracket)
+import Language.Javascript.JSaddle.Types (JSM(..), MonadJSM, liftJSM, JSContextRef)
 import Language.Javascript.JSaddle.Run (syncPoint, syncAfter, waitForAnimationFrame, nextAnimationFrame)
 
 -- | Gets the JavaScript context from the monad
@@ -66,25 +65,3 @@ runJSM f = liftIO . runReaderT (unJSM f)
 -- | Alternative version of 'runJSM'
 runJSaddle :: MonadIO m => JSContextRef -> JSM a -> m a
 runJSaddle = flip runJSM
-
-
--- | Wrapped version of 'E.catch' that runs in a MonadIO that works
---   a bit better with 'JSM'
-catch :: E.Exception e
-      => JSM b
-      -> (e -> JSM b)
-      -> JSM b
-t `catch` c = do
-    r <- askJSM
-    liftIO (runJSM (syncAfter t) r `E.catch` \e -> runJSM (c e) r)
-
--- | Wrapped version of 'E.bracket' that runs in a MonadIO that works
---   a bit better with 'JSM'
-bracket :: JSM a -> (a -> JSM b) -> (a -> JSM c) -> JSM c
-bracket aquire release f = do
-    r <- askJSM
-    liftIO $ E.bracket
-        (runJSM (syncAfter aquire) r)
-        (\x -> runJSM (syncAfter $ release x) r)
-        (\x -> runJSM (syncAfter $ f x) r)
-
