@@ -15,7 +15,6 @@ module GHCJS.Marshal.Internal ( FromJSVal(..)
                               , fromJSValUnchecked_pure
                               ) where
 
-import           Control.Applicative
 import           Control.Monad
 
 import           Data.Data
@@ -29,12 +28,10 @@ import qualified GHCJS.Prim.Internal        as Prim
 import qualified GHCJS.Foreign.Internal     as F
 import           GHCJS.Types
 
-import qualified Data.JSString.Internal.Type as JSS
-
 import qualified JavaScript.Object.Internal as OI (Object(..), create, setProp, getProp)
 import qualified JavaScript.Array.Internal as AI (SomeJSArray(..), create, push, read, fromListIO, toListIO)
 
-import           Language.Javascript.JSaddle.Types (JSM, MutableJSArray, GHCJSPure(..), ghcjsPure, ghcjsPureMap, JSadddleHasCallStack)
+import           Language.Javascript.JSaddle.Types (JSM, MutableJSArray, ghcjsPure)
 import           Language.Javascript.JSaddle.String (textToStr)
 
 data Purity = PureShared    -- ^ conversion is pure even if the original value is shared
@@ -60,10 +57,6 @@ class ToJSVal a where
 
   default toJSVal :: (Generic a, GToJSVal (Rep a ())) => a -> JSM JSVal
   toJSVal = toJSVal_generic id
-
-fromJustWithStack :: JSadddleHasCallStack => Maybe a -> a
-fromJustWithStack Nothing = error "fromJSValUnchecked: fromJSVal result was Nothing"
-fromJustWithStack (Just x) = x
 
 class FromJSVal a where
   fromJSVal :: JSVal -> JSM (Maybe a)
@@ -127,7 +120,7 @@ instance (GToJSVal (a p), GToJSVal (b p)) => GToJSVal ((a :+: b) p) where
   gToJSVal f _ (R1 x) = gToJSVal f True x
 
 instance (Datatype c, GToJSVal (a p)) => GToJSVal (M1 D c a p) where
-  gToJSVal f b m@(M1 x) = gToJSVal f b x
+  gToJSVal f b (M1 x) = gToJSVal f b x
 
 instance (Constructor c, GToJSVal (a p)) => GToJSVal (M1 C c a p) where
   gToJSVal f True m@(M1 x) = do
@@ -197,7 +190,7 @@ instance GFromJSVal (f p) => GFromJSVal (Rec1 f p) where
   gFromJSVal f b r = gFromJSVal f b r
 
 instance (GFromJSVal (a p), GFromJSVal (b p)) => GFromJSVal ((a :+: b) p) where
-  gFromJSVal f b r = do
+  gFromJSVal f _ r = do
     l <- gFromJSVal f True r
     case l of
       Just x  -> return (L1 <$> Just x)

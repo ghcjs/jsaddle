@@ -12,23 +12,17 @@
 
 module JavaScript.TypedArray.DataView.Internal where
 
-import Data.Int
 import Data.Typeable
-import Data.Word
-
-import GHC.Exts ( State# )
 
 import GHCJS.Prim
 import GHCJS.Internal.Types
-
-import JavaScript.TypedArray.ArrayBuffer.Internal
 
 newtype SomeDataView (a :: MutabilityType s) = SomeDataView JSVal
   deriving Typeable
 
 type DataView        = SomeDataView Immutable
 type MutableDataView = SomeDataView Mutable
-type STDataView s    = SomeDataView (STMutable s)
+type STDataView s    = SomeDataView ('STMutable s)
 
 -- #define JSU foreign import javascript unsafe
 -- #define JSS foreign import javascript safe

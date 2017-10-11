@@ -26,28 +26,22 @@ import Language.Javascript.JSaddle.Types (JSVal(..), GHCJSPure(..))
 import Language.Javascript.JSaddle.Native.Internal
        (valueToBool)
 import Data.Typeable (Typeable)
-import GHCJS.Prim (isNull, isUndefined)
-import System.IO.Unsafe (unsafePerformIO)
-import Data.IORef (newIORef)
+import GHCJS.Prim
 
 jsTrue :: JSVal
-jsTrue = JSVal . unsafePerformIO $ newIORef 3
+jsTrue = primToJSVal $ PrimVal_Bool True
 {-# NOINLINE jsTrue #-}
 
 jsFalse :: JSVal
-jsFalse = JSVal . unsafePerformIO $ newIORef 2
+jsFalse = primToJSVal $ PrimVal_Bool False
 {-# NOINLINE jsFalse #-}
 
-jsNull :: JSVal
-jsNull = JSVal . unsafePerformIO $ newIORef 0
-{-# NOINLINE jsNull #-}
-
 toJSBool :: Bool -> JSVal
-toJSBool b = JSVal . unsafePerformIO . newIORef $ if b then 3 else 2
+toJSBool = primToJSVal . PrimVal_Bool
 {-# NOINLINE toJSBool #-}
 
 jsUndefined :: JSVal
-jsUndefined = JSVal . unsafePerformIO $ newIORef 1
+jsUndefined = primToJSVal PrimVal_Null
 {-# NOINLINE jsUndefined #-}
 
 isTruthy :: JSVal -> GHCJSPure Bool

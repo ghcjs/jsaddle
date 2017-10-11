@@ -1,16 +1,18 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveTraversable #-}
 
-module GHCJS.Prim.Internal ( JSVal(..)
+module GHCJS.Prim.Internal {-( JSVal(..)
                            , JSValueRef
                            , JSException(..)
                            , WouldBlockException(..)
                            , mkJSException
                            , jsNull
-                           ) where
+                           )-} where
 
 import           Control.DeepSeq (NFData(..))
-import           Data.Int (Int64)
+import           Data.Int (Int64, Int32)
 import           Data.Typeable (Typeable)
 import           Unsafe.Coerce (unsafeCoerce)
 
@@ -19,6 +21,10 @@ import           Data.Aeson (ToJSON(..), FromJSON(..))
 import qualified GHC.Exception as Ex
 import Data.IORef (newIORef, IORef)
 import System.IO.Unsafe (unsafePerformIO)
+import Data.Text (Text)
+import qualified Data.Aeson as A
+import Data.Scientific (toRealFloat)
+import Data.Foldable
 
 -- A reference to a particular JavaScript value inside the JavaScript context
 type JSValueRef = Int64
@@ -27,11 +33,84 @@ type JSValueRef = Int64
   JSVal is a boxed type that can be used as FFI
   argument or result.
 -}
-newtype JSVal = JSVal (IORef JSValueRef)
+newtype JSVal = JSVal { unJSVal :: LazyVal }
 
-instance NFData JSVal where
-  rnf x = x `seq` ()
+data LazyVal = LazyVal
+  { _lazyVal_ref :: !(IORef (Maybe Ref))
+  , _lazyVal_val :: Val --TODO: represent at the type level that the Ref (if any) in this Val never refers to a primitive value - so, e.g. it is always truthy
+  }
 
+type Val = PrimVal Ref
+type ValId = PrimVal RefId
+
+newtype Ref = Ref { unRef :: IORef RefId } deriving (NFData)
+
+data PrimVal a
+   = PrimVal_Undefined
+   | PrimVal_Null
+   | PrimVal_Bool Bool
+   | PrimVal_Number Double --TODO: Infinities, NaN(s?), negative 0, others?
+   | PrimVal_String Text --TODO: Manipulate large strings by reference?
+   | PrimVal_Ref a
+   deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord)
+
+instance ToJSON a => ToJSON (PrimVal a) where
+  toJSON = \case
+    PrimVal_Undefined -> toJSON ()
+    PrimVal_Null -> A.Null
+    PrimVal_Bool b -> toJSON b
+    PrimVal_Number n -> toJSON n
+    PrimVal_String s -> toJSON s
+    PrimVal_Ref a -> toJSON [a]
+
+instance FromJSON a => FromJSON (PrimVal a) where
+  parseJSON = \case
+    A.Null -> return PrimVal_Null
+    A.Bool b -> return $ PrimVal_Bool b
+    A.Number n -> return $ PrimVal_Number $ toRealFloat n -- TODO: Should we also use Scientific for PrimVal?
+    A.String s -> return $ PrimVal_String s
+    A.Array a -> case toList a of
+      [] -> return PrimVal_Undefined
+      [r] -> PrimVal_Ref <$> parseJSON r
+      _ -> fail "unexpected array with size > 1"
+    A.Object _ -> fail "unexpected object"
+
+-- | A reference to a value that exists in the javascript heap.  If positive, allocated by the Haskell side; if negative, allocated by the javascript side; if zero, always refers to 'undefined'.  In either case, must be freed by the Haskell side using a finalizer.
+newtype RefId = RefId { unRefId :: Int32 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
+
+isJsAllocatedRefId :: RefId -> Bool
+isJsAllocatedRefId = (< 0) . unRefId
+
+{-# NOINLINE nothingRef #-}
+nothingRef :: IORef (Maybe Ref)
+nothingRef = unsafePerformIO $ newIORef Nothing
+
+lazyValFromStrict :: Val -> LazyVal
+lazyValFromStrict val = LazyVal
+  { _lazyVal_ref = nothingRef
+  , _lazyVal_val = val
+  }
+
+primToJSVal :: Val -> JSVal
+primToJSVal = JSVal . lazyValFromStrict
+
+getLazyVal :: LazyVal -> Val
+getLazyVal = _lazyVal_val
+
+getPrimJSVal :: JSVal -> Val
+getPrimJSVal = getLazyVal . unJSVal
+
+instance NFData LazyVal where
+  rnf (LazyVal a b) = a `seq` b `seq` ()
+
+instance NFData a => NFData (PrimVal a) where
+  rnf = \case
+    PrimVal_Undefined -> ()
+    PrimVal_Null -> ()
+    PrimVal_Bool b -> b `seq` ()
+    PrimVal_Number n -> n `seq` ()
+    PrimVal_String s -> s `seq` ()
+    PrimVal_Ref r -> r `seq` ()
 
 {-
   When a JavaScript exception is raised inside
@@ -51,7 +130,7 @@ mkJSException ref =
   return (JSException (unsafeCoerce ref) "")
 
 jsNull :: JSVal
-jsNull = JSVal . unsafePerformIO $ newIORef 0
+jsNull = primToJSVal PrimVal_Null
 {-# NOINLINE jsNull #-}
 
 {- | If a synchronous thread tries to do something that can only

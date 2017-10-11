@@ -75,7 +75,6 @@ module Language.Javascript.JSaddle.Value (
   , valMakeJSON
 
   -- * Convert to and from JSValue
-  , deRefVal
   , valMakeRef
   , strictEqual
   , instanceOf
@@ -100,8 +99,7 @@ import Language.Javascript.JSaddle.Types
 import Language.Javascript.JSaddle.Native
        (valueToNumber, valueToString, valueToJSON, numberToValue, stringToValue, jsonValueToValue)
 import qualified Language.Javascript.JSaddle.Native as N
-       (deRefVal, strictEqual, instanceOf)
-import Language.Javascript.JSaddle.Run (Result(..))
+       (strictEqual, instanceOf)
 #endif
 import Language.Javascript.JSaddle.Monad (JSM)
 import Language.Javascript.JSaddle.Classes
@@ -576,61 +574,6 @@ instance ToJSVal Value where
 -- | Makes an argument list with just a single JSON value
 instance MakeArgs Value where
     makeArgs t = valMakeJSON t >>= (\ref -> return [ref])
-
--- | Derefernce a value reference.
---
--- >>> testJSaddle $ showJSValue <$> deRefVal JSNull
--- null
--- >>> testJSaddle $ showJSValue <$> deRefVal ()
--- undefined
--- >>> testJSaddle $ showJSValue <$> deRefVal True
--- true
--- >>> testJSaddle $ showJSValue <$> deRefVal False
--- false
--- >>> testJSaddle $ showJSValue <$> deRefVal (1.0 :: Double)
--- 1.0
--- >>> testJSaddle $ showJSValue <$> deRefVal (0.0 :: Double)
--- 0.0
--- >>> testJSaddle $ showJSValue <$> deRefVal ""
--- ""
--- >>> testJSaddle $ showJSValue <$> deRefVal "1"
--- "1"
--- >>> testJSaddle $ showJSValue <$> (valToObject True >>= deRefVal)
--- true
--- >>> testJSaddle $ showJSValue <$> (obj >>= deRefVal)
--- object
-deRefVal :: ToJSVal value => value -> JSM JSValue
-#ifdef ghcjs_HOST_OS
-deRefVal value = do
-    valref <- toJSVal value
-    case (jsrefGetType valref :: Int) of
-        0 -> return ValUndefined
-        1 -> return ValNull
-        2 -> ValBool   <$> valToBool valref
-        3 -> ValNumber <$> valToNumber valref
-        4 -> ValString <$> valToText valref
-        5 -> ValObject <$> valToObject valref
-        _ -> error "Unexpected result dereferencing JSaddle value"
-foreign import javascript unsafe "$r = ($1 === undefined)?0:\
-                                       ($1===null)?1:\
-                                       (typeof $1===\"boolean\")?2:\
-                                       (typeof $1===\"number\")?3:\
-                                       (typeof $1===\"string\")?4:\
-                                       (typeof $1===\"object\")?5:-1;" jsrefGetType :: JSVal -> Int
-#else
-deRefVal value = do
-    v <- toJSVal value
-    result <- N.deRefVal v
-    return $ case result of
-        DeRefValResult 0    _ -> ValNull
-        DeRefValResult 1    _ -> ValUndefined
-        DeRefValResult 2    _ -> ValBool False
-        DeRefValResult 3    _ -> ValBool True
-        DeRefValResult (-1) s -> ValNumber (read (T.unpack s))
-        DeRefValResult (-2) s -> ValString s
-        DeRefValResult (-3) _ -> ValObject (Object v)
-        _                     -> error "Unexpected result dereferencing JSaddle value"
-#endif
 
 -- | Make a JavaScript value out of a 'JSValue' ADT.
 --

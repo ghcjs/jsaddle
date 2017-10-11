@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE OverloadedStrings #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Native
@@ -14,13 +15,7 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.Native.Internal (
-    wrapJSVal
-  , wrapJSString
-  , withJSVal
-  , withJSVals
-  , withObject
-  , withJSString
-  , setPropertyByName
+    setPropertyByName
   , setPropertyAtIndex
   , stringToValue
   , numberToValue
@@ -34,7 +29,6 @@ module Language.Javascript.JSaddle.Native.Internal (
   , newSyncCallback
   , newArray
   , evaluateScript
-  , deRefVal
   , valueToBool
   , valueToNumber
   , valueToString
@@ -47,207 +41,160 @@ module Language.Javascript.JSaddle.Native.Internal (
   , propertyNames
 ) where
 
-import Control.Monad.IO.Class (MonadIO(..))
-
 import Data.Aeson (Value)
+import qualified Data.Aeson as A
+import Data.Text.Encoding (decodeUtf8)
+import qualified Data.ByteString.Lazy as LBS
 
+import GHCJS.Prim.Internal
 import Language.Javascript.JSaddle.Types
-       (AsyncCommand(..), JSM(..), JSString(..), addCallback,
-        Object(..), JSVal(..), JSValueForSend(..), JSCallAsFunction,
-        JSStringReceived(..), JSStringForSend(..), JSObjectForSend(..))
-import Language.Javascript.JSaddle.Monad (askJSM)
 import Language.Javascript.JSaddle.Run
-       (Command(..), Result(..), sendCommand,
-        sendAsyncCommand, sendLazyCommand, wrapJSVal)
-import GHC.IORef (IORef(..), readIORef)
-import GHC.STRef (STRef(..))
-import GHC.IO (IO(..))
-import GHC.Base (touch#)
 
-wrapJSString :: MonadIO m => JSStringReceived -> m JSString
-wrapJSString (JSStringReceived ref) = return $ JSString ref
-
-touchIORef :: IORef a -> IO ()
-touchIORef (IORef (STRef r#)) = IO $ \s -> case touch# r# s of s' -> (# s', () #)
-
-withJSVal :: MonadIO m => JSVal -> (JSValueForSend -> m a) -> m a
-withJSVal (JSVal ref) f = do
-    result <- (f . JSValueForSend) =<< liftIO (readIORef ref)
-    liftIO $ touchIORef ref
-    return result
-
-withJSVals :: MonadIO m => [JSVal] -> ([JSValueForSend] -> m a) -> m a
-withJSVals v f =
- do result <- f =<< mapM (\(JSVal ref) -> liftIO $ JSValueForSend <$> readIORef ref) v
-    liftIO $ mapM_ (\(JSVal ref) -> touchIORef ref) v
-    return result
-
-withObject :: MonadIO m => Object -> (JSObjectForSend -> m a) -> m a
-withObject (Object o) f = withJSVal o (f . JSObjectForSend)
-
-withJSString :: MonadIO m => JSString -> (JSStringForSend -> m a) -> m a
-withJSString (JSString ref) f = f (JSStringForSend ref)
-
+--TODO: Make JSString a JSVal under the hood
 setPropertyByName :: JSString -> JSVal -> Object -> JSM ()
-setPropertyByName name val this =
-    withObject this $ \rthis ->
-        withJSString name $ \rname ->
-            withJSVal val $ \rval ->
-                sendAsyncCommand $ SetPropertyByName rthis rname rval
+setPropertyByName (JSString name) val (Object this) = setProperty (primToJSVal $ PrimVal_String name) val this
 {-# INLINE setPropertyByName #-}
 
 setPropertyAtIndex :: Int -> JSVal -> Object -> JSM ()
-setPropertyAtIndex index val this =
-    withObject this $ \rthis ->
-        withJSVal val $ \rval ->
-            sendAsyncCommand $ SetPropertyAtIndex rthis index rval
+setPropertyAtIndex index val (Object this) = setProperty (primToJSVal $ PrimVal_Number $ fromIntegral index) val this
 {-# INLINE setPropertyAtIndex #-}
 
 stringToValue :: JSString -> JSM JSVal
-stringToValue s = withJSString s $ sendLazyCommand . StringToValue
+stringToValue = return . primToJSVal . PrimVal_String . unJSString
 {-# INLINE stringToValue #-}
 
 numberToValue :: Double -> JSM JSVal
-numberToValue = sendLazyCommand . NumberToValue
+numberToValue = return . primToJSVal . PrimVal_Number
 {-# INLINE numberToValue #-}
 
 jsonValueToValue :: Value -> JSM JSVal
-jsonValueToValue = sendLazyCommand . JSONValueToValue
+jsonValueToValue = newJson
 {-# INLINE jsonValueToValue #-}
 
 getPropertyByName :: JSString -> Object -> JSM JSVal
-getPropertyByName name this =
-    withObject this $ \rthis ->
-        withJSString name $ sendLazyCommand . GetPropertyByName rthis
+getPropertyByName (JSString name) (Object this) = getProperty (primToJSVal $ PrimVal_String name) this
 {-# INLINE getPropertyByName #-}
 
 getPropertyAtIndex :: Int -> Object -> JSM JSVal
-getPropertyAtIndex index this =
-    withObject this $ \rthis -> sendLazyCommand $ GetPropertyAtIndex rthis index
+getPropertyAtIndex index (Object this) = getProperty (primToJSVal $ PrimVal_Number $ fromIntegral index) this
 {-# INLINE getPropertyAtIndex #-}
 
 callAsFunction :: Object -> Object -> [JSVal] -> JSM JSVal
-callAsFunction f this args =
-    withObject f $ \rfunction ->
-        withObject this $ \rthis ->
-            withJSVals args $ sendLazyCommand . CallAsFunction rfunction rthis
+callAsFunction (Object f) (Object this) args = callAsFunction' f this args
 {-# INLINE callAsFunction #-}
 
 callAsConstructor :: Object -> [JSVal] -> JSM JSVal
-callAsConstructor f args =
-    withObject f $ \rfunction ->
-        withJSVals args $ sendLazyCommand . CallAsConstructor rfunction
+callAsConstructor (Object f) args = callAsConstructor' f args
 {-# INLINE callAsConstructor #-}
 
 newEmptyObject :: JSM Object
-newEmptyObject = Object <$> sendLazyCommand NewEmptyObject
+newEmptyObject = Object <$> newJson (A.Object mempty)
 {-# INLINE newEmptyObject #-}
 
-newAsyncCallback :: JSCallAsFunction -> JSM Object
-newAsyncCallback f = do
-    object <- Object <$> sendLazyCommand NewAsyncCallback
-    add <- addCallback <$> askJSM
-    liftIO $ add object f
-    return object
+newAsyncCallback :: JSCallAsFunction -> JSM (CallbackId, JSVal)
+newAsyncCallback = newSyncCallback'
 {-# INLINE newAsyncCallback #-}
 
-newSyncCallback :: JSCallAsFunction -> JSM Object
-newSyncCallback f = do
-    object <- Object <$> sendLazyCommand NewSyncCallback
-    add <- addCallback <$> askJSM
-    liftIO $ add object f
-    return object
+newSyncCallback :: JSCallAsFunction -> JSM (SyncCallbackId, JSVal)
+newSyncCallback = newSyncCallback'
 {-# INLINE newSyncCallback #-}
 
+getGlobal :: JSString -> JSM JSVal
+getGlobal (JSString name) = do
+  getProperty (primToJSVal $ PrimVal_String name) $ primToJSVal $ PrimVal_Ref globalRef
+
 newArray :: [JSVal] -> JSM JSVal
-newArray xs = withJSVals xs $ \xs' -> sendLazyCommand (NewArray xs')
+newArray xs = do
+  array <- getGlobal "Array"
+  callAsConstructor' array xs
 {-# INLINE newArray #-}
 
 evaluateScript :: JSString -> JSM JSVal
-evaluateScript script = withJSString script $ sendLazyCommand . EvaluateScript
+evaluateScript (JSString str) = do
+  eval <- getGlobal "eval"
+  callAsFunction' eval (primToJSVal $ PrimVal_Ref globalRef) [primToJSVal $ PrimVal_String str]
 {-# INLINE evaluateScript #-}
 
-deRefVal :: JSVal -> JSM Result
-deRefVal value = withJSVal value $ sendCommand . DeRefVal
-{-# INLINE deRefVal #-}
-
 valueToBool :: JSVal -> JSM Bool
-valueToBool v@(JSVal ref) = liftIO (readIORef ref) >>= \case
-    0 -> return False -- null
-    1 -> return False -- undefined
-    2 -> return False -- false
-    3 -> return True  -- true
-    _ -> withJSVal v $ \rval -> do
-        ~(ValueToBoolResult result) <- sendCommand (ValueToBool rval)
-        return result
+valueToBool val = case getPrimJSVal val of
+  PrimVal_Undefined -> return False
+  PrimVal_Null -> return False
+  PrimVal_Bool b -> return b
+  PrimVal_Number n -> return $ n /= 0 --TODO: NaN, although it should come across as "null", so this should work accidentally
+  PrimVal_String s -> return $ s /= ""
+  PrimVal_Ref _ -> return True -- Always truthy, because all falsey values are primitive
+  -- I think what we want to do is:
+  --   Whenever the JS side fills in a reference for us, it automatically sends a response saying what it filled it in with - a PrimVal (), which represents whether it was filled in with a primitive value or with something else.  Until that response arrives, we can keep using the reference value; once it arrives, we can finalize our reference (sending the FreeVal command) and then simply send the simple value.
 {-# INLINE valueToBool #-}
 
 valueToNumber :: JSVal -> JSM Double
-valueToNumber value =
-    withJSVal value $ \rval -> do
-        ~(ValueToNumberResult result) <- sendCommand (ValueToNumber rval)
-        return result
+valueToNumber val = case getPrimJSVal val of
+  PrimVal_Undefined -> return $ 0/0 -- NaN
+  PrimVal_Null -> return 0
+  PrimVal_Bool False -> return 0
+  PrimVal_Bool True -> return 1
+  PrimVal_Number n -> return n
+  PrimVal_String _ -> do --TODO: Race: by forcing the value first, we're adding some latency in the slow case; perhaps we want to race the two options instead
+    number <- getGlobal "Number"
+    valueToNumber =<< callAsFunction' number number [val]
+  PrimVal_Ref _ -> do --TODO: Race
+    number <- getGlobal "Number"
+    valueToNumber =<< callAsFunction' number number [val]
 {-# INLINE valueToNumber #-}
 
 valueToString :: JSVal -> JSM JSString
-valueToString value = withJSVal value $ \rval -> do
-    ~(ValueToStringResult result) <- sendCommand (ValueToString rval)
-    wrapJSString result
+valueToString val = case getPrimJSVal val of
+  PrimVal_Undefined -> return "undefined"
+  PrimVal_Null -> return "null"
+  PrimVal_Bool False -> return "false"
+  PrimVal_Bool True -> return "true"
+  PrimVal_Number _ -> do --TODO: Race
+    toString <- getPropertyByName "toString" $ Object val
+    valueToString =<< callAsFunction' toString val []
+  PrimVal_String s -> return $ JSString s
+  PrimVal_Ref _ -> do
+    toString <- getPropertyByName "toString" $ Object val
+    valueToString =<< callAsFunction' toString val []
 {-# INLINE valueToString #-}
 
 valueToJSON :: JSVal -> JSM JSString
-valueToJSON value = withJSVal value $ \rval -> do
-    ~(ValueToJSONResult result) <- sendCommand (ValueToJSON rval)
-    wrapJSString result
+valueToJSON value = do
+  JSString . decodeUtf8 . LBS.toStrict . A.encode <$> getJsonLazy value
 {-# INLINE valueToJSON #-}
 
 valueToJSONValue :: JSVal -> JSM Value
-valueToJSONValue value = withJSVal value $ \rval -> do
-    ~(ValueToJSONValueResult result) <- sendCommand (ValueToJSONValue rval)
-    return result
+valueToJSONValue = getJsonLazy
 {-# INLINE valueToJSONValue #-}
 
 isNull :: JSVal -> JSM Bool
-isNull v@(JSVal ref) = liftIO (readIORef ref) >>= \case
-    0 -> return True  -- null
-    1 -> return False -- undefined
-    2 -> return False -- false
-    3 -> return False -- true
-    _ -> withJSVal v $ \rval -> do
-        ~(IsNullResult result) <- sendCommand $ IsNull rval
-        return result
+isNull val = case getPrimJSVal val of
+  PrimVal_Null -> return True
+  _ -> return False
 {-# INLINE isNull #-}
 
 isUndefined :: JSVal -> JSM Bool
-isUndefined v@(JSVal ref) = liftIO (readIORef ref) >>= \case
-    0 -> return False -- null
-    1 -> return True  -- undefined
-    2 -> return False -- false
-    3 -> return False -- true
-    _ -> withJSVal v $ \rval -> do
-        ~(IsUndefinedResult result) <- sendCommand $ IsUndefined rval
-        return result
+isUndefined val = case getPrimJSVal val of
+  PrimVal_Undefined -> return True
+  _ -> return False
 {-# INLINE isUndefined #-}
 
 strictEqual :: JSVal -> JSVal -> JSM Bool
-strictEqual a b =
-    withJSVal a $ \aref ->
-        withJSVal b $ \bref -> do
-            ~(StrictEqualResult result) <- sendCommand $ StrictEqual aref bref
-            return result
+strictEqual a b = do
+  fun <- evaluateScript "(function(a,b){return a===b;})"
+  valueToBool =<< callAsFunction (Object fun) (Object jsNull) [a, b]
 {-# INLINE strictEqual #-}
 
 instanceOf :: JSVal -> Object -> JSM Bool
-instanceOf value constructor =
-    withJSVal value $ \rval ->
-        withObject constructor $ \c' -> do
-            ~(InstanceOfResult result) <- sendCommand $ InstanceOf rval c'
-            return result
+instanceOf value (Object constructor) = do
+  fun <- evaluateScript "(function(a,b){return a instanceof b;})"
+  valueToBool =<< callAsFunction (Object fun) (Object jsNull) [value, constructor]
 {-# INLINE instanceOf #-}
 
 propertyNames :: Object -> JSM [JSString]
-propertyNames this =
-    withObject this $ \rthis -> do
-        ~(PropertyNamesResult result) <- sendCommand $ PropertyNames rthis
-        mapM wrapJSString result
+propertyNames (Object this) = do
+  fun <- evaluateScript "(function(a){var r = []; for(n in a) { r.push(n); } return r;})"
+  val <- valueToJSONValue =<< callAsFunction (Object fun) (Object jsNull) [this]
+  return $ case A.fromJSON val of
+    A.Success a -> a
+    A.Error f -> error $ "propertyNames: " ++ f
 {-# INLINE propertyNames #-}

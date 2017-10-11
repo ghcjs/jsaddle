@@ -39,9 +39,6 @@ import GHCJS.Marshal (ToJSVal(..))
 #else
 import GHCJS.Marshal.Internal (ToJSVal(..))
 import Language.Javascript.JSaddle.Native
-       (withObject, withToJSVal)
-import Language.Javascript.JSaddle.Run
-       (AsyncCommand(..), sendLazyCommand, sendAsyncCommand)
 #endif
 import Language.Javascript.JSaddle.Arguments ()
 import Language.Javascript.JSaddle.String ()
@@ -63,8 +60,7 @@ objGetPropertyAtIndex this index = js_tryIndex index this
 foreign import javascript unsafe "$r=$2[$1]"
     js_tryIndex :: Int -> Object -> IO JSVal
 #else
-objGetPropertyAtIndex this index =
-    withObject this $ \rthis -> sendLazyCommand $ GetPropertyAtIndex rthis index
+objGetPropertyAtIndex this index = getPropertyAtIndex index this
 #endif
 
 -- | Set a property value given the object and the name of the property.
@@ -90,9 +86,8 @@ objSetPropertyAtIndex this index val = do
 foreign import javascript unsafe "$2[$1]=$3"
     js_trySetAtIndex :: Int -> Object -> JSVal -> IO ()
 #else
-objSetPropertyAtIndex this index val =
-    withObject this $ \rthis ->
-        withToJSVal val $ \rval ->
-            sendAsyncCommand $ SetPropertyAtIndex rthis index rval
+objSetPropertyAtIndex this index val = do
+  rval <- toJSVal val
+  setPropertyAtIndex index rval this
 #endif
 

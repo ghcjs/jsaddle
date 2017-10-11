@@ -23,24 +23,14 @@ import GHCJS.Internal.Types
 
 import GHCJS.Prim
 
-import GHC.Int
-import GHC.Types
-import GHC.Prim
-import GHC.Ptr
-import GHC.IORef
-import GHC.IO.Unsafe (unsafePerformIO)
-
-import Control.DeepSeq
-import Unsafe.Coerce
-
-type Ref# = IORef Int64
+type Ref# = LazyVal
 
 mkRef :: Ref# -> JSVal
 mkRef = JSVal
 {-# INLINE mkRef #-}
 
 nullRef :: JSVal
-nullRef = JSVal . unsafePerformIO $ newIORef 0
+nullRef = jsNull
 {-# NOINLINE nullRef #-}
 
 --toPtr :: JSVal -> Ptr a

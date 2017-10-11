@@ -18,50 +18,43 @@
 module Language.Javascript.JSaddle.Monad (
   -- * Types
     JSM(..)
-  , JSContextRef
   , MonadJSM
   , liftJSM
-
-  -- * Running JavaScript in a JavaScript context
   , askJSM
   , runJSM
-  , runJSaddle
-
-  -- * Syncronizing with the JavaScript context
   , syncPoint
   , syncAfter
   , waitForAnimationFrame
   , nextAnimationFrame
+  , animationFrameHandlers
 
   -- * Exception Handling
   , catch
   , bracket
 ) where
 
-#ifndef ghcjs_HOST_OS
-import Control.Monad.Trans.Reader (runReaderT, ask)
-#endif
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Catch (catch, bracket)
-import Language.Javascript.JSaddle.Types (JSM(..), MonadJSM, liftJSM, JSContextRef)
-import Language.Javascript.JSaddle.Run (syncPoint, syncAfter, waitForAnimationFrame, nextAnimationFrame)
+import Language.Javascript.JSaddle.Types (JSM(..), MonadJSM, liftJSM, askJSM, JSContextRef, runJSM)
+import Control.Concurrent.MVar (MVar, newMVar)
+import System.IO.Unsafe (unsafePerformIO)
 
--- | Gets the JavaScript context from the monad
-askJSM :: MonadJSM m => m JSContextRef
-#ifdef ghcjs_HOST_OS
-askJSM = return ()
-#else
-askJSM = liftJSM $ JSM ask
-#endif
+syncPoint :: MonadIO m => m ()
+syncPoint = liftIO $ return ()
 
--- | Runs a 'JSM' JavaScript function in a given JavaScript context.
-runJSM :: MonadIO m => JSM a -> JSContextRef -> m a
-#ifdef ghcjs_HOST_OS
-runJSM f = liftIO . const f
-#else
-runJSM f = liftIO . runReaderT (unJSM f)
-#endif
+syncAfter :: Applicative m => m ()
+syncAfter = pure () --TODO: What should this do?
 
--- | Alternative version of 'runJSM'
-runJSaddle :: MonadIO m => JSContextRef -> JSM a -> m a
-runJSaddle = flip runJSM
+waitForAnimationFrame :: m () -> m ()
+waitForAnimationFrame = id --TODO: What should this do?
+
+nextAnimationFrame :: m () -> m ()
+nextAnimationFrame = id --TODO: What should this do?
+
+--TODO: Get rid of this
+animationFrameHandlerVar :: MVar [Double -> JSM ()]
+animationFrameHandlerVar = unsafePerformIO $ newMVar []
+{-# NOINLINE animationFrameHandlerVar #-}
+
+animationFrameHandlers :: JSContextRef -> MVar [Double -> JSM ()]
+animationFrameHandlers = return animationFrameHandlerVar

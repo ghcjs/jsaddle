@@ -250,37 +250,37 @@ float64ArrayFrom (SomeJSArray a) = SomeTypedArray <$> jsg "Float64Array" ^. js1 
 
 -- -----------------------------------------------------------------------------
 
-setIndexI :: Mutability m ~ IsMutable
+setIndexI :: Mutability m ~ 'IsMutable
           => Int -> Int -> SomeTypedArray e m -> JSM ()
 setIndexI i x (SomeTypedArray a) = (a <## i) x
 {-# INLINE setIndexI #-}
 
-unsafeSetIndexI :: Mutability m ~ IsMutable
+unsafeSetIndexI :: Mutability m ~ 'IsMutable
                 => Int -> Int -> SomeTypedArray e m -> JSM ()
 unsafeSetIndexI i x (SomeTypedArray a) = (a <## i) x
 {-# INLINE unsafeSetIndexI #-}
 
-setIndexW :: Mutability m ~ IsMutable
+setIndexW :: Mutability m ~ 'IsMutable
            => Int -> Word -> SomeTypedArray e m -> JSM ()
 setIndexW i x (SomeTypedArray a) = (a <## i) x
 {-# INLINE setIndexW #-}
 
-unsafeSetIndexW :: Mutability m ~ IsMutable
+unsafeSetIndexW :: Mutability m ~ 'IsMutable
                 => Int -> Word -> SomeTypedArray e m -> JSM ()
 unsafeSetIndexW i x (SomeTypedArray a) = (a <## i) x
 {-# INLINE unsafeSetIndexW #-}
 
-setIndexD :: Mutability m ~ IsMutable
+setIndexD :: Mutability m ~ 'IsMutable
           => Int -> Double -> SomeTypedArray e m -> JSM ()
 setIndexD i x (SomeTypedArray a) = (a <## i) x
 {-# INLINE setIndexD #-}
 
-unsafeSetIndexD :: Mutability m ~ IsMutable
+unsafeSetIndexD :: Mutability m ~ 'IsMutable
                 => Int -> Double -> SomeTypedArray e m -> JSM ()
 unsafeSetIndexD i x (SomeTypedArray a) = (a <## i) x
 {-# INLINE unsafeSetIndexD #-}
 
-indexOfI :: Mutability m ~ IsMutable
+indexOfI :: Mutability m ~ 'IsMutable
          => Int -> Int -> SomeTypedArray e m -> JSM Int
 indexOfI s x (SomeTypedArray a) = a ^. js2 "indexOf" x s >>= fromJSValUnchecked
 {-# INLINE indexOfI #-}

@@ -25,9 +25,9 @@ import Foreign.Ptr (FunPtr, Ptr)
 import Foreign.Storable (poke)
 import Foreign.Marshal.Utils (new)
 
-import Language.Javascript.JSaddle (JSM)
-import Language.Javascript.JSaddle.Run (runJavaScript)
-import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
+import Language.Javascript.JSaddle (JSM, runJSM)
+import Language.Javascript.JSaddle.Run (runJS)
+import Language.Javascript.JSaddle.Run.Files (ghcjsHelpers, jsaddleCoreJs)
 
 import Language.Javascript.JSaddle.CLib.Internal
 
@@ -49,10 +49,10 @@ foreign import ccall safe "wrapper"
 jsaddleInit :: JSM () -> FunPtr (CString -> IO ()) -> IO (Ptr NativeCallbacks)
 jsaddleInit jsm evaluateJavascriptAsyncPtr = do
   let evaluateJavascriptAsync = mkCallback evaluateJavascriptAsyncPtr
-  (processResult, processSyncResult, start) <- runJavaScript (\batch ->
-    useAsCString (toStrict $ "runJSaddleBatch(" <> encode batch <> ");")
-      evaluateJavascriptAsync) jsm
-  jsaddleStartPtr <- wrapStartCallback $ void $ forkIO start
+  (processResult, runSyncCallback, continueSyncCallback, jsCtx) <- runJS $ \req ->
+    useAsCString (toStrict $ "runJSaddleBatch(" <> encode req <> ");")
+      evaluateJavascriptAsync
+  jsaddleStartPtr <- wrapStartCallback $ void $ forkIO $ runJSM jsm jsCtx
   jsaddleResultPtr <- wrapMessageCallback $ \s -> do
     result <- decode . fromStrict <$> packCString s
     case result of
@@ -62,7 +62,9 @@ jsaddleInit jsm evaluateJavascriptAsyncPtr = do
     result <- decode . fromStrict <$> packCString s
     case result of
       Nothing -> error $ "jsaddle message decode failed: " <> show result
-      Just r -> newCString =<< unpack . toStrict . encode <$> processSyncResult r
+      Just r -> newCString =<< unpack . toStrict . encode <$> case r of
+        Just (callback, this, args) -> runSyncCallback callback this args
+        Nothing -> continueSyncCallback
   jsaddleJsPtr <- newCString $ unpack $ toStrict jsaddleJs
   jsaddleHtmlPtr <- newCString $ unpack $ toStrict indexHtml
   new NativeCallbacks
@@ -133,13 +135,15 @@ pokeAppConfig :: Ptr AppCallbacks -> AppConfig -> IO ()
 pokeAppConfig ptr cfg = poke ptr =<< appConfigToAppCallbacks cfg
 
 jsaddleJs :: ByteString
-jsaddleJs = ghcjsHelpers <> "\
+jsaddleJs = jsaddleCoreJs <> ghcjsHelpers <> "\n\
     \runJSaddleBatch = (function() {\n\
-    \ " <> initState <> "\n\
-    \ return function(batch) {\n\
-    \ " <> runBatch (\a -> "jsaddle.postMessage(JSON.stringify(" <> a <> "));")
-              (Just (\a -> "JSON.parse(jsaddle.syncMessage(JSON.stringify(" <> a <> ")))")) <> "\
-    \ };\n\
+    \  var core = jsaddle(window, function(req) {\n\
+    \    jsaddle.postMessage(JSON.stringify(req));\n\
+    \  }, function(callback, that, args) {\n\
+    \    return JSON.parse(jsaddle.syncMessage(JSON.stringify([callback, that, args])));\n\
+    \  }, function() {\n\
+    \    return JSON.parse(jsaddle.syncMessage(JSON.stringify(null)));\n\
+    \  return core.processReq;\n\
     \})();\n\
     \jsaddle.postReady();\n"
 

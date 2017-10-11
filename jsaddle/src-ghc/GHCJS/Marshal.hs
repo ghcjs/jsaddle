@@ -17,7 +17,6 @@ import           Control.Monad.Trans.Maybe (MaybeT(..), runMaybeT)
 
 import qualified Data.Aeson as AE
 import           Data.Int (Int8, Int16, Int32)
-import           Data.Text (Text)
 import           Data.Word (Word8, Word16, Word32, Word)
 
 import           GHC.Prim
@@ -26,7 +25,7 @@ import           Language.Javascript.JSaddle.Types (JSM, JSVal, SomeJSArray(..),
 import           Language.Javascript.JSaddle.Native.Internal
                  (valueToJSONValue, jsonValueToValue, valueToNumber)
 
-import           GHCJS.Types (JSString, isUndefined, isNull)
+import           GHCJS.Types (isUndefined)
 import           GHCJS.Foreign.Internal (isTruthy)
 import           GHCJS.Marshal.Pure ()
 

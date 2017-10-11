@@ -15,8 +15,6 @@ import GHCJS.Types
 import GHCJS.Internal.Types
 import GHCJS.Marshal.Pure
 
-import GHC.Exts (State#)
-
 import Data.Typeable
 
 newtype SomeArrayBuffer (a :: MutabilityType s) =
@@ -25,7 +23,7 @@ instance IsJSVal (SomeArrayBuffer m)
 
 type ArrayBuffer           = SomeArrayBuffer Immutable
 type MutableArrayBuffer    = SomeArrayBuffer Mutable
-type STArrayBuffer s       = SomeArrayBuffer (STMutable s)
+type STArrayBuffer s       = SomeArrayBuffer ('STMutable s)
 
 instance PToJSVal MutableArrayBuffer where
   pToJSVal (SomeArrayBuffer b) = b

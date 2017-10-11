@@ -140,29 +140,14 @@ module Data.JSString ( JSString
                      ) where
 
 import           Prelude
-  ( Char, Bool(..), Int, Maybe(..), String, Eq(..), Ord(..), Ordering(..), (++)
-  , Read(..), Show(..), (&&), (||), (+), (-), (.), ($), ($!), (>>)
-  , not, seq, return, otherwise, quot)
-import qualified Prelude                              as P
+  ( Char, Bool(..), Int, Maybe(..), String, Eq(..), Ord(..), Ordering(..), (.) )
 
-import           Control.DeepSeq                      (NFData(..))
-import           Data.Char                            (isSpace)
 import           Data.Coerce                          (coerce)
-import qualified Data.List                            as L
-import           Data.Data
 import qualified Data.Text                            as T
-import qualified Data.Text.Internal.Fusion            as TF
-import qualified Data.Text.Internal.Fusion.Common     as TF
 
-import           GHC.Exts
-  ( Int#, (+#), (-#), (>=#), (>#), isTrue#, chr#, Char(..)
-  , Int(..), Addr#, tagToEnum#)
+import           GHC.Exts ( Addr# )
 import qualified GHC.Exts                             as Exts
 import qualified GHC.CString                          as GHC
-
-import           Unsafe.Coerce
-
-import           GHCJS.Prim                           (JSVal)
 
 import           Data.JSString.Internal.Type
 import           Data.JSString.Internal.Fusion        (stream, unstream)
@@ -315,10 +300,6 @@ head = coerce T.head
 uncons :: JSString -> Maybe (Char, JSString)
 uncons = coerce T.uncons
 {-# INLINE [1] uncons #-}
-
--- | Lifted from Control.Arrow and specialized.
-second :: (b -> c) -> (a,b) -> (a,c)
-second f (a, b) = (a, f b)
 
 -- | /O(1)/ Returns the last character of a 'JSString', which must be
 -- non-empty.  Subject to fusion.

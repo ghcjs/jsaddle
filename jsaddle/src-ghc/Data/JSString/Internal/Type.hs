@@ -41,7 +41,7 @@ import Data.Typeable                  (Typeable)
 import GHC.Exts                       (Char(..), ord#, andI#, (/=#), isTrue#)
 
 -- | A wrapper around a JavaScript string
-newtype JSString = JSString Text deriving(Show, Read, IsString, Monoid, Ord, Eq, Data, ToJSON, FromJSON, Typeable)
+newtype JSString = JSString { unJSString :: Text } deriving(Show, Read, IsString, Monoid, Ord, Eq, Data, ToJSON, FromJSON, Typeable)
 
 instance NFData JSString where rnf !_ = ()
 

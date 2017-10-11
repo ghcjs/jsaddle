@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module GHCJS.Internal.Types ( IsJSVal(..)
                             , jsval
                             , MutabilityType(..)
@@ -13,4 +14,3 @@ import Language.Javascript.JSaddle.Native.Internal (stringToValue)
 instance IsJSVal JSString where
   jsval_ a = GHCJSPure $ stringToValue a
   {-# INLINE jsval_ #-}
-

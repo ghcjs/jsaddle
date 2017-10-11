@@ -19,63 +19,58 @@ module Language.Javascript.JSaddle.WebSockets (
     jsaddleOr
   , jsaddleApp
   , jsaddleWithAppOr
+  , jsaddleAppWithJs
   , jsaddleAppPartial
   , jsaddleJs
-  , debug
-  , debugWrapper
 ) where
 
-import Control.Monad (when, void, forever)
-import Control.Concurrent (killThread, forkIO, threadDelay)
-import Control.Exception (handle, AsyncException, throwIO, fromException, finally)
+import Control.Monad (forever, join)
+import Control.Concurrent (forkIO, threadDelay)
+import Control.Exception (handle, AsyncException, throwIO, fromException)
 
 import Data.Monoid ((<>))
 import Data.Aeson (encode, decode)
 
 import Network.Wai
-       (Middleware, lazyRequestBody, Application, Request, Response,
+       (lazyRequestBody, Application, Request, Response,
         ResponseReceived)
 import Network.WebSockets
-       (defaultConnectionOptions, ConnectionOptions(..), sendTextData,
+       (ConnectionOptions(..), sendTextData,
         receiveDataMessage, acceptRequest, ServerApp, sendPing)
 import qualified Network.WebSockets as WS (DataMessage(..))
 import Network.Wai.Handler.WebSockets (websocketsOr)
 
-import Language.Javascript.JSaddle.Types (JSM(..), JSContextRef(..))
+import Language.Javascript.JSaddle.Types (JSM(..))
 import qualified Network.Wai as W
        (responseLBS, requestMethod, pathInfo)
 import qualified Data.Text as T (pack)
 import qualified Network.HTTP.Types as H
        (status403, status200)
-import Language.Javascript.JSaddle.Run (syncPoint, runJavaScript)
-import Language.Javascript.JSaddle.Run.Files (indexHtml, runBatch, ghcjsHelpers, initState)
-import Language.Javascript.JSaddle.Debug
-       (removeContext, addContext)
+import Language.Javascript.JSaddle.Run (runJS)
+import Language.Javascript.JSaddle.Run.Files (indexHtml, jsaddleCoreJs, ghcjsHelpers)
 import Data.Maybe (fromMaybe)
-import qualified Data.Map as M (empty, insert, lookup)
 import Data.IORef
-       (readIORef, newIORef, atomicModifyIORef')
+       (readIORef, newIORef, writeIORef)
 import Data.ByteString.Lazy (ByteString)
-import Control.Concurrent.MVar
-       (tryTakeMVar, MVar, tryPutMVar, modifyMVar_, putMVar, takeMVar,
-        readMVar, newMVar, newEmptyMVar, modifyMVar)
-import Network.Wai.Handler.Warp
-       (defaultSettings, setTimeout, setPort, runSettings)
-import Foreign.Store (newStore, readStore, lookupStore)
-import Language.Javascript.JSaddle (askJSM)
-import Control.Monad.IO.Class (MonadIO(..))
+import Language.Javascript.JSaddle (SyncCallbackId, ValId)
+import Control.Monad.Trans.Reader
 
 jsaddleOr :: ConnectionOptions -> JSM () -> Application -> IO Application
 jsaddleOr opts entryPoint otherApp = do
-    syncHandlers <- newIORef M.empty
+    --TODO: Allow multiple simultaneous connections
+    processSyncResultRef <- newIORef $ error "processSyncResult not yet set up"
+    let processSyncResult callback this args = do
+          f <- readIORef processSyncResultRef
+          f callback this args
+    continueSyncCallbackRef <- newIORef $ error "continueSyncCallback not yet set up"
+    let continueSyncCallback = do
+          join $ readIORef continueSyncCallbackRef
     let wsApp :: ServerApp
         wsApp pending_conn = do
             conn <- acceptRequest pending_conn
-            rec (processResult, processSyncResult, start) <- runJavaScript (sendTextData conn . encode) $ do
-                    syncKey <- T.pack . show . contextId <$> askJSM
-                    liftIO $ atomicModifyIORef' syncHandlers (\m -> (M.insert syncKey processSyncResult m, ()))
-                    liftIO $ sendTextData conn (encode syncKey)
-                    entryPoint
+            (processResult, processSyncResult', continueSyncCallback', env) <- runJS (sendTextData conn . encode)
+            writeIORef processSyncResultRef processSyncResult'
+            writeIORef continueSyncCallbackRef continueSyncCallback'
             _ <- forkIO . forever $
                 receiveDataMessage conn >>= \case
                     (WS.Text t) ->
@@ -83,7 +78,7 @@ jsaddleOr opts entryPoint otherApp = do
                             Nothing -> error $ "jsaddle Results decode failed : " <> show t
                             Just r  -> processResult r
                     _ -> error "jsaddle WebSocket unexpected binary data"
-            start
+            runReaderT (unJSM entryPoint) env
             waitTillClosed conn
 
         -- Based on Network.WebSocket.forkPingThread
@@ -101,16 +96,16 @@ jsaddleOr opts entryPoint otherApp = do
 
         syncHandler :: Application
         syncHandler req sendResponse = case (W.requestMethod req, W.pathInfo req) of
-            ("POST", ["sync", syncKey]) -> do
+            ("POST", ["sync"]) -> do
                 body <- lazyRequestBody req
-                case decode body of
+                case decode body :: Maybe (Maybe (SyncCallbackId, ValId, [ValId])) of
                     Nothing -> error $ "jsaddle sync message decode failed : " <> show body
-                    Just result ->
-                        M.lookup syncKey <$> readIORef syncHandlers >>= \case
-                            Nothing -> error "jsaddle missing sync message handler"
-                            Just handler -> do
-                                next <- encode <$> handler result
-                                sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/json")] next
+                    Just parsed -> do
+                      --TODO: Combine processSyncResult with continueSyncCallback
+                      result <- case parsed of
+                        Just (callback, this, args) -> processSyncResult callback this args
+                        Nothing -> continueSyncCallback
+                      sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/json")] $ encode result
             _ -> otherApp req sendResponse
     return $ websocketsOr opts wsApp syncHandler
 
@@ -141,7 +136,7 @@ jsaddleAppPartialWithJs js req sendResponse = case (W.requestMethod req, W.pathI
 -- Use this to generate this string for embedding
 -- sed -e 's|\\|\\\\|g' -e 's|^|    \\|' -e 's|$|\\n\\|' -e 's|"|\\"|g' data/jsaddle.js | pbcopy
 jsaddleJs :: Bool -> ByteString
-jsaddleJs refreshOnLoad = "\
+jsaddleJs refreshOnLoad = jsaddleCoreJs <> "\
     \if(typeof global !== \"undefined\") {\n\
     \    global.window = global;\n\
     \    global.WebSocket = require('ws');\n\
@@ -151,39 +146,27 @@ jsaddleJs refreshOnLoad = "\
     \    var wsaddress = window.location.protocol.replace('http', 'ws')+\"//\"+window.location.hostname+(window.location.port?(\":\"+window.location.port):\"\");\n\
     \\n\
     \    var ws = new WebSocket(wsaddress);\n\
+    \    var sync = function(v) {\n\
+    \      var xhr = new XMLHttpRequest();\n\
+    \      xhr.open('POST', '/sync', false);\n\
+    \      xhr.setRequestHeader(\"Content-type\", \"application/json\");\n\
+    \      xhr.send(JSON.stringify(v));\n\
+    \      return JSON.parse(xhr.response);\n\
+    \    };\n\
+    \    var core = jsaddle(window, function(a) {\n\
+    \      ws.send(JSON.stringify(a));\n\
+    \    }, function(callback, that, args) {\n\
+    \      return sync([callback, that, args]);\n\
+    \    }, function() {\n\
+    \      return sync(null);\n\
+    \    });\n\
     \    var syncKey = \"\";\n\
     \\n\
     \    ws.onopen = function(e) {\n\
-    \ " <> initState <> "\n\
     \\n\
     \        ws.onmessage = function(e) {\n\
-    \            var batch = JSON.parse(e.data);\n\
-    \            if(inCallback > 0) {\n\
-    \                asyncBatch = batch;\n\
-    \                return;\n\
-    \            }\n\
-    \            if(typeof batch === \"string\") {\n\
-    \                syncKey = batch;\n" <>
-    (if refreshOnLoad
-     then "                var xhr = new XMLHttpRequest();\n\
-          \                xhr.open('POST', '/reload/'+syncKey, true);\n\
-          \                xhr.onreadystatechange = function() {\n\
-          \                    if(xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200)\n\
-          \                        setTimeout(function(){window.location.reload();}, 100);\n\
-          \                };\n\
-          \                xhr.send();\n"
-     else "") <>
-    "                return;\n\
-    \            }\n\
-    \\n\
-    \ " <> runBatch (\a -> "ws.send(JSON.stringify(" <> a <> "));")
-              (Just (\a -> "(function(){\n\
-                  \                       var xhr = new XMLHttpRequest();\n\
-                  \                       xhr.open('POST', '/sync/'+syncKey, false);\n\
-                  \                       xhr.setRequestHeader(\"Content-type\", \"application/json\");\n\
-                  \                       xhr.send(JSON.stringify(" <> a <> "));\n\
-                  \                       return JSON.parse(xhr.response);})()")) <> "\
-    \        };\n\
+    \          core.processReq(JSON.parse(e.data));\n\
+    \        }\n\
     \    };\n\
     \    ws.onerror = function() {\n\
     \        setTimeout(connect, 1000);\n\
@@ -193,72 +176,3 @@ jsaddleJs refreshOnLoad = "\
     \ " <> ghcjsHelpers <> "\
     \connect();\n\
     \"
-
--- | Start or restart the server.
--- To run this as part of every :reload use
--- > :def! reload (const $ return "::reload\nLanguage.Javascript.JSaddle.Warp.debug 3708 SomeMainModule.someMainFunction")
-debug :: Int -> JSM () -> IO ()
-debug port f = do
-    debugWrapper $ \withRefresh registerContext ->
-        runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
-            jsaddleOr defaultConnectionOptions (registerContext >> f >> syncPoint) (withRefresh $ jsaddleAppWithJs $ jsaddleJs True)
-    putStrLn $ "<a href=\"http://localhost:" <> show port <> "\">run</a>"
-
-refreshMiddleware :: ((Response -> IO ResponseReceived) -> IO ResponseReceived) -> Middleware
-refreshMiddleware refresh otherApp req sendResponse = case (W.requestMethod req, W.pathInfo req) of
-    ("POST", ["reload", _syncKey]) -> refresh sendResponse
-    _ -> otherApp req sendResponse
-
-debugWrapper :: (Middleware -> JSM () -> IO ()) -> IO ()
-debugWrapper run = do
-    reloadMVar <- newEmptyMVar
-    reloadDoneMVars <- newMVar []
-    contexts <- newMVar []
-    let refresh sendResponse = do
-          reloadDone <- newEmptyMVar
-          modifyMVar_ reloadDoneMVars (return . (reloadDone:))
-          readMVar reloadMVar
-          r <- sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/json")] ("reload" :: ByteString)
-          putMVar reloadDone ()
-          return r
-        start :: Int -> IO (IO Int)
-        start expectedConnections = do
-            serverDone <- newEmptyMVar
-            ready <- newEmptyMVar
-            let registerContext :: JSM ()
-                registerContext = do
-                    uuid <- contextId <$> askJSM
-                    browsersConnected <- liftIO $ modifyMVar contexts (\ctxs -> return (uuid:ctxs, length ctxs + 1))
-                    addContext
-                    when (browsersConnected == expectedConnections) . void . liftIO $ tryPutMVar ready ()
-            thread <- forkIO $
-                finally (run (refreshMiddleware refresh) registerContext)
-                    (putMVar serverDone ())
-            _ <- forkIO $ threadDelay 10000000 >> void (tryPutMVar ready ())
-            when (expectedConnections /= 0) $ takeMVar ready
-            return $ do
-                putMVar reloadMVar ()
-                ctxs <- takeMVar contexts
-                mapM_ removeContext ctxs
-                takeMVar reloadDoneMVars >>= mapM_ takeMVar
-                tryTakeMVar serverDone >>= \case
-                    Nothing -> do
-                        killThread thread
-                        takeMVar serverDone
-                    Just _ -> return ()
-                return $ length ctxs
-        restarter :: MVar (Int -> IO (IO Int)) -> IO Int -> IO ()
-        restarter mvar stop = do
-             start' <- takeMVar mvar
-             n <- stop
-             start' n >>= restarter mvar
-    lookupStore shutdown_0 >>= \case
-        Nothing -> do
-            restartMVar <- newMVar start
-            void . forkIO $ restarter restartMVar (return 0)
-            void $ newStore restartMVar
-        Just shutdownStore -> do
-            restartMVar :: MVar (Int -> IO (IO Int)) <- readStore shutdownStore
-            void $ tryTakeMVar restartMVar
-            putMVar restartMVar start
-  where shutdown_0 = 0

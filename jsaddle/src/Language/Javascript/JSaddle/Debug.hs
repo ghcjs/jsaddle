@@ -21,12 +21,12 @@ module Language.Javascript.JSaddle.Debug (
 ) where
 
 import Language.Javascript.JSaddle
-       (runJSM, askJSM, JSM, JSContextRef(..))
+       (runJSM, JSM, JSContextRef(..), askJSM)
 import Data.IORef (readIORef, atomicModifyIORef', newIORef, IORef)
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Monoid ((<>))
 import Control.Monad.IO.Class (MonadIO(..))
-import Data.Int (Int64)
+import Data.Function (on)
 
 contexts :: IORef [JSContextRef]
 contexts = unsafePerformIO $ newIORef []
@@ -37,9 +37,9 @@ addContext = do
     ctx <- askJSM
     liftIO $ atomicModifyIORef' contexts $ \c -> (c <> [ctx], ())
 
-removeContext :: MonadIO m => Int64 -> m ()
-removeContext cid =
-    liftIO $ atomicModifyIORef' contexts $ \c -> (filter ((/= cid) . contextId) c, ())
+removeContext :: MonadIO m => JSContextRef -> m ()
+removeContext c =
+    liftIO $ atomicModifyIORef' contexts $ \cs -> (filter (((/=) `on` _jsContextRef_nextRefId) c) cs, ())
 
 runOnAll :: MonadIO m => JSM a -> m [a]
 runOnAll f = liftIO (readIORef contexts) >>= mapM (runJSM f)

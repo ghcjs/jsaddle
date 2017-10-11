@@ -22,7 +22,7 @@ newtype SomeSTTypedArray s e = SomeSTTypedArray JSVal
   deriving (Typeable)
 -}
 
-type SomeSTTypedArray s (e :: TypedArrayElem) = SomeTypedArray e (STMutable s)
+type SomeSTTypedArray s (e :: TypedArrayElem) = SomeTypedArray e ('STMutable s)
 
 -- -----------------------------------------------------------------------------
 
@@ -38,18 +38,18 @@ data TypedArrayElem = Int8Elem
 
 -- -----------------------------------------------------------------------------
 
-type SomeInt8Array         = SomeTypedArray        Int8Elem
-type SomeInt16Array        = SomeTypedArray        Int16Elem
-type SomeInt32Array        = SomeTypedArray        Int32Elem
+type SomeInt8Array         = SomeTypedArray        'Int8Elem
+type SomeInt16Array        = SomeTypedArray        'Int16Elem
+type SomeInt32Array        = SomeTypedArray        'Int32Elem
 
-type SomeUint8Array        = SomeTypedArray        Uint8Elem
-type SomeUint16Array       = SomeTypedArray        Uint16Elem
-type SomeUint32Array       = SomeTypedArray        Uint32Elem
+type SomeUint8Array        = SomeTypedArray        'Uint8Elem
+type SomeUint16Array       = SomeTypedArray        'Uint16Elem
+type SomeUint32Array       = SomeTypedArray        'Uint32Elem
 
-type SomeFloat32Array      = SomeTypedArray        Float32Elem
-type SomeFloat64Array      = SomeTypedArray        Float64Elem
+type SomeFloat32Array      = SomeTypedArray        'Float32Elem
+type SomeFloat64Array      = SomeTypedArray        'Float64Elem
 
-type SomeUint8ClampedArray = SomeTypedArray        Uint8ClampedElem
+type SomeUint8ClampedArray = SomeTypedArray        'Uint8ClampedElem
 
 -- -----------------------------------------------------------------------------
 
@@ -83,18 +83,18 @@ type IOFloat64Array        = SomeFloat64Array      Mutable
 
 -- -----------------------------------------------------------------------------
 
-type STInt8Array s         = SomeSTTypedArray s Int8Elem
-type STInt16Array s        = SomeSTTypedArray s Int16Elem
-type STInt32Array s        = SomeSTTypedArray s Int32Elem
+type STInt8Array s         = SomeSTTypedArray s 'Int8Elem
+type STInt16Array s        = SomeSTTypedArray s 'Int16Elem
+type STInt32Array s        = SomeSTTypedArray s 'Int32Elem
 
-type STUint8Array s        = SomeSTTypedArray s Uint8Elem
-type STUint16Array s       = SomeSTTypedArray s Uint16Elem
-type STUint32Array s       = SomeSTTypedArray s Uint32Elem
+type STUint8Array s        = SomeSTTypedArray s 'Uint8Elem
+type STUint16Array s       = SomeSTTypedArray s 'Uint16Elem
+type STUint32Array s       = SomeSTTypedArray s 'Uint32Elem
 
-type STFloat32Array s      = SomeSTTypedArray s Float32Elem
-type STFloat64Array s      = SomeSTTypedArray s Float64Elem
+type STFloat32Array s      = SomeSTTypedArray s 'Float32Elem
+type STFloat64Array s      = SomeSTTypedArray s 'Float64Elem
 
-type STUint8ClampedArray s = SomeSTTypedArray s Uint8ClampedElem
+type STUint8ClampedArray s = SomeSTTypedArray s 'Uint8ClampedElem
 
 -- -----------------------------------------------------------------------------
 
@@ -108,14 +108,4 @@ type family Elem x where
     Elem (SomeInt32Array m)        = Int
     Elem (SomeFloat32Array m)      = Double
     Elem (SomeFloat64Array m)      = Double
-
-    Elem (STUint8Array s)          = Word8
-    Elem (STUint8ClampedArray s)   = Word8
-    Elem (STUint16Array s)         = Word16
-    Elem (STUint32Array s)         = Word
-    Elem (STInt8Array s)           = Int8
-    Elem (STInt16Array s)          = Int16
-    Elem (STInt32Array s)          = Int
-    Elem (STFloat32Array s)        = Double
-    Elem (STFloat64Array s)        = Double
 

@@ -12,7 +12,8 @@
 --
 -----------------------------------------------------------------------------
 
-module Language.Javascript.JSaddle.Null (
+module Language.Javascript.JSaddle.Null where {-
+(
     run
 ) where
 
@@ -37,7 +38,7 @@ run f = do
     _ <- forkIO $ forever $
         readChan batches >>= \case
             Batch commands _ batchNumber ->
-                processResult $ BatchResults batchNumber . Success [] $ mapMaybe (\case
+                processResult $ BatchResults batchNumber . Success $ mapMaybe (\case
                         Left _ -> Nothing
                         Right command -> Just $
                             case command of
@@ -54,3 +55,4 @@ run f = do
                                 PropertyNames _ -> PropertyNamesResult []
                                 Sync -> SyncResult) commands
     start
+-}

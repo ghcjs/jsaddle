@@ -2,6 +2,7 @@
 #ifdef ghcjs_HOST_OS
 {-# OPTIONS_GHC -Wno-dodgy-exports      #-}
 #else
+{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -15,6 +16,10 @@
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE AllowAmbiguousTypes        #-}
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE DeriveTraversable          #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# OPTIONS_GHC -Wno-warnings-deprecations      #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Types
@@ -28,15 +33,14 @@
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle.Types (
-  -- * JavaScript Context
-    JSContextRef(..)
 
   -- * The JSM Monad
-  , JSM(..)
+    JSM(..)
   , MonadJSM(..)
   , liftJSM
+  , askJSM
 
-  -- * Pure GHCJS functions
+  -- * pure GHCJS functions
   , GHCJSPure(..)
   , ghcjsPure
   , ghcjsPureMap
@@ -58,12 +62,7 @@ module Language.Javascript.JSaddle.Types (
   -- * Debugging
   , JSadddleHasCallStack
 
-  -- * Sync JSM
-  , syncPoint
-  , syncAfter
-
 #ifndef ghcjs_HOST_OS
-  , sendCommand
 
   -- * JavaScript Context Commands
   , MutabilityType(..)
@@ -71,17 +70,40 @@ module Language.Javascript.JSaddle.Types (
   , Immutable
   , IsItMutable(..)
   , Mutability
-  , JSValueReceived(..)
-  , JSValueForSend(..)
-  , JSStringReceived(..)
-  , JSStringForSend(..)
-  , JSObjectForSend(..)
-  , AsyncCommand(..)
-  , Command(..)
-  , Batch(..)
-  , Result(..)
-  , BatchResults(..)
-  , Results(..)
+
+  , JSContextRef (..)
+  , Req (..)
+  , Val
+  , ValId
+  , Ref (..)
+  , RefId (..)
+  , LazyVal (..)
+  , lazyValFromStrict
+  , getLazyVal
+  , Rsp (..)
+  , SyncCallbackId (..)
+  , CallbackId
+  , GetJsonReqId (..)
+  , PrimVal (..)
+  , runJSM
+  , sync
+  , freeSyncCallback
+  , newSyncCallback'
+  , newSyncCallback''
+  , withJSValId
+  , wrapJSVal
+  , newJson
+  , lazyValResult
+  , callbackToSyncFunction
+  , callbackToAsyncFunction
+  , getProperty
+  , setProperty
+  , getJson
+  , getJsonLazy
+  , callAsFunction'
+  , callAsConstructor'
+  , withLog
+  , unsafeInlineLiftIO
 #endif
 ) where
 
@@ -92,10 +114,11 @@ import JavaScript.Object.Internal (Object(..))
 import JavaScript.Array.Internal (SomeJSArray(..), JSArray, MutableJSArray, STJSArray)
 import GHCJS.Nullable (Nullable(..))
 #else
-import GHCJS.Prim.Internal (JSVal(..), JSValueRef)
+import GHCJS.Prim.Internal
 import Data.JSString.Internal.Type (JSString(..))
-import Control.DeepSeq (NFData(..))
-import Control.Monad.Catch (MonadThrow, MonadCatch(..), MonadMask(..))
+import Data.Monoid
+import Control.Monad (void)
+import Control.Monad.Catch (MonadThrow, MonadCatch(..), MonadMask(..), bracket_)
 import Control.Monad.Trans.Cont (ContT(..))
 import Control.Monad.Trans.Error (Error(..), ErrorT(..))
 import Control.Monad.Trans.Except (ExceptT(..))
@@ -111,45 +134,36 @@ import Control.Monad.Trans.Writer.Lazy as Lazy (WriterT(..))
 import Control.Monad.Trans.Writer.Strict as Strict (WriterT(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Fix (MonadFix)
-import Control.Monad.Ref (MonadAtomicRef(..), MonadRef(..))
 import Control.Concurrent.STM.TVar (TVar)
 import Control.Concurrent.MVar (MVar)
-import Data.Int (Int64)
-import Data.Set (Set)
-import Data.Text (Text)
-import Data.Time.Clock (UTCTime(..))
+import Data.Bifunctor
+import Data.Bifoldable
+import Data.Bitraversable
 import Data.Typeable (Typeable)
 import Data.Coerce (coerce, Coercible)
-import Data.Aeson
-       (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..), Value)
+import Data.Aeson (ToJSON(..), FromJSON(..))
 import GHC.Generics (Generic)
+import Data.Int
+import qualified Data.Aeson as A
+import Data.Map (Map)
+import System.IO.Unsafe
+import Data.IORef
+import Control.Monad.Ref (MonadRef, MonadAtomicRef(..))
+import qualified Control.Monad.Ref as MonadRef
+import Control.Concurrent.MVar
+       (putMVar, takeMVar, newEmptyMVar)
+import qualified Data.Map as M
+import Control.Monad.Trans.Reader (asks, runReaderT)
+import Control.Monad.STM (atomically)
+import Control.Concurrent.STM.TVar
+       (writeTVar, readTVar, modifyTVar')
+import Control.Monad.Primitive
 #endif
 
 #if MIN_VERSION_base(4,9,0) && defined(CHECK_UNCHECKED)
 import GHC.Stack (HasCallStack)
 #else
 import GHC.Exts (Constraint)
-#endif
-
--- | Identifies a JavaScript execution context.
---   When using GHCJS this is just '()' since their is only one context.
---   When using GHC it includes the functions JSaddle needs to communicate
---   with the JavaScript context.
-#ifdef ghcjs_HOST_OS
-type JSContextRef = ()
-#else
-data JSContextRef = JSContextRef {
-    contextId              :: Int64
-  , startTime              :: UTCTime
-  , doSendCommand          :: Command -> IO Result
-  , doSendAsyncCommand     :: AsyncCommand -> IO ()
-  , addCallback            :: Object -> JSCallAsFunction -> IO ()
-  , nextRef                :: TVar JSValueRef
-  , doEnableLogging        :: Bool -> IO ()
-  , finalizerThreads       :: MVar (Set Text)
-  , animationFrameHandlers :: MVar [Double -> JSM ()]
-  , liveRefs               :: MVar (Set Int64)
-}
 #endif
 
 -- | The 'JSM' monad keeps track of the JavaScript execution context.
@@ -163,48 +177,6 @@ data JSContextRef = JSContextRef {
 #ifdef ghcjs_HOST_OS
 type JSM = IO
 #else
-newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a }
-    deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadThrow)
-
-instance MonadCatch JSM where
-    t `catch` c = JSM (unJSM (syncAfter t) `catch` \e -> unJSM (c e))
-
-instance MonadMask JSM where
-  mask a = JSM $ mask $ \unmask -> unJSM (a $ q unmask)
-    where q :: (ReaderT JSContextRef IO a -> ReaderT JSContextRef IO a) -> JSM a -> JSM a
-          q unmask (JSM b) = syncAfter . JSM $ unmask b
-  uninterruptibleMask a =
-    JSM $ uninterruptibleMask $ \unmask -> unJSM (a $ q unmask)
-      where q :: (ReaderT JSContextRef IO a -> ReaderT JSContextRef IO a) -> JSM a -> JSM a
-            q unmask (JSM b) = syncAfter . JSM $ unmask b
-#endif
-
--- | Forces execution of pending asyncronous code
-syncPoint :: JSM ()
-#ifdef ghcjs_HOST_OS
-syncPoint = return ()
-#else
-syncPoint = do
-    SyncResult <- sendCommand Sync
-    return ()
-#endif
-
--- | Forces execution of pending asyncronous code after performing `f`
-syncAfter :: JSM a -> JSM a
-#ifdef ghcjs_HOST_OS
-syncAfter = id
-#else
-syncAfter f = do
-    result <- f
-    syncPoint
-    return result
-#endif
-
-#ifndef ghcjs_HOST_OS
-sendCommand :: Command -> JSM Result
-sendCommand cmd = do
-    s <- doSendCommand <$> JSM ask
-    liftIO $ s cmd
 #endif
 
 -- | Type we can give to functions that are pure when using ghcjs, but
@@ -314,15 +286,6 @@ instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.WriterT w m) where
 instance (Monoid w, MonadJSM m) => MonadJSM (Strict.WriterT w m) where
     liftJSM' = lift . liftJSM'
     {-# INLINE liftJSM' #-}
-
-instance MonadRef JSM where
-    type Ref JSM = Ref IO
-    newRef = liftIO . newRef
-    readRef = liftIO . readRef
-    writeRef r = liftIO . writeRef r
-
-instance MonadAtomicRef JSM where
-    atomicModifyRef r = liftIO . atomicModifyRef r
 #endif
 
 -- | The 'liftJSM' is to 'JSM' what 'liftIO' is to 'IO'.
@@ -362,16 +325,16 @@ data MutabilityType s = Mutable_ s
                       | Immutable_ s
                       | STMutable s
 
-type Mutable   = Mutable_ ()
-type Immutable = Immutable_ ()
+type Mutable   = 'Mutable_ ()
+type Immutable = 'Immutable_ ()
 
 data IsItMutable = IsImmutable
                  | IsMutable
 
 type family Mutability (a :: MutabilityType s) :: IsItMutable where
-  Mutability Immutable     = IsImmutable
-  Mutability Mutable       = IsMutable
-  Mutability (STMutable s) = IsMutable
+  Mutability Immutable     = 'IsImmutable
+  Mutability Mutable       = 'IsMutable
+  Mutability ('STMutable s) = 'IsMutable
 
 newtype SomeJSArray (m :: MutabilityType s) = SomeJSArray JSVal
   deriving (Typeable)
@@ -383,135 +346,13 @@ type JSArray        = SomeJSArray Immutable
 type MutableJSArray = SomeJSArray Mutable
 
 -- | See 'JavaScript.Array.Internal.STJSArray'
-type STJSArray s    = SomeJSArray (STMutable s)
+type STJSArray s    = SomeJSArray ('STMutable s)
 
 -- | See 'JavaScript.Object.Internal.Object'
 newtype Object = Object JSVal
 
 -- | See 'GHCJS.Nullable.Nullable'
 newtype Nullable a = Nullable a
-
--- | Wrapper used when receiving a 'JSVal' from the JavaScript context
-newtype JSValueReceived = JSValueReceived JSValueRef deriving(Show, ToJSON, FromJSON)
-
--- | Wrapper used when sending a 'JSVal' to the JavaScript context
-newtype JSValueForSend = JSValueForSend JSValueRef deriving(Show, ToJSON, FromJSON, Generic)
-instance NFData JSValueForSend
-
--- | Wrapper used when sending a 'Object' to the JavaScript context
-newtype JSObjectForSend = JSObjectForSend JSValueForSend deriving(Show, ToJSON, FromJSON, Generic)
-instance NFData JSObjectForSend
-
--- | Wrapper used when receiving a 'JSString' from the JavaScript context
-newtype JSStringReceived = JSStringReceived Text deriving(Show, ToJSON, FromJSON)
-
--- | Wrapper used when sending a 'JString' to the JavaScript context
-newtype JSStringForSend = JSStringForSend Text deriving(Show, ToJSON, FromJSON, Generic)
-instance NFData JSStringForSend
-
--- | Command sent to a JavaScript context for execution asynchronously
-data AsyncCommand = FreeRef Text JSValueForSend
-                  | FreeRefs Text
-                  | SetPropertyByName JSObjectForSend JSStringForSend JSValueForSend
-                  | SetPropertyAtIndex JSObjectForSend Int JSValueForSend
-                  | StringToValue JSStringForSend JSValueForSend
-                  | NumberToValue Double JSValueForSend
-                  | JSONValueToValue Value JSValueForSend
-                  | GetPropertyByName JSObjectForSend JSStringForSend JSValueForSend
-                  | GetPropertyAtIndex JSObjectForSend Int JSValueForSend
-                  | CallAsFunction JSObjectForSend JSObjectForSend [JSValueForSend] JSValueForSend
-                  | CallAsConstructor JSObjectForSend [JSValueForSend] JSValueForSend
-                  | NewEmptyObject JSValueForSend
-                  | NewAsyncCallback JSValueForSend
-                  | NewSyncCallback JSValueForSend
-                  | FreeCallback JSValueForSend
-                  | NewArray [JSValueForSend] JSValueForSend
-                  | EvaluateScript JSStringForSend JSValueForSend
-                  | SyncWithAnimationFrame JSValueForSend
-                  | StartSyncBlock
-                  | EndSyncBlock
-                   deriving (Show, Generic)
-
-instance ToJSON AsyncCommand where
-    toEncoding = genericToEncoding defaultOptions
-
-instance FromJSON AsyncCommand
-
-instance NFData AsyncCommand
-
--- | Command sent to a JavaScript context for execution synchronously
-data Command = DeRefVal JSValueForSend
-             | ValueToBool JSValueForSend
-             | ValueToNumber JSValueForSend
-             | ValueToString JSValueForSend
-             | ValueToJSON JSValueForSend
-             | ValueToJSONValue JSValueForSend
-             | IsNull JSValueForSend
-             | IsUndefined JSValueForSend
-             | StrictEqual JSValueForSend JSValueForSend
-             | InstanceOf JSValueForSend JSObjectForSend
-             | PropertyNames JSObjectForSend
-             | Sync
-             deriving (Show, Generic)
-
-instance ToJSON Command where
-    toEncoding = genericToEncoding defaultOptions
-
-instance FromJSON Command
-
-instance NFData Command
-
--- | Batch of commands that can be sent together to the JavaScript context
-data Batch = Batch [Either AsyncCommand Command] Bool Int
-             deriving (Show, Generic)
-
-instance ToJSON Batch where
-    toEncoding = genericToEncoding defaultOptions
-
-instance FromJSON Batch
-
-instance NFData Batch
-
--- | Result of a 'Command' returned from the JavaScript context
-data Result = DeRefValResult JSValueRef Text
-            | ValueToBoolResult Bool
-            | ValueToNumberResult Double
-            | ValueToStringResult JSStringReceived
-            | ValueToJSONResult JSStringReceived
-            | ValueToJSONValueResult Value
-            | IsNullResult Bool
-            | IsUndefinedResult Bool
-            | StrictEqualResult Bool
-            | InstanceOfResult Bool
-            | PropertyNamesResult [JSStringReceived]
-            | ThrowJSValue JSValueReceived
-            | SyncResult
-            deriving (Show, Generic)
-
-instance ToJSON Result where
-    toEncoding = genericToEncoding defaultOptions
-
-instance FromJSON Result
-
-data BatchResults = Success [JSValueReceived] [Result]
-                  | Failure [JSValueReceived] [Result] JSValueReceived
-             deriving (Show, Generic)
-
-instance ToJSON BatchResults where
-    toEncoding = genericToEncoding defaultOptions
-
-instance FromJSON BatchResults
-
-data Results = BatchResults Int BatchResults
-             | Duplicate Int Int
-             | Callback Int BatchResults JSValueReceived JSValueReceived JSValueReceived [JSValueReceived]
-             | ProtocolError Text
-             deriving (Show, Generic)
-
-instance ToJSON Results where
-    toEncoding = genericToEncoding defaultOptions
-
-instance FromJSON Results
 #endif
 
 -- | Like HasCallStack, but only when jsaddle cabal flag check-unchecked is set
@@ -522,3 +363,301 @@ type JSadddleHasCallStack = (() :: Constraint)
 #endif
 
 
+--TODO: We know what order we issued SyncBlock, GetJson, etc. requests in, so we can probably match them up without explicit IDs
+
+newtype GetJsonReqId = GetJsonReqId { unGetJsonReqId :: Int32 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
+
+type CallbackId = SyncCallbackId --TODO: Either rename or distinguish these
+
+newtype SyncCallbackId = SyncCallbackId { unSyncCallbackId :: Int32 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
+
+aesonOptions :: String -> A.Options
+aesonOptions typeName = A.defaultOptions
+  { A.constructorTagModifier = drop (length typeName + 1)
+  , A.fieldLabelModifier = drop (length typeName + 2)
+  }
+
+data Req input output
+   = Req_FreeRef RefId
+   | Req_NewJson A.Value output
+   | Req_GetJson input GetJsonReqId
+   | Req_SyncBlock SyncCallbackId -- ^ Ask JS to begin a synchronous block
+   | Req_NewSyncCallback SyncCallbackId output -- ^ Create a new sync callback; note that we don't inform the JS side when we dispose of a callback - it's an error to call a disposed callback, so we just detect and throw that error on the Haskell side
+   | Req_NewAsyncCallback SyncCallbackId output -- ^ Create a new async callback; note that we don't inform the JS side when we dispose of a callback - it's an error to call a disposed callback, so we just detect and throw that error on the Haskell side
+   | Req_SetProperty input input input -- ^ @Req_SetProperty a b c@ ==> @c[a] = b;@
+   | Req_GetProperty input input output -- ^ @Req_SetProperty a b c@ ==> @c = b[a];@
+   | Req_CallAsFunction input input [input] output
+   | Req_CallAsConstructor input [input] output
+   deriving (Show, Read, Eq, Generic, Functor, Foldable, Traversable)
+
+instance Bifunctor Req where
+  bimap = bimapDefault
+
+instance Bifoldable Req where
+  bifoldMap = bifoldMapDefault
+
+instance Bitraversable Req where
+  bitraverse f g = \case
+    Req_FreeRef a -> Req_FreeRef <$> pure a
+    Req_NewJson a b -> Req_NewJson <$> pure a <*> g b
+    Req_GetJson a b -> Req_GetJson <$> f a <*> pure b
+    Req_SyncBlock a -> Req_SyncBlock <$> pure a
+    Req_NewSyncCallback a b -> Req_NewSyncCallback <$> pure a <*> g b
+    Req_NewAsyncCallback a b -> Req_NewAsyncCallback <$> pure a <*> g b
+    Req_SetProperty a b c -> Req_SetProperty <$> f a <*> f b <*> f c
+    Req_GetProperty a b c -> Req_GetProperty <$> f a <*> f b <*> g c
+    Req_CallAsFunction a b c d -> Req_CallAsFunction <$> f a <*> f b <*> traverse f c <*> g d
+    Req_CallAsConstructor a b c -> Req_CallAsConstructor <$> f a <*> traverse f b <*> g c
+
+instance (ToJSON input, ToJSON output) => ToJSON (Req input output) where
+  toEncoding = A.genericToEncoding $ aesonOptions "Req"
+
+instance (FromJSON input, FromJSON output) => FromJSON (Req input output) where
+  parseJSON = A.genericParseJSON $ aesonOptions "Req"
+
+data Rsp
+   = Rsp_GetJson GetJsonReqId A.Value
+   | Rsp_Result RefId (PrimVal ())
+   | Rsp_CallAsync CallbackId ValId [ValId]
+   deriving (Show, Read, Eq, Generic)
+
+instance ToJSON Rsp where
+  toEncoding = A.genericToEncoding $ aesonOptions "Rsp"
+
+instance FromJSON Rsp where
+  parseJSON = A.genericParseJSON $ aesonOptions "Rsp"
+
+data JSContextRef = JSContextRef
+  { _jsContextRef_sendReq :: !(Req ValId RefId -> IO ())
+  , _jsContextRef_nextRefId :: !(TVar RefId)
+  , _jsContextRef_nextGetJsonReqId :: !(TVar GetJsonReqId)
+  , _jsContextRef_getJsonReqs :: !(TVar (Map GetJsonReqId (MVar A.Value))) -- ^ The GetJson requests that are currently in-flight
+  , _jsContextRef_nextSyncCallbackId :: !(TVar SyncCallbackId)
+  , _jsContextRef_syncCallbacks :: !(TVar (Map SyncCallbackId (JSVal -> [JSVal] -> JSM JSVal)))
+  , _jsContextRef_pendingResults :: !(TVar (Map RefId (MVar (PrimVal ()))))
+  }
+
+-- | Perform IO from JSM without synchronizing with the JS side; since requests
+-- are heavily pipelined, this may result in unpredictable ordering of IO and JS
+-- operations, even within a single thread
+unsafeInlineLiftIO :: IO a -> JSM a
+unsafeInlineLiftIO = JSM . liftIO
+
+sync :: JSM a -> JSM a
+sync syncBlock = do
+  resultVar <- JSM $ liftIO newEmptyMVar
+  (cb, f) <- newSyncCallback' $ \_ _ _ -> do
+    JSM . liftIO . putMVar resultVar =<< syncBlock
+  _ <- callAsFunction' f (primToJSVal PrimVal_Null) []
+  result <- JSM $ liftIO $ takeMVar resultVar
+  freeSyncCallback cb
+  return result
+
+newSyncCallback' :: JSCallAsFunction -> JSM (SyncCallbackId, JSVal)
+newSyncCallback' f = newSyncCallback'' $ \fObj this args -> primToJSVal PrimVal_Undefined <$ f fObj this args
+
+newSyncCallback''
+  :: (  JSVal      -- Function object
+     -> JSVal      -- this
+     -> [JSVal]    -- Function arguments
+     -> JSM JSVal)
+  -> JSM (SyncCallbackId, JSVal)
+newSyncCallback'' f = do
+  callbackId <- newId _jsContextRef_nextSyncCallbackId
+  f' <- callbackToSyncFunction callbackId --TODO: "ContinueAsync" behavior
+  syncCallbacks <- JSM $ asks _jsContextRef_syncCallbacks
+  JSM $ liftIO $ atomically $ modifyTVar' syncCallbacks $ M.insertWith (error "newSyncCallback: callbackId already exists") callbackId $ \this args -> f f' this args
+  return (callbackId, f')
+
+freeSyncCallback :: SyncCallbackId -> JSM ()
+freeSyncCallback cbid = do
+  syncCallbacks <- JSM $ asks _jsContextRef_syncCallbacks
+  --TODO: Only do this once it actually comes back
+  --TODO: Don't fully synchronize here; just hold onto it until the frontend approves
+  liftIO $ atomically $ modifyTVar' syncCallbacks $ M.delete cbid
+
+newId :: Enum a => (JSContextRef -> TVar a) -> JSM a
+newId f = JSM $ do
+  v <- asks f
+  liftIO $ getNextTVar v
+
+getNextTVar :: Enum a => TVar a -> IO a
+getNextTVar v = atomically $ do
+  a <- readTVar v
+  -- Evaluate this strictly so that thunks cannot build up
+  writeTVar v $! succ a
+  return a
+
+sendReq :: Req JSVal Ref -> JSM ()
+sendReq req = withReqId req sendReqId
+
+sendReqId :: Req ValId RefId -> JSM ()
+sendReqId r = JSM $ do
+  s <- asks _jsContextRef_sendReq
+  liftIO $ s r
+
+lazyValToVal :: LazyVal -> JSM Val
+lazyValToVal val = do
+  JSM (liftIO (readIORef $ _lazyVal_ref val)) >>= \case
+    Nothing -> return $ _lazyVal_val val
+    Just ref -> return $ PrimVal_Ref ref
+
+withReqId :: Req JSVal Ref -> (Req ValId RefId -> JSM a) -> JSM a
+withReqId req = runContT $ do
+  bitraverse (ContT . withJSValId) (ContT . withRefId) req
+
+callbackToSyncFunction :: CallbackId -> JSM JSVal
+callbackToSyncFunction callbackId = withJSValOutput_ $ \ref -> do
+  sendReq $ Req_NewSyncCallback callbackId ref
+
+callbackToAsyncFunction :: CallbackId -> JSM JSVal
+callbackToAsyncFunction callbackId = withJSValOutput_ $ \ref -> do
+  sendReq $ Req_NewAsyncCallback callbackId ref
+
+--TODO: This *MUST* be run before sendReq; we should change the type to enforce this
+lazyValResult :: Ref -> JSM LazyVal
+lazyValResult ref = JSM $ do
+  pendingResults <- asks _jsContextRef_pendingResults
+  liftIO $ do
+    refId <- readIORef $ unRef ref
+    resultVar <- newEmptyMVar
+    atomically $ modifyTVar' pendingResults $ M.insertWith (error "getLazyVal: already waiting for this ref") refId resultVar
+    refRef <- newIORef $ Just ref
+    resultVal <- unsafeInterleaveIO $ do
+      result <- takeMVar resultVar
+      writeIORef refRef Nothing
+      return result
+    return $ LazyVal
+      { _lazyVal_ref = refRef
+      , _lazyVal_val = ref <$ resultVal
+      }
+
+newRef :: JSM Ref
+newRef = do
+  -- Bind this strictly in case it would retain anything else in the finalizer
+  !valId <- newId _jsContextRef_nextRefId
+  wrapRef valId
+
+wrapRef :: RefId -> JSM Ref
+wrapRef valId = JSM $ do
+  valRef <- liftIO $ newIORef valId
+  -- Bind this strictly to avoid retaining the whole JSContextRef in the finalizer
+  !sendReq' <- asks _jsContextRef_sendReq
+  void $ liftIO $ mkWeakIORef valRef $ do
+    sendReq' $ Req_FreeRef valId
+  return $ Ref valRef
+
+-- | Run a computation with the given RefId available; the value will not be freed during this computation
+--
+-- WARNING: Do not allow the RefId to escape the scope, or it may be freed while a reference still exists
+withRefId :: Ref -> (RefId -> JSM a) -> JSM a
+withRefId val f = do
+  valId <- JSM $ liftIO $ readIORef $ unRef val
+  result <- f valId
+  JSM $ liftIO $ touch val -- Ensure that the value is not freed before the end of the action
+  return result
+
+wrapVal :: ValId -> JSM Val
+wrapVal = traverse wrapRef
+
+wrapJSVal :: ValId -> JSM JSVal
+wrapJSVal valId = primToJSVal <$> wrapVal valId
+
+withJSValId :: JSVal -> (ValId -> JSM a) -> JSM a
+withJSValId (JSVal lv) f = do
+  val <- lazyValToVal lv
+  withValId val f
+
+withValId :: Val -> (ValId -> JSM a) -> JSM a
+withValId val f = case val of
+  PrimVal_Undefined -> f PrimVal_Undefined
+  PrimVal_Null -> f PrimVal_Null
+  PrimVal_Bool b -> f $ PrimVal_Bool b
+  PrimVal_Number n -> f $ PrimVal_Number n
+  PrimVal_String s -> f $ PrimVal_String s
+  PrimVal_Ref r -> withRefId r $ f . PrimVal_Ref
+
+getJson :: JSVal -> JSM A.Value
+getJson val = do
+  getResult <- getJson' val
+  JSM $ liftIO getResult
+
+getJsonLazy :: JSVal -> JSM A.Value
+getJsonLazy val = do
+  getResult <- getJson' val
+  JSM $ liftIO $ unsafeInterleaveIO getResult
+
+getJson' :: JSVal -> JSM (IO A.Value)
+getJson' val = do
+  getJsonReqId <- newId _jsContextRef_nextGetJsonReqId
+  getJsonReqs <- JSM $ asks _jsContextRef_getJsonReqs
+  resultVar <- JSM $ liftIO $ newEmptyMVar
+  JSM $ liftIO $ atomically $ modifyTVar' getJsonReqs $ M.insert getJsonReqId resultVar
+  sendReq $ Req_GetJson val getJsonReqId
+  return $ takeMVar resultVar
+
+withJSValOutput_ :: (Ref -> JSM ()) -> JSM JSVal
+withJSValOutput_ f = do
+  ref <- newRef
+  result <- JSVal <$> lazyValResult ref
+  f ref
+  return result
+
+newJson :: A.Value -> JSM JSVal
+newJson v = withJSValOutput_ $ \ref -> do
+  sendReq $ Req_NewJson v ref
+
+getProperty :: JSVal -> JSVal -> JSM JSVal
+getProperty prop obj = withJSValOutput_ $ \ref -> do
+  sendReq $ Req_GetProperty prop obj ref
+
+setProperty :: JSVal -> JSVal -> JSVal -> JSM ()
+setProperty prop val obj = do
+  sendReq $ Req_SetProperty prop val obj
+
+callAsFunction' :: JSVal -> JSVal -> [JSVal] -> JSM JSVal
+callAsFunction' f this args = withJSValOutput_ $ \ref -> do
+  sendReq $ Req_CallAsFunction f this args ref
+
+callAsConstructor' :: JSVal -> [JSVal] -> JSM JSVal
+callAsConstructor' f args = withJSValOutput_ $ \ref -> do
+  sendReq $ Req_CallAsConstructor f args ref
+
+newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a } deriving (Functor, Applicative, Monad, MonadFix, MonadThrow)
+
+instance MonadIO JSM where
+  liftIO a = do
+    _ <- getJson =<< newJson (A.Object mempty) --TODO: Make a lighter-weight sync function, and don't do anything if we know we're already in sync
+    JSM $ liftIO a
+
+instance MonadRef JSM where
+    type Ref JSM = MonadRef.Ref IO
+    --TODO: Can we do any of these things without synchronizing with JS?
+    newRef = liftIO . MonadRef.newRef
+    readRef = liftIO . MonadRef.readRef
+    writeRef r = liftIO . MonadRef.writeRef r
+
+instance MonadAtomicRef JSM where
+    atomicModifyRef r = liftIO . MonadRef.atomicModifyRef r
+
+--TODO: Figure out what syncAfter was doing in MonadCatch and MonadMask, and do that
+instance MonadCatch JSM where
+    t `catch` c = JSM (unJSM t `catch` \e -> unJSM (c e))
+
+instance MonadMask JSM where
+  mask a = JSM $ mask $ \unmask -> unJSM (a $ q unmask)
+    where q :: (ReaderT JSContextRef IO a -> ReaderT JSContextRef IO a) -> JSM a -> JSM a
+          q unmask (JSM b) = JSM $ unmask b
+  uninterruptibleMask a =
+    JSM $ uninterruptibleMask $ \unmask -> unJSM (a $ q unmask)
+      where q :: (ReaderT JSContextRef IO a -> ReaderT JSContextRef IO a) -> JSM a -> JSM a
+            q unmask (JSM b) = JSM $ unmask b
+
+runJSM :: MonadIO m => JSM a -> JSContextRef -> m a
+runJSM a ctx = liftIO $ runReaderT (unJSM a) ctx
+
+askJSM :: MonadJSM m => m JSContextRef
+askJSM = liftJSM $ JSM ask
+
+withLog :: String -> IO a -> IO a
+withLog s = bracket_ (putStrLn $ s <> ": enter") (putStrLn $ s <> ": exit")

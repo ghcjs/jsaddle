@@ -11,12 +11,8 @@ import Control.Lens.Operators ((^.))
 import GHCJS.Marshal (fromJSValUnchecked)
 
 import Language.Javascript.JSaddle.Types (JSM)
-import Language.Javascript.JSaddle.Object (jsg, new, js, js1, js2)
+import Language.Javascript.JSaddle.Object (js, js1)
 import JavaScript.TypedArray.ArrayBuffer.Internal
-
-create :: Int -> JSM MutableArrayBuffer
-create n = SomeArrayBuffer <$> new (jsg "ArrayBuffer") [n]
-{-# INLINE create #-}
 
 {- | Create an immutable 'ArrayBuffer' by copying a 'MutableArrayBuffer' -}
 freeze :: MutableArrayBuffer -> JSM ArrayBuffer
@@ -39,11 +35,6 @@ thaw (SomeArrayBuffer b) = SomeArrayBuffer <$> b ^. js1 "slice" (0 :: Int)
 unsafeThaw :: ArrayBuffer -> JSM MutableArrayBuffer
 unsafeThaw (SomeArrayBuffer b) = pure (SomeArrayBuffer b)
 {-# INLINE unsafeThaw #-}
-
-sliceIO :: Int -> Maybe Int -> SomeArrayBuffer any -> JSM (SomeArrayBuffer any)
-sliceIO begin (Just end) (SomeArrayBuffer b) = SomeArrayBuffer <$> b ^. js2 "slice" begin end
-sliceIO begin _          (SomeArrayBuffer b) = SomeArrayBuffer <$> b ^. js1 "slice" begin
-{-# INLINE sliceIO #-}
 
 byteLengthIO :: SomeArrayBuffer any -> JSM Int
 byteLengthIO (SomeArrayBuffer b) = b ^. js "byteLength" >>= fromJSValUnchecked
