@@ -61,7 +61,7 @@ import Control.Concurrent.MVar
         readMVar, newMVar, newEmptyMVar, modifyMVar)
 import Network.Wai.Handler.Warp
        (defaultSettings, setTimeout, setPort, runSettings)
-import Foreign.Store (newStore, readStore, lookupStore)
+import Foreign.Store (newStore, readStore, lookupStore, writeStore, Store(..))
 import Language.Javascript.JSaddle (askJSM)
 import Control.Monad.IO.Class (MonadIO(..))
 
@@ -252,13 +252,13 @@ debugWrapper run = do
              start' <- takeMVar mvar
              n <- stop
              start' n >>= restarter mvar
-    lookupStore shutdown_0 >>= \case
+    lookupStore storeId >>= \case
         Nothing -> do
             restartMVar <- newMVar start
             void . forkIO $ restarter restartMVar (return 0)
-            void $ newStore restartMVar
+            void $ writeStore (Store storeId) restartMVar
         Just shutdownStore -> do
             restartMVar :: MVar (Int -> IO (IO Int)) <- readStore shutdownStore
             void $ tryTakeMVar restartMVar
             putMVar restartMVar start
-  where shutdown_0 = 0
+  where storeId = 354
