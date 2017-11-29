@@ -49,8 +49,10 @@ library
               c-sources:
                   cbits-uikit/AppDelegate.m
                   cbits-uikit/ViewController.m
+              cpp-options: -DUSE_UIKIT
         else
             frameworks: Cocoa
             if flag(include-app-delegate)
               c-sources:
                   cbits-cocoa/AppDelegate.m
+              cpp-options: -DUSE_COCOA
