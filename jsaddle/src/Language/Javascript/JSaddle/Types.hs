@@ -123,6 +123,7 @@ import Data.Coerce (coerce, Coercible)
 import Data.Aeson
        (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..), Value)
 import GHC.Generics (Generic)
+import Control.Monad.IO.Unlift (MonadUnliftIO)
 #endif
 
 #if MIN_VERSION_base(4,9,0) && defined(CHECK_UNCHECKED)
@@ -164,7 +165,7 @@ data JSContextRef = JSContextRef {
 type JSM = IO
 #else
 newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a }
-    deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadThrow)
+    deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadThrow, MonadUnliftIO)
 
 instance MonadCatch JSM where
     t `catch` c = JSM (unJSM (syncAfter t) `catch` \e -> unJSM (c e))
@@ -177,6 +178,7 @@ instance MonadMask JSM where
     JSM $ uninterruptibleMask $ \unmask -> unJSM (a $ q unmask)
       where q :: (ReaderT JSContextRef IO a -> ReaderT JSContextRef IO a) -> JSM a -> JSM a
             q unmask (JSM b) = syncAfter . JSM $ unmask b
+
 #endif
 
 -- | Forces execution of pending asyncronous code
