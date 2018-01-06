@@ -31,7 +31,7 @@ indexHtml =
     \</head>\n\
     \<body>\n\
     \</body>\n\
-    \<script src=\"jsaddle.js\"></script>\n\
+    \<script src=\"/jsaddle.js\"></script>\n\
     \</html>"
 
 initState :: ByteString

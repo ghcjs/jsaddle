@@ -40,10 +40,11 @@ import Network.WebSockets
         receiveDataMessage, acceptRequest, ServerApp, sendPing)
 import qualified Network.WebSockets as WS (DataMessage(..))
 import Network.Wai.Handler.WebSockets (websocketsOr)
+import Network.HTTP.Types (Status(..))
 
 import Language.Javascript.JSaddle.Types (JSM(..), JSContextRef(..))
 import qualified Network.Wai as W
-       (responseLBS, requestMethod, pathInfo)
+       (responseLBS, requestMethod, pathInfo, modifyResponse, responseStatus)
 import qualified Data.Text as T (pack)
 import qualified Network.HTTP.Types as H
        (status403, status200)
@@ -111,7 +112,11 @@ jsaddleOr opts entryPoint otherApp = do
                             Just handler -> do
                                 next <- encode <$> handler result
                                 sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/json")] next
-            _ -> otherApp req sendResponse
+            (method, _) -> (catch404 otherApp) req sendResponse
+              where catch404 = W.modifyResponse $ \resp ->
+                      case (method, W.responseStatus resp) of
+                        ("GET", Status 404 _) -> indexResponse
+                        _ -> resp
     return $ websocketsOr opts wsApp syncHandler
 
 
@@ -132,9 +137,12 @@ jsaddleWithAppOr opts entryPoint otherApp = jsaddleOr opts entryPoint $ \req sen
 jsaddleAppPartial :: Request -> (Response -> IO ResponseReceived) -> Maybe (IO ResponseReceived)
 jsaddleAppPartial = jsaddleAppPartialWithJs $ jsaddleJs False
 
+indexResponse :: Response
+indexResponse = W.responseLBS H.status200 [("Content-Type", "text/html")] indexHtml
+
 jsaddleAppPartialWithJs :: ByteString -> Request -> (Response -> IO ResponseReceived) -> Maybe (IO ResponseReceived)
 jsaddleAppPartialWithJs js req sendResponse = case (W.requestMethod req, W.pathInfo req) of
-    ("GET", []) -> Just $ sendResponse $ W.responseLBS H.status200 [("Content-Type", "text/html")] indexHtml
+    ("GET", []) -> Just $ sendResponse indexResponse
     ("GET", ["jsaddle.js"]) -> Just $ sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/javascript")] js
     _ -> Nothing
 
