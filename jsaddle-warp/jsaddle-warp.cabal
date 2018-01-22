@@ -38,7 +38,7 @@ library
             wai >=3.0.3.0 && <3.3,
             wai-websockets >=3.0.0.6 && <3.1,
             warp >=3.1.2 && <3.3,
-            websockets >=0.9.5.0 && <0.11
+            websockets >=0.9.5.0 && <0.13
     exposed-modules:
         Language.Javascript.JSaddle.Warp
     build-depends:
