@@ -38,7 +38,6 @@ import Network.Wai
 import Network.WebSockets
        (defaultConnectionOptions, ConnectionOptions(..), sendTextData,
         receiveDataMessage, acceptRequest, ServerApp, sendPing)
-import qualified Network.WebSockets as WS (DataMessage(..))
 import Network.Wai.Handler.WebSockets (websocketsOr)
 import Network.HTTP.Types (Status(..))
 
@@ -66,6 +65,8 @@ import Foreign.Store (newStore, readStore, lookupStore)
 import Language.Javascript.JSaddle (askJSM)
 import Control.Monad.IO.Class (MonadIO(..))
 
+import Language.Javascript.JSaddle.WebSockets.Compat (getTextMessageByteString)
+
 jsaddleOr :: ConnectionOptions -> JSM () -> Application -> IO Application
 jsaddleOr opts entryPoint otherApp = do
     syncHandlers <- newIORef M.empty
@@ -78,8 +79,8 @@ jsaddleOr opts entryPoint otherApp = do
                     liftIO $ sendTextData conn (encode syncKey)
                     entryPoint
             _ <- forkIO . forever $
-                receiveDataMessage conn >>= \case
-                    (WS.Text t) ->
+                receiveDataMessage conn >>= \msg -> case getTextMessageByteString msg of
+                    Just t ->
                         case decode t of
                             Nothing -> error $ "jsaddle Results decode failed : " <> show t
                             Just r  -> processResult r
