@@ -45,7 +45,7 @@ initState = "\
     \        jsaddle_values.set(4, window);\n\
     \        var jsaddle_index = 100;\n\
     \        var expectedBatch = 1;\n\
-    \        var lastResults = [0, {}];\n\
+    \        var lastResults = [0, {\"tag\": \"Success\", \"contents\": [[], []]}];\n\
     \        var inCallback = 0;\n\
     \        var asyncBatch = null;\n\
     \"
