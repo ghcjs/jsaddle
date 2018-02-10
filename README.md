@@ -13,7 +13,8 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Concurrent.MVar (takeMVar, putMVar, newEmptyMVar)
 import Control.Lens ((^.))
 import Language.Javascript.JSaddle
-       (run, jsg, js, js1, jss, fun, valToNumber, syncPoint)
+       (jsg, js, js1, jss, fun, valToNumber, syncPoint)
+import Language.Javascript.JSaddle.Warp (run)
 
 main = run 3709 $ do
     doc <- jsg "document"
