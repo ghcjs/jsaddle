@@ -112,7 +112,9 @@ HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler {
     // Sent when the application receives remote notifications in the foreground or background
     // TODO Allow a configurable CString -> IO () to be passed into AppDelegateConfig
-    [UIApplication sharedApplication].applicationIconBadgeNumber=[[[userInfo objectForKey:@"aps"] valueForKey:@"badge"] intValue];
+    if ([userInfo valueForKeyPath:@"aps.badge"] != nil) {
+        [UIApplication sharedApplication].applicationIconBadgeNumber=[[[userInfo objectForKey:@"aps"] objectForKey:@"badge"] intValue];
+    }
     completionHandler(UIBackgroundFetchResultNewData);
 }
 
