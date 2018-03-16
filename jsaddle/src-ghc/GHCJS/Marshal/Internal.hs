@@ -237,6 +237,7 @@ instance (GFromJSArr (a p), GFromJSArr (b p)) => GFromJSArr ((a :*: b) p) where
         case b of
           Just (b',bn) -> return (Just (a' :*: b',bn))
           _            -> return Nothing
+      Nothing -> return Nothing --TODO: Is this right?
 
 instance (GFromJSVal (a p)) => GFromJSArr (M1 S c a p) where
   gFromJSArr f o n = do
