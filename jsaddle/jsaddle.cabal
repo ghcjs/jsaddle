@@ -87,7 +87,6 @@ library
             Language.Javascript.JSaddle.Debug
             Language.Javascript.JSaddle.Native
             Language.Javascript.JSaddle.Native.Internal
-            Language.Javascript.JSaddle.Null
         hs-source-dirs: src-ghc
     exposed-modules:
         Language.Javascript.JSaddle
