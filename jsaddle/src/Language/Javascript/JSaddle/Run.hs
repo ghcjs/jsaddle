@@ -149,7 +149,16 @@ runJS sendReqAsync = do
             return mResultVar
           forM_ mResultVar $ \resultVar -> do
             putMVar resultVar primVal
-      --TODO: Possibly return a batch of requests rather than just one
+        --TODO: Rename "SyncCallback" stuff to just "Callback"
+        Rsp_CallAsync callbackId this args -> do
+          mCallback <- fmap (M.lookup callbackId) $ atomically $ readTVar syncCallbacks
+          case mCallback of
+            Just callback -> do
+              _ <- forkIO $ flip runJSM env $ do
+                _ <- join $ callback <$> wrapJSVal this <*> traverse wrapJSVal args
+                return ()
+              return ()
+            Nothing -> error $ "callback " <> show callbackId <> " called, but does not exist"
       runSyncCallback syncCallbackId this args = do
         mSyncCallback <- fmap (M.lookup syncCallbackId) $ atomically $ readTVar syncCallbacks
         case mSyncCallback of
