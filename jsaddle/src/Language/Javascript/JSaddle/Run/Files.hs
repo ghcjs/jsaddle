@@ -205,9 +205,6 @@ jsaddleCoreJs = "\
     \  };\n\
     \  var processSingleReq = function(req) {\n\
     \    switch(req.tag) {\n\
-    \    case 'Eval':\n\
-    \      result(req.contents[1], eval(req.contents[0]));\n\
-    \      break;\n\
     \    case 'FreeRef':\n\
     \      vals.delete(req.contents[0]);\n\
     \      break;\n\
@@ -224,12 +221,15 @@ jsaddleCoreJs = "\
     \      });\n\
     \      break;\n\
     \    case 'SyncBlock':\n\
-    \      //TODO: Continuation\n\
     \      runSyncCallback(req.contents[0], [], []);\n\
     \      break;\n\
     \    case 'NewSyncCallback':\n\
     \      result(req.contents[1], function() {\n\
-    \        return runSyncCallback(req.contents[0], wrapVal(this), Array.prototype.slice.call(arguments).map(wrapVal));\n\
+    \        var result = runSyncCallback(req.contents[0], wrapVal(this), Array.prototype.slice.call(arguments).map(wrapVal));\n\
+    \        if(result.Left) {\n\
+    \          throw unwrapVal(result.Left);\n\
+    \        }\n\
+    \        return unwrapVal(result.Right);\n\
     \      });\n\
     \      break;\n\
     \    case 'NewAsyncCallback':\n\

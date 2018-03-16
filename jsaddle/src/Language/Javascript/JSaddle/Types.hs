@@ -504,6 +504,7 @@ lazyValToVal val = do
 
 withReqId :: Req JSVal Ref -> (Req ValId RefId -> JSM a) -> JSM a
 withReqId req = runContT $ do
+  -- Use ContT to apply all the relevant with* functions in a nested fashion
   bitraverse (ContT . withJSValId) (ContT . withRefId) req
 
 callbackToSyncFunction :: CallbackId -> JSM JSVal

@@ -167,9 +167,6 @@ function jsaddle(global, sendRsp, startSyncCallback, continueSyncCallback) {
   };
   var processSingleReq = function(req) {
     switch(req.tag) {
-    case 'Eval':
-      result(req.contents[1], eval(req.contents[0]));
-      break;
     case 'FreeRef':
       vals.delete(req.contents[0]);
       break;
@@ -186,12 +183,15 @@ function jsaddle(global, sendRsp, startSyncCallback, continueSyncCallback) {
       });
       break;
     case 'SyncBlock':
-      //TODO: Continuation
       runSyncCallback(req.contents[0], [], []);
       break;
     case 'NewSyncCallback':
       result(req.contents[1], function() {
-        return runSyncCallback(req.contents[0], wrapVal(this), Array.prototype.slice.call(arguments).map(wrapVal));
+        var result = runSyncCallback(req.contents[0], wrapVal(this), Array.prototype.slice.call(arguments).map(wrapVal));
+        if(result.Left) {
+          throw unwrapVal(result.Left);
+        }
+        return unwrapVal(result.Right);
       });
       break;
     case 'NewAsyncCallback':

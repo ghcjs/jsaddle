@@ -47,7 +47,10 @@ import Language.Javascript.JSaddle.Types (JSM, syncPoint, syncAfter)
 import qualified JavaScript.Web.AnimationFrame as GHCJS
        (waitForAnimationFrame)
 #else
+
+import Control.Exception (try, SomeException(..))
 import Control.Monad (when, join)
+import Control.Monad.Trans.Cont (ContT(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.STM (atomically)
 import Control.Concurrent (forkIO)
@@ -55,17 +58,21 @@ import Control.Concurrent.STM.TVar (writeTVar, readTVar, newTVarIO)
 import Control.Concurrent.MVar
        (putMVar, takeMVar, newMVar, newEmptyMVar, modifyMVar, modifyMVar_, swapMVar)
 
+import Data.Bifunctor (first)
+import Data.Bitraversable (bitraverse)
 import Data.Monoid ((<>))
 import Data.Map (Map)
 import Data.Maybe
 import qualified Data.Map as M
 import Data.IORef (newIORef)
+import qualified Data.Text as T
 
 import Language.Javascript.JSaddle.Types
 --TODO: Handle JS exceptions
 import Data.Foldable (forM_)
 import System.IO.Unsafe
 import Language.Javascript.JSaddle.Monad (syncPoint)
+import GHCJS.Prim.Internal (primToJSVal)
 #endif
 
 -- | The RefId of the global object
@@ -80,11 +87,15 @@ globalRef = unsafePerformIO $ Ref <$> newIORef globalRefId
 initialRefId :: RefId
 initialRefId = RefId 2
 
+type CallbackResultId = Either ValId ValId
+
+type CallbackResult = Either JSVal JSVal
+
 runJS
   :: (Req ValId RefId -> IO ()) -- ^ Send a request to the JS engine; we assume that requests are performed in the order they are sent; requests received while in a synchronous block must not be processed until the synchronous block ends (i.e. until the JS side receives the final value yielded back from the synchronous block)
   -> IO ( Rsp -> IO () -- Responses must be able to continue coming in as a sync block runs, or else the caller must be careful to ensure that sync blocks are only run after all outstanding responses have been processed
-        , SyncCallbackId -> ValId -> [ValId] -> IO [Either ValId (Req ValId RefId)] -- The input valIds here must always be allocated on the JS side
-        , IO [Either ValId (Req ValId RefId)]
+        , SyncCallbackId -> ValId -> [ValId] -> IO [Either CallbackResultId (Req ValId RefId)] -- The input valIds here must always be allocated on the JS side
+        , IO [Either CallbackResultId (Req ValId RefId)]
         , JSContextRef
         )
 runJS sendReqAsync = do
@@ -111,12 +122,11 @@ runJS sendReqAsync = do
         LT -> error "should be impossible: trying to return from deeper sync frame than the current depth"
         -- We're the top frame, so yield our value to the caller
         EQ -> do
-          let yieldAllReady :: Int -> Map Int JSVal -> JSVal -> IO (Int, Map Int JSVal)
+          let yieldAllReady :: Int -> Map Int CallbackResult -> CallbackResult -> IO (Int, Map Int CallbackResult)
               yieldAllReady depth readyFrames retVal = do
                 -- Even though the valId is escaping, this is safe because we know that our yielded value will go out before any potential FreeVal request could go out
-                flip runJSM env $ withJSValId retVal $ \retValId -> do
+                flip runJSM env $ runContT (bitraverse (ContT . withJSValId) (ContT . withJSValId) retVal) $ \retValId -> do
                   JSM $ liftIO $ enqueueYieldVal $ Left retValId
-
                 let !nextDepth = pred depth
                 case M.maxViewWithKey readyFrames of
                   -- The parent frame is also ready to yield
@@ -163,13 +173,11 @@ runJS sendReqAsync = do
         mSyncCallback <- fmap (M.lookup syncCallbackId) $ atomically $ readTVar syncCallbacks
         case mSyncCallback of
           Just (syncCallback :: JSVal -> [JSVal] -> JSM JSVal) -> do
-            --TODO: Only use use the yield var for requests that someone might block on; e.g., don't do it for FreeVal; however, FreeVal must still wait until the synchronous block has finished, because otherwise it might free the return value of the synchronous block; however, we also don't want to prevent all cleanup in the event of a long sync block
             myDepth <- enterSyncFrame
             _ <- forkIO $ do
-              result <- flip runJSM (env { _jsContextRef_sendReq = enqueueYieldVal . Right }) $ join $ syncCallback
-                <$> wrapJSVal this
-                <*> traverse wrapJSVal args --TODO: Handle exceptions that occur within the syncCallback
-              exitSyncFrame myDepth result
+              result <- try $ flip runJSM (env { _jsContextRef_sendReq = enqueueYieldVal . Right }) $
+                join $ syncCallback <$> wrapJSVal this <*> traverse wrapJSVal args --TODO: Handle exceptions that occur within the syncCallback
+              exitSyncFrame myDepth $ first (\e@(SomeException _) -> primToJSVal $ PrimVal_String $ T.pack $ show e) result
             yield
           Nothing -> error $ "sync callback " <> show syncCallbackId <> " called, but does not exist"
       continueSyncCallback = yield
