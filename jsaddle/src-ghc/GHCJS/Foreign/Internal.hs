@@ -41,7 +41,7 @@ toJSBool = primToJSVal . PrimVal_Bool
 {-# NOINLINE toJSBool #-}
 
 jsUndefined :: JSVal
-jsUndefined = primToJSVal PrimVal_Null
+jsUndefined = primToJSVal PrimVal_Undefined
 {-# NOINLINE jsUndefined #-}
 
 isTruthy :: JSVal -> GHCJSPure Bool

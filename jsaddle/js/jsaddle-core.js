@@ -96,14 +96,16 @@ function jsaddle(global, sendRsp, startSyncCallback, continueSyncCallback) {
       return valId;
     }
   };
-  var wrapVal = function(val, def) {
+  var wrapVal = function(val, def) { //TODO: Check that 'def' is never a problem here - does Array.map pass a second argument?
     switch(typeof val) {
     case 'undefined':
       return [];
+
     case 'boolean':
     case 'number':
     case 'string':
       return val;
+
     case 'object':
       if(val === null) {
         return null;
@@ -111,7 +113,7 @@ function jsaddle(global, sendRsp, startSyncCallback, continueSyncCallback) {
       // Fall through
     default:
       if(def) {
-        return def;
+        return [def];
       }
       var valId = nextValId--;
       vals.set(valId, val);
@@ -158,7 +160,11 @@ function jsaddle(global, sendRsp, startSyncCallback, continueSyncCallback) {
           // Ensure that all remaining sync requests are cleared out in a timely
           // fashion.  Any incoming websocket requests will also run
           // processAllEnqueuedReqs, but it could potentially be an unlimited
-          // amount of time before the next websocket request comes in.
+          // amount of time before the next websocket request comes in.  We
+          // can't process this synchronously because we need to return right
+          // now - it's possible the next item in the queue will make use of
+          // something we were supposed to produce, so if we run that without
+          // returning first, it won't be available
           setTimeout(processAllEnqueuedReqs, 0);
         }
         return rsp.Left;

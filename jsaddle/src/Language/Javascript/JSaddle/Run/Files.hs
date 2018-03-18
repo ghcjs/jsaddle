@@ -149,7 +149,7 @@ jsaddleCoreJs = "\
     \      // Fall through\n\
     \    default:\n\
     \      if(def) {\n\
-    \        return def;\n\
+    \        return [def];\n\
     \      }\n\
     \      var valId = nextValId--;\n\
     \      vals.set(valId, val);\n\

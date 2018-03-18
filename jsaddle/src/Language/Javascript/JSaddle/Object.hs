@@ -137,7 +137,7 @@ import GHCJS.Prim.Internal (primToJSVal)
 -- >>> import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
 -- >>> import Language.Javascript.JSaddle.Test (testJSaddle)
 -- >>> import Language.Javascript.JSaddle.Evaluate (eval)
--- >>> import Language.Javascript.JSaddle.Value (val, valToText, JSNull(..), deRefVal)
+-- >>> import Language.Javascript.JSaddle.Value (val, valToText, JSNull(..))
 -- >>> import Language.Javascript.JSaddle.String (strToText)
 -- >>> import Control.Lens.Operators ((^.))
 -- >>> import qualified Data.Text as T (unpack)
@@ -421,7 +421,7 @@ obj = create
 -- >>> :{
 --  testJSaddle $ do
 --    result <- liftIO newEmptyMVar
---    deRefVal $ call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ [arg1] -> do
+--    call (eval "(function(f) {f('Hello');})") global [fun $ \ _ _ [arg1] -> do
 --         valToText arg1 >>= (liftIO . putMVar result)
 --         ]
 --    liftIO $ takeMVar result

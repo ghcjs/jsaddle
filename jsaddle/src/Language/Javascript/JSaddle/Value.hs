@@ -1,8 +1,9 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 #ifdef ghcjs_HOST_OS
 {-# LANGUAGE ForeignFunctionInterface, JavaScriptFFI #-}
 {-# OPTIONS_GHC -Wno-dodgy-exports -Wno-dodgy-imports #-}
@@ -267,7 +268,11 @@ valToJSON :: ToJSVal value => value -> JSM JSString
 valToJSON value = jsrefToJSON <$> toJSVal value
 foreign import javascript unsafe "$r = $1 === undefined ? \"\" : JSON.stringify($1);" jsrefToJSON :: JSVal -> JSString
 #else
-valToJSON value = toJSVal value >>= valueToJSON
+valToJSON value = do
+  v <- toJSVal value
+  ghcjsPure (isUndefined v) >>= \case
+    True -> return ""
+    False -> valueToJSON v
 #endif
 
 -- | Given a JavaScript value get its object value.

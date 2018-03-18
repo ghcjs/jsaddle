@@ -36,7 +36,7 @@ type JSValueRef = Int64
 newtype JSVal = JSVal { unJSVal :: LazyVal }
 
 data LazyVal = LazyVal
-  { _lazyVal_ref :: !(IORef (Maybe Ref))
+  { _lazyVal_ref :: !(IORef (Maybe Ref)) --TODO: Add a JS-side memory test
   , _lazyVal_val :: Val --TODO: represent at the type level that the Ref (if any) in this Val never refers to a primitive value - so, e.g. it is always truthy
   }
 
@@ -45,13 +45,14 @@ type ValId = PrimVal RefId
 
 newtype Ref = Ref { unRef :: IORef RefId } deriving (NFData)
 
+-- | Contains all the information that isn't mutable about a javascript object
 data PrimVal a
    = PrimVal_Undefined
    | PrimVal_Null
    | PrimVal_Bool Bool
    | PrimVal_Number Double --TODO: Infinities, NaN(s?), negative 0, others?
    | PrimVal_String Text --TODO: Manipulate large strings by reference?
-   | PrimVal_Ref a
+   | PrimVal_Ref a --TODO: Should we rename this to make it clear that it's always a non-null object? Well, it could be a Symbol, or some other implementation-specific thing
    deriving (Functor, Foldable, Traversable, Show, Read, Eq, Ord)
 
 instance ToJSON a => ToJSON (PrimVal a) where
@@ -59,8 +60,8 @@ instance ToJSON a => ToJSON (PrimVal a) where
     PrimVal_Undefined -> toJSON ()
     PrimVal_Null -> A.Null
     PrimVal_Bool b -> toJSON b
-    PrimVal_Number n -> toJSON n
-    PrimVal_String s -> toJSON s
+    PrimVal_Number n -> toJSON n --TODO: NaN
+    PrimVal_String s -> toJSON s --TODO: Long strings?
     PrimVal_Ref a -> toJSON [a]
 
 instance FromJSON a => FromJSON (PrimVal a) where

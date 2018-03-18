@@ -94,7 +94,7 @@ type CallbackResult = Either JSVal JSVal
 runJS
   :: (Req ValId RefId -> IO ()) -- ^ Send a request to the JS engine; we assume that requests are performed in the order they are sent; requests received while in a synchronous block must not be processed until the synchronous block ends (i.e. until the JS side receives the final value yielded back from the synchronous block)
   -> IO ( Rsp -> IO () -- Responses must be able to continue coming in as a sync block runs, or else the caller must be careful to ensure that sync blocks are only run after all outstanding responses have been processed
-        , SyncCallbackId -> ValId -> [ValId] -> IO [Either CallbackResultId (Req ValId RefId)] -- The input valIds here must always be allocated on the JS side
+        , SyncCallbackId -> ValId -> [ValId] -> IO [Either CallbackResultId (Req ValId RefId)] -- The input valIds here must always be allocated on the JS side --TODO: Make sure throwing stuff works when it ends up skipping over our own call stack entries
         , IO [Either CallbackResultId (Req ValId RefId)]
         , JSContextRef
         )

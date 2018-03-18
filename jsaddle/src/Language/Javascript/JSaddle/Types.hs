@@ -381,7 +381,7 @@ data Req input output
    = Req_FreeRef RefId
    | Req_NewJson A.Value output
    | Req_GetJson input GetJsonReqId
-   | Req_SyncBlock SyncCallbackId -- ^ Ask JS to begin a synchronous block
+   | Req_SyncBlock SyncCallbackId -- ^ Ask JS to begin a synchronous block --TODO: Should we get rid of this and just use NewSyncCallback/CallAsFunction?
    | Req_NewSyncCallback SyncCallbackId output -- ^ Create a new sync callback; note that we don't inform the JS side when we dispose of a callback - it's an error to call a disposed callback, so we just detect and throw that error on the Haskell side
    | Req_NewAsyncCallback SyncCallbackId output -- ^ Create a new async callback; note that we don't inform the JS side when we dispose of a callback - it's an error to call a disposed callback, so we just detect and throw that error on the Haskell side
    | Req_SetProperty input input input -- ^ @Req_SetProperty a b c@ ==> @c[a] = b;@
@@ -628,7 +628,7 @@ newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a } deriving (Functor, Ap
 
 instance MonadIO JSM where
   liftIO a = do
-    _ <- getJson =<< newJson (A.Object mempty) --TODO: Make a lighter-weight sync function, and don't do anything if we know we're already in sync
+    _ <- getJson =<< newJson (A.Object mempty) --TODO: Make a lighter-weight sync function, and don't do anything if we know we're already in sync --TODO: Do we also have to do this after runJSM?
     JSM $ liftIO a
 
 instance MonadRef JSM where

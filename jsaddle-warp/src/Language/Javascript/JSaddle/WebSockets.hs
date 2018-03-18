@@ -172,7 +172,7 @@ jsaddleJs refreshOnLoad = jsaddleCoreJs <> "\
     \\n\
     \        ws.onmessage = function(c) {\n\
     \            connId = c;\n\
-    \            ws.onMessage = function(e) {\n\
+    \            ws.onmessage = function(e) {\n\
     \                core.processReq(JSON.parse(e.data));\n\
     \            };\n\
     \        }\n\

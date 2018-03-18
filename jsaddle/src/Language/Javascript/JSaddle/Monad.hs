@@ -39,6 +39,7 @@ import Language.Javascript.JSaddle.Types (JSM(..), MonadJSM, liftJSM, askJSM, JS
 import Control.Concurrent.MVar (MVar, newMVar)
 import System.IO.Unsafe (unsafePerformIO)
 
+{-# DEPRECATED syncPoint "Use 'liftIO $ return ()' instead." #-}
 syncPoint :: MonadIO m => m ()
 syncPoint = liftIO $ return ()
 
