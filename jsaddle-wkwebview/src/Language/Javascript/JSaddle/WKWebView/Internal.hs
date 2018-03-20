@@ -17,6 +17,7 @@ import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
 import Data.Aeson (encode, decode)
 
 import Foreign.C.String (CString)
+import Foreign.C.Types (CInt(..))
 import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
@@ -31,6 +32,7 @@ foreign export ccall jsaddleStart :: StablePtr (IO ()) -> IO ()
 foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString -> IO ()
 foreign export ccall jsaddleSyncResult :: StablePtr (Results -> IO Batch) -> JSaddleHandler -> CString -> IO ()
 foreign export ccall callWithWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
+foreign export ccall callWithCIntCString :: CInt -> CString -> StablePtr (CInt -> CString -> IO ()) -> IO ()
 foreign export ccall callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
 foreign export ccall callIO :: StablePtr (IO ()) -> IO ()
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> StablePtr (Results -> IO Batch) -> IO ()
@@ -106,6 +108,11 @@ callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
 callWithCString c fptr = do
     f <- deRefStablePtr fptr
     f c
+
+callWithCIntCString :: CInt -> CString -> StablePtr (CInt -> CString -> IO ()) -> IO ()
+callWithCIntCString n s fptr = do
+    f <- deRefStablePtr fptr
+    f n s
 
 callIO :: StablePtr (IO ()) -> IO ()
 callIO ptr = do
