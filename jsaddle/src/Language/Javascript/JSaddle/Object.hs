@@ -119,7 +119,7 @@ import Language.Javascript.JSaddle.Native
        (newAsyncCallback, newSyncCallback, callAsFunction, callAsConstructor)
 import Language.Javascript.JSaddle.Monad (JSM)
 import Language.Javascript.JSaddle.Types
-       (JSString, Object(..), SyncCallbackId, PrimVal(..),
+       (JSString, Object(..), CallbackId, PrimVal(..),
         SomeJSArray(..), JSVal(..), JSCallAsFunction)
 import JavaScript.Object.Internal (create, listProps)
 import Language.Javascript.JSaddle.Run
@@ -141,6 +141,9 @@ import GHCJS.Prim.Internal (primToJSVal)
 -- >>> import Language.Javascript.JSaddle.String (strToText)
 -- >>> import Control.Lens.Operators ((^.))
 -- >>> import qualified Data.Text as T (unpack)
+-- >>> import Control.Monad.IO.Class (liftIO)
+-- >>> testJSaddle $ return ()
+-- ...
 
 -- | Object can be made by evaluating a fnction in 'JSM' as long
 --   as it returns something we can make into a Object.
@@ -279,8 +282,7 @@ jsgf name = global # name
 -- > jsg0 name = jsgf name ()
 --
 -- >>> testJSaddle $ jsg0 "globalFunc" >>= valToText
--- A JavaScript exception was thrown! (may not reach Haskell code)
--- TypeError:...undefine...
+-- TypeError: Cannot read property 'length' of undefined
 jsg0 :: (ToJSString name) => name -> JSM JSVal
 jsg0 name = jsgf name ()
 
@@ -382,7 +384,7 @@ infixr 1 <##
 -- JavaScript type (like Date) then this function will fail.
 --
 -- >>> testJSaddle $ new (jsg "Date") (2013, 1, 1)
--- Fri Feb 01 2013 00:00:00 GMT+... (...)
+-- Fri Feb 01 2013 00:00:00 GMT... (...)
 new :: (MakeObject constructor, MakeArgs args)
     => constructor
     -> args
@@ -433,7 +435,7 @@ fun = id
 #ifdef ghcjs_HOST_OS
 data Function = Function {functionCallback :: Callback (JSVal -> JSVal -> IO ()), functionObject :: Object}
 #else
-data Function = Function {functionCallback :: SyncCallbackId, functionObject :: Object}
+data Function = Function {functionCallback :: CallbackId, functionObject :: Object}
 #endif
 
 

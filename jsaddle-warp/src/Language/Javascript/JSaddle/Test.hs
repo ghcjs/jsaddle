@@ -32,6 +32,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import Control.Concurrent (threadDelay, forkIO, ThreadId)
 import Data.Text (Text)
 import Language.Javascript.JSaddle.Warp (run)
+import Control.Monad.Except
 
 context :: MVar JSContextRef
 context = unsafePerformIO newEmptyMVar
@@ -55,8 +56,11 @@ testJSaddle :: ToJSVal val => JSM val -> IO ()
 testJSaddle f = do
     startServer
     c <- takeMVar context
-    runReaderT (unJSM $ (f >>= valToText >>= liftIO . putStrLn . T.unpack)
-        `catch` \ (JSException e) -> valToText e >>= liftIO . putStrLn . T.unpack) c
+    result <- flip runJSM c $ do
+      valToText =<< catchError (f >>= toJSVal) return
+    case result of
+      Left _ -> liftIO $ putStrLn "failed"
+      Right success -> liftIO $ putStrLn $ T.unpack success
     putMVar context c
 
 debugLog :: String -> IO ()

@@ -35,6 +35,7 @@ library
             ghcjs-prim -any
     else
         build-depends:
+            async >=2.1.1.1 && <2.3,
             attoparsec >=0.11 && <0.14,
             bifunctors >= 5.4 && < 5.5,
             containers >=0.5.6.2 && <0.6,
@@ -42,6 +43,7 @@ library
             filepath >=1.4.0.0 && <1.5,
             ghc-prim,
             http-types >=0.8.6 && <0.10,
+            mtl >=2.2.1 && <2.3,
             process >=1.2.3.0 && <1.7,
             random >= 1.1 && < 1.2,
             ref-tf >=0.4.0.1 && <0.5,
@@ -122,5 +124,3 @@ library
         cpp-options: -DCHECK_UNCHECKED
     if flag(call-stacks) || flag(check-unchecked)
         cpp-options: -DJSADDLE_HAS_CALL_STACK
-
-

@@ -49,7 +49,8 @@ import qualified JavaScript.Web.AnimationFrame as GHCJS
 #else
 
 import Control.Exception (try, SomeException(..))
-import Control.Monad (when, join)
+import Control.Monad (when, join, void)
+import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Trans.Cont (ContT(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.STM (atomically)
@@ -87,23 +88,24 @@ globalRef = unsafePerformIO $ Ref <$> newIORef globalRefId
 initialRefId :: RefId
 initialRefId = RefId 2
 
-type CallbackResultId = Either ValId ValId
+type CallbackResultId = ValId
 
-type CallbackResult = Either JSVal JSVal
+type CallbackResult = JSVal
 
 runJS
-  :: (Req ValId RefId -> IO ()) -- ^ Send a request to the JS engine; we assume that requests are performed in the order they are sent; requests received while in a synchronous block must not be processed until the synchronous block ends (i.e. until the JS side receives the final value yielded back from the synchronous block)
+  :: (TryReq -> IO ()) -- ^ Send a request to the JS engine; we assume that requests are performed in the order they are sent; requests received while in a synchronous block must not be processed until the synchronous block ends (i.e. until the JS side receives the final value yielded back from the synchronous block)
   -> IO ( Rsp -> IO () -- Responses must be able to continue coming in as a sync block runs, or else the caller must be careful to ensure that sync blocks are only run after all outstanding responses have been processed
-        , SyncCallbackId -> ValId -> [ValId] -> IO [Either CallbackResultId (Req ValId RefId)] -- The input valIds here must always be allocated on the JS side --TODO: Make sure throwing stuff works when it ends up skipping over our own call stack entries
-        , IO [Either CallbackResultId (Req ValId RefId)]
+        , SyncCommand -> IO [Either CallbackResultId TryReq]
         , JSContextRef
         )
 runJS sendReqAsync = do
   nextRefId <- newTVarIO initialRefId
   nextGetJsonReqId <- newTVarIO $ GetJsonReqId 1
   getJsonReqs <- newTVarIO M.empty
-  nextSyncCallbackId <- newTVarIO $ SyncCallbackId 1
-  syncCallbacks <- newTVarIO M.empty
+  nextCallbackId <- newTVarIO $ CallbackId 1
+  callbacks <- newTVarIO M.empty
+  nextTryId <- newTVarIO $ TryId 1
+  tries <- newTVarIO M.empty
   pendingResults <- newTVarIO M.empty
   yieldAccumVar <- newMVar [] -- Accumulates results that need to be yielded
   yieldReadyVar <- newEmptyMVar -- Filled when there is at least one item in yieldAccumVar
@@ -125,7 +127,7 @@ runJS sendReqAsync = do
           let yieldAllReady :: Int -> Map Int CallbackResult -> CallbackResult -> IO (Int, Map Int CallbackResult)
               yieldAllReady depth readyFrames retVal = do
                 -- Even though the valId is escaping, this is safe because we know that our yielded value will go out before any potential FreeVal request could go out
-                flip runJSM env $ runContT (bitraverse (ContT . withJSValId) (ContT . withJSValId) retVal) $ \retValId -> do
+                flip runReaderT env $ unJSM $ withJSValId retVal $ \retValId -> do
                   JSM $ liftIO $ enqueueYieldVal $ Left retValId
                 let !nextDepth = pred depth
                 case M.maxViewWithKey readyFrames of
@@ -159,35 +161,54 @@ runJS sendReqAsync = do
             return mResultVar
           forM_ mResultVar $ \resultVar -> do
             putMVar resultVar primVal
-        --TODO: Rename "SyncCallback" stuff to just "Callback"
         Rsp_CallAsync callbackId this args -> do
-          mCallback <- fmap (M.lookup callbackId) $ atomically $ readTVar syncCallbacks
+          mCallback <- fmap (M.lookup callbackId) $ atomically $ readTVar callbacks
           case mCallback of
             Just callback -> do
-              _ <- forkIO $ flip runJSM env $ do
+              _ <- forkIO $ void $ flip runJSM env $ do
                 _ <- join $ callback <$> wrapJSVal this <*> traverse wrapJSVal args
                 return ()
               return ()
             Nothing -> error $ "callback " <> show callbackId <> " called, but does not exist"
-      runSyncCallback syncCallbackId this args = do
-        mSyncCallback <- fmap (M.lookup syncCallbackId) $ atomically $ readTVar syncCallbacks
-        case mSyncCallback of
-          Just (syncCallback :: JSVal -> [JSVal] -> JSM JSVal) -> do
-            myDepth <- enterSyncFrame
-            _ <- forkIO $ do
-              result <- try $ flip runJSM (env { _jsContextRef_sendReq = enqueueYieldVal . Right }) $
-                join $ syncCallback <$> wrapJSVal this <*> traverse wrapJSVal args --TODO: Handle exceptions that occur within the syncCallback
-              exitSyncFrame myDepth $ first (\e@(SomeException _) -> primToJSVal $ PrimVal_String $ T.pack $ show e) result
-            yield
-          Nothing -> error $ "sync callback " <> show syncCallbackId <> " called, but does not exist"
-      continueSyncCallback = yield
+        --TODO: We will need a synchronous version of this anyway, so maybe we should just do it that way
+        Rsp_FinishTry tryId tryResult -> do
+          mThisTry <- atomically $ do
+            currentTries <- readTVar tries
+            writeTVar tries $! M.delete tryId currentTries
+            return $ M.lookup tryId currentTries
+          case mThisTry of
+            Nothing -> putStrLn $ "Rsp_FinishTry: " <> show tryId <> " not found"
+            Just thisTry -> putMVar thisTry =<< case tryResult of
+              Left v -> Left <$> runReaderT (unJSM (wrapJSVal v)) env
+              Right _ -> return $ Right ()
       env = JSContextRef
         { _jsContextRef_sendReq = sendReqAsync
         , _jsContextRef_nextRefId = nextRefId
         , _jsContextRef_nextGetJsonReqId = nextGetJsonReqId
         , _jsContextRef_getJsonReqs = getJsonReqs
-        , _jsContextRef_nextSyncCallbackId = nextSyncCallbackId
-        , _jsContextRef_syncCallbacks = syncCallbacks
+        , _jsContextRef_nextCallbackId = nextCallbackId
+        , _jsContextRef_callbacks = callbacks
         , _jsContextRef_pendingResults = pendingResults
+        , _jsContextRef_nextTryId = nextTryId
+        , _jsContextRef_tries = tries
+        , _jsContextRef_myTryId = TryId 0 --TODO
         }
-  return (processRsp, runSyncCallback, continueSyncCallback, env)
+      processSyncCommand = \case
+        SyncCommand_StartCallback callbackId this args -> do
+          mCallback <- fmap (M.lookup callbackId) $ atomically $ readTVar callbacks
+          case mCallback of
+            Just (callback :: JSVal -> [JSVal] -> JSM JSVal) -> do
+              myDepth <- enterSyncFrame
+              _ <- forkIO $ do
+                blah <- try $ do
+                  let syncEnv = env { _jsContextRef_sendReq = enqueueYieldVal . Right }
+                  result <- flip runReaderT syncEnv $ unJSM $
+                    join $ callback <$> wrapJSVal this <*> traverse wrapJSVal args --TODO: Handle exceptions that occur within the callback
+                  exitSyncFrame myDepth result
+                appendFile "blah.txt" $ case blah of
+                  Left (_ :: SomeException) -> "finished callback with left"
+                  Right _ -> "finished callback with right"
+              yield
+            Nothing -> error $ "sync callback " <> show callbackId <> " called, but does not exist"
+        SyncCommand_Continue -> yield
+  return (processRsp, processSyncCommand, env)

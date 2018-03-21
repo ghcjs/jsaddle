@@ -19,6 +19,8 @@
 {-# LANGUAGE DeriveFunctor              #-}
 {-# LANGUAGE DeriveTraversable          #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
 {-# OPTIONS_GHC -Wno-warnings-deprecations      #-}
 -----------------------------------------------------------------------------
 --
@@ -81,10 +83,12 @@ module Language.Javascript.JSaddle.Types (
   , lazyValFromStrict
   , getLazyVal
   , Rsp (..)
-  , SyncCallbackId (..)
-  , CallbackId
+  , SyncCommand (..)
+  , CallbackId (..)
   , GetJsonReqId (..)
+  , TryId (..)
   , PrimVal (..)
+  , TryReq (..)
   , runJSM
   , sync
   , freeSyncCallback
@@ -117,8 +121,10 @@ import GHCJS.Nullable (Nullable(..))
 import GHCJS.Prim.Internal
 import Data.JSString.Internal.Type (JSString(..))
 import Data.Monoid
+import Control.Concurrent (threadDelay)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadThrow, MonadCatch(..), MonadMask(..), bracket_)
+import Control.Monad.Except
 import Control.Monad.Trans.Cont (ContT(..))
 import Control.Monad.Trans.Error (Error(..), ErrorT(..))
 import Control.Monad.Trans.Except (ExceptT(..))
@@ -134,6 +140,7 @@ import Control.Monad.Trans.Writer.Lazy as Lazy (WriterT(..))
 import Control.Monad.Trans.Writer.Strict as Strict (WriterT(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Fix (MonadFix)
+import Control.Concurrent.Async (withAsync, wait)
 import Control.Concurrent.STM.TVar (TVar)
 import Control.Concurrent.MVar (MVar)
 import Data.Bifunctor
@@ -365,11 +372,11 @@ type JSadddleHasCallStack = (() :: Constraint)
 
 --TODO: We know what order we issued SyncBlock, GetJson, etc. requests in, so we can probably match them up without explicit IDs
 
-newtype GetJsonReqId = GetJsonReqId { unGetJsonReqId :: Int32 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
+newtype GetJsonReqId = GetJsonReqId { unGetJsonReqId :: Int64 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
 
-type CallbackId = SyncCallbackId --TODO: Either rename or distinguish these
+newtype CallbackId = CallbackId { unCallbackId :: Int64 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
 
-newtype SyncCallbackId = SyncCallbackId { unSyncCallbackId :: Int32 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
+newtype TryId = TryId { unTryId :: Int64 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
 
 aesonOptions :: String -> A.Options
 aesonOptions typeName = A.defaultOptions
@@ -378,16 +385,18 @@ aesonOptions typeName = A.defaultOptions
   }
 
 data Req input output
-   = Req_FreeRef RefId
+   = Req_FreeRef RefId --TODO: No thread IDs for these
    | Req_NewJson A.Value output
    | Req_GetJson input GetJsonReqId
-   | Req_SyncBlock SyncCallbackId -- ^ Ask JS to begin a synchronous block --TODO: Should we get rid of this and just use NewSyncCallback/CallAsFunction?
-   | Req_NewSyncCallback SyncCallbackId output -- ^ Create a new sync callback; note that we don't inform the JS side when we dispose of a callback - it's an error to call a disposed callback, so we just detect and throw that error on the Haskell side
-   | Req_NewAsyncCallback SyncCallbackId output -- ^ Create a new async callback; note that we don't inform the JS side when we dispose of a callback - it's an error to call a disposed callback, so we just detect and throw that error on the Haskell side
+   | Req_SyncBlock CallbackId -- ^ Ask JS to begin a synchronous block --TODO: Should we get rid of this and just use NewSyncCallback/CallAsFunction?
+   | Req_NewSyncCallback CallbackId output -- ^ Create a new sync callback; note that we don't inform the JS side when we dispose of a callback - it's an error to call a disposed callback, so we just detect and throw that error on the Haskell side
+   | Req_NewAsyncCallback CallbackId output -- ^ Create a new async callback; note that we don't inform the JS side when we dispose of a callback - it's an error to call a disposed callback, so we just detect and throw that error on the Haskell side
    | Req_SetProperty input input input -- ^ @Req_SetProperty a b c@ ==> @c[a] = b;@
    | Req_GetProperty input input output -- ^ @Req_SetProperty a b c@ ==> @c = b[a];@
    | Req_CallAsFunction input input [input] output
    | Req_CallAsConstructor input [input] output
+   | Req_Throw input
+   | Req_FinishTry
    deriving (Show, Read, Eq, Generic, Functor, Foldable, Traversable)
 
 instance Bifunctor Req where
@@ -408,6 +417,8 @@ instance Bitraversable Req where
     Req_GetProperty a b c -> Req_GetProperty <$> f a <*> f b <*> g c
     Req_CallAsFunction a b c d -> Req_CallAsFunction <$> f a <*> f b <*> traverse f c <*> g d
     Req_CallAsConstructor a b c -> Req_CallAsConstructor <$> f a <*> traverse f b <*> g c
+    Req_Throw a -> Req_Throw <$> f a
+    Req_FinishTry -> pure Req_FinishTry
 
 instance (ToJSON input, ToJSON output) => ToJSON (Req input output) where
   toEncoding = A.genericToEncoding $ aesonOptions "Req"
@@ -419,6 +430,7 @@ data Rsp
    = Rsp_GetJson GetJsonReqId A.Value
    | Rsp_Result RefId (PrimVal ())
    | Rsp_CallAsync CallbackId ValId [ValId]
+   | Rsp_FinishTry TryId (Either ValId ()) -- Left if an exception was thrown; Right if not
    deriving (Show, Read, Eq, Generic)
 
 instance ToJSON Rsp where
@@ -427,14 +439,40 @@ instance ToJSON Rsp where
 instance FromJSON Rsp where
   parseJSON = A.genericParseJSON $ aesonOptions "Rsp"
 
+data SyncCommand
+   = SyncCommand_StartCallback CallbackId ValId [ValId] -- The input valIds here must always be allocated on the JS side --TODO: Make sure throwing stuff works when it ends up skipping over our own call stack entries
+   | SyncCommand_Continue
+   deriving (Generic)
+
+instance ToJSON SyncCommand where
+  toEncoding = A.genericToEncoding $ aesonOptions "SyncCommand"
+
+instance FromJSON SyncCommand where
+  parseJSON = A.genericParseJSON $ aesonOptions "SyncCommand"
+
+data TryReq = TryReq
+  { _tryReq_tryId :: TryId
+  , _tryReq_req :: Req ValId RefId
+  }
+  deriving (Generic)
+
+instance ToJSON TryReq where
+  toEncoding = A.genericToEncoding $ aesonOptions "TryReq"
+
+instance FromJSON TryReq where
+  parseJSON = A.genericParseJSON $ aesonOptions "TryReq"
+
 data JSContextRef = JSContextRef
-  { _jsContextRef_sendReq :: !(Req ValId RefId -> IO ())
+  { _jsContextRef_sendReq :: !(TryReq -> IO ())
   , _jsContextRef_nextRefId :: !(TVar RefId)
   , _jsContextRef_nextGetJsonReqId :: !(TVar GetJsonReqId)
   , _jsContextRef_getJsonReqs :: !(TVar (Map GetJsonReqId (MVar A.Value))) -- ^ The GetJson requests that are currently in-flight
-  , _jsContextRef_nextSyncCallbackId :: !(TVar SyncCallbackId)
-  , _jsContextRef_syncCallbacks :: !(TVar (Map SyncCallbackId (JSVal -> [JSVal] -> JSM JSVal)))
+  , _jsContextRef_nextCallbackId :: !(TVar CallbackId)
+  , _jsContextRef_callbacks :: !(TVar (Map CallbackId (JSVal -> [JSVal] -> JSM JSVal)))
   , _jsContextRef_pendingResults :: !(TVar (Map RefId (MVar (PrimVal ()))))
+  , _jsContextRef_nextTryId :: !(TVar TryId)
+  , _jsContextRef_tries :: !(TVar (Map TryId (MVar (Either JSVal ()))))
+  , _jsContextRef_myTryId :: TryId
   }
 
 -- | Perform IO from JSM without synchronizing with the JS side; since requests
@@ -453,7 +491,7 @@ sync syncBlock = do
   freeSyncCallback cb
   return result
 
-newSyncCallback' :: JSCallAsFunction -> JSM (SyncCallbackId, JSVal)
+newSyncCallback' :: JSCallAsFunction -> JSM (CallbackId, JSVal)
 newSyncCallback' f = newSyncCallback'' $ \fObj this args -> primToJSVal PrimVal_Undefined <$ f fObj this args
 
 newSyncCallback''
@@ -461,20 +499,20 @@ newSyncCallback''
      -> JSVal      -- this
      -> [JSVal]    -- Function arguments
      -> JSM JSVal)
-  -> JSM (SyncCallbackId, JSVal)
+  -> JSM (CallbackId, JSVal)
 newSyncCallback'' f = do
-  callbackId <- newId _jsContextRef_nextSyncCallbackId
+  callbackId <- newId _jsContextRef_nextCallbackId
   f' <- callbackToSyncFunction callbackId --TODO: "ContinueAsync" behavior
-  syncCallbacks <- JSM $ asks _jsContextRef_syncCallbacks
-  JSM $ liftIO $ atomically $ modifyTVar' syncCallbacks $ M.insertWith (error "newSyncCallback: callbackId already exists") callbackId $ \this args -> f f' this args
+  callbacks <- JSM $ asks _jsContextRef_callbacks
+  JSM $ liftIO $ atomically $ modifyTVar' callbacks $ M.insertWith (error "newSyncCallback: callbackId already exists") callbackId $ \this args -> f f' this args
   return (callbackId, f')
 
-freeSyncCallback :: SyncCallbackId -> JSM ()
+freeSyncCallback :: CallbackId -> JSM ()
 freeSyncCallback cbid = do
-  syncCallbacks <- JSM $ asks _jsContextRef_syncCallbacks
+  callbacks <- JSM $ asks _jsContextRef_callbacks
   --TODO: Only do this once it actually comes back
   --TODO: Don't fully synchronize here; just hold onto it until the frontend approves
-  liftIO $ atomically $ modifyTVar' syncCallbacks $ M.delete cbid
+  liftIO $ atomically $ modifyTVar' callbacks $ M.delete cbid
 
 newId :: Enum a => (JSContextRef -> TVar a) -> JSM a
 newId f = JSM $ do
@@ -494,7 +532,11 @@ sendReq req = withReqId req sendReqId
 sendReqId :: Req ValId RefId -> JSM ()
 sendReqId r = JSM $ do
   s <- asks _jsContextRef_sendReq
-  liftIO $ s r
+  tid <- asks _jsContextRef_myTryId
+  liftIO $ s $ TryReq
+    { _tryReq_tryId = tid
+    , _tryReq_req = r
+    }
 
 lazyValToVal :: LazyVal -> JSM Val
 lazyValToVal val = do
@@ -545,7 +587,10 @@ wrapRef valId = JSM $ do
   -- Bind this strictly to avoid retaining the whole JSContextRef in the finalizer
   !sendReq' <- asks _jsContextRef_sendReq
   void $ liftIO $ mkWeakIORef valRef $ do
-    sendReq' $ Req_FreeRef valId
+    sendReq' $ TryReq
+      { _tryReq_tryId = TryId 0 --TODO: This probably shouldn't even be a TryReq
+      , _tryReq_req = Req_FreeRef valId
+      }
   return $ Ref valRef
 
 -- | Run a computation with the given RefId available; the value will not be freed during this computation
@@ -626,9 +671,35 @@ callAsConstructor' f args = withJSValOutput_ $ \ref -> do
 
 newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a } deriving (Functor, Applicative, Monad, MonadFix, MonadThrow)
 
+--Exceptions: it's pointless for Haskell-side to throw exceptions to javascript side asynchronously, but perhaps it should be allowed
+instance MonadError JSVal JSM where
+  catchError a h = do
+    tryId <- newId _jsContextRef_nextTryId
+    tries <- JSM $ asks _jsContextRef_tries
+    finishVar <- JSM $ liftIO newEmptyMVar
+    JSM $ liftIO $ atomically $ modifyTVar' tries $ M.insert tryId finishVar
+    env <- JSM ask
+    let end = sendReq Req_FinishTry
+    tryResult <- JSM $ liftIO $ withAsync (runReaderT (unJSM (a <* end)) $ env { _jsContextRef_myTryId = tryId }) $ \aa -> do
+      --IDEA: Continue speculatively executing forward
+      takeMVar finishVar >>= \case
+        Left e -> return $ Left e
+        Right _ -> Right <$> wait aa
+    case tryResult of
+      Left e -> h e
+      Right result -> return result
+  throwError e = do
+    sendReq $ Req_Throw e --IDEA: Short-circuit this rather than actually sending it to the JS side
+    JSM $ liftIO $ forever $ threadDelay maxBound
+
+waitForSync :: JSM ()
+waitForSync = do
+  _ <- getJson =<< newJson (A.Object mempty) --TODO: Make a lighter-weight sync function, and don't do anything if we know we're already in sync
+  return ()
+
 instance MonadIO JSM where
   liftIO a = do
-    _ <- getJson =<< newJson (A.Object mempty) --TODO: Make a lighter-weight sync function, and don't do anything if we know we're already in sync --TODO: Do we also have to do this after runJSM?
+    waitForSync
     JSM $ liftIO a
 
 instance MonadRef JSM where
@@ -654,8 +725,9 @@ instance MonadMask JSM where
       where q :: (ReaderT JSContextRef IO a -> ReaderT JSContextRef IO a) -> JSM a -> JSM a
             q unmask (JSM b) = JSM $ unmask b
 
-runJSM :: MonadIO m => JSM a -> JSContextRef -> m a
-runJSM a ctx = liftIO $ runReaderT (unJSM a) ctx
+runJSM :: MonadIO m => JSM a -> JSContextRef -> m (Either JSVal a)
+runJSM a ctx = liftIO $ flip runReaderT ctx $ unJSM $ do
+  catchError (Right <$> a) (return . Left)  -- <* waitForSync
 
 askJSM :: MonadJSM m => m JSContextRef
 askJSM = liftJSM $ JSM ask

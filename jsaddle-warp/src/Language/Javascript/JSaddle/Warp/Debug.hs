@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Language.Javascript.JSaddle.Warp.Debug
+  where {-
   ( debug
   , debugWrapper
   , refreshMiddleware
@@ -96,3 +97,4 @@ debugWrapper run = do
             void $ tryTakeMVar restartMVar
             putMVar restartMVar start
   where shutdown_0 = 0
+-}

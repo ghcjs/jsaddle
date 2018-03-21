@@ -12,7 +12,7 @@ module GHCJS.Prim.Internal {-( JSVal(..)
                            )-} where
 
 import           Control.DeepSeq (NFData(..))
-import           Data.Int (Int64, Int32)
+import           Data.Int (Int64)
 import           Data.Typeable (Typeable)
 import           Unsafe.Coerce (unsafeCoerce)
 
@@ -77,7 +77,7 @@ instance FromJSON a => FromJSON (PrimVal a) where
     A.Object _ -> fail "unexpected object"
 
 -- | A reference to a value that exists in the javascript heap.  If positive, allocated by the Haskell side; if negative, allocated by the javascript side; if zero, always refers to 'undefined'.  In either case, must be freed by the Haskell side using a finalizer.
-newtype RefId = RefId { unRefId :: Int32 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
+newtype RefId = RefId { unRefId :: Int64 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
 
 isJsAllocatedRefId :: RefId -> Bool
 isJsAllocatedRefId = (< 0) . unRefId

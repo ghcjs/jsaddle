@@ -1,4 +1,4 @@
-function jsaddle(global, sendRsp, startSyncCallback, continueSyncCallback) {
+function jsaddle(global, sendRsp, processSyncCommand) {
   /*
 
   Queue.js
@@ -96,7 +96,7 @@ function jsaddle(global, sendRsp, startSyncCallback, continueSyncCallback) {
       return valId;
     }
   };
-  var wrapVal = function(val, def) { //TODO: Check that 'def' is never a problem here - does Array.map pass a second argument?
+  var wrapValWithDefault = function(val, def) {
     switch(typeof val) {
     case 'undefined':
       return [];
@@ -120,20 +120,26 @@ function jsaddle(global, sendRsp, startSyncCallback, continueSyncCallback) {
       return [valId];
     }
   };
+  var wrapVal = function(val) {
+    return wrapValWithDefault(val);
+  };
   var result = function(ref, val) {
     vals.set(ref, val);
     sendRsp({
       'tag': 'Result',
       'contents': [
         ref,
-        wrapVal(val, [])
+        wrapValWithDefault(val, [])
       ]
     });
   };
   var syncRequests = new Queue();
   var getNextSyncRequest = function() {
     if(syncRequests.isEmpty()) {
-      syncRequests.enqueueArray(continueSyncCallback());
+      syncRequests.enqueueArray(processSyncCommand({
+        'tag': 'Continue',
+        'contents': []
+      }));
     }
     return syncRequests.dequeue();
   }
@@ -149,7 +155,14 @@ function jsaddle(global, sendRsp, startSyncCallback, continueSyncCallback) {
   var syncDepth = 0;
   var runSyncCallback = function(callback, that, args) {
     syncDepth++;
-    syncRequests.enqueueArray(startSyncCallback(callback, that, args));
+    syncRequests.enqueueArray(processSyncCommand({
+      'tag': 'StartCallback',
+      'contents': [
+        callback,
+        that,
+        args
+      ]
+    }));
     while(true) {
       var rsp = getNextSyncRequest();
       if(rsp.Right) {
@@ -171,62 +184,91 @@ function jsaddle(global, sendRsp, startSyncCallback, continueSyncCallback) {
       }
     }
   };
-  var processSingleReq = function(req) {
-    switch(req.tag) {
-    case 'FreeRef':
-      vals.delete(req.contents[0]);
-      break;
-    case 'NewJson':
-      result(req.contents[1], req.contents[0]);
-      break;
-    case 'GetJson':
-      sendRsp({
-        'tag': 'GetJson',
-        'contents': [
-          req.contents[1],
-          unwrapVal(req.contents[0])
-        ]
-      });
-      break;
-    case 'SyncBlock':
-      runSyncCallback(req.contents[0], [], []);
-      break;
-    case 'NewSyncCallback':
-      result(req.contents[1], function() {
-        var result = runSyncCallback(req.contents[0], wrapVal(this), Array.prototype.slice.call(arguments).map(wrapVal));
-        if(result.Left) {
-          throw unwrapVal(result.Left);
-        }
-        return unwrapVal(result.Right);
-      });
-      break;
-    case 'NewAsyncCallback':
-      var callbackId = req.contents[0];
-      result(req.contents[1], function() {
+  var deadTries = new Map();
+  var processSingleReq = function(tryReq) {
+    // Ignore requests in dead tries
+    if(deadTries.has(tryReq.tryId)) {
+      if(req.tag === 'FinishTry') {
+        // FinishTry must be the last req in the try, so we no longer need to
+        // keep this around
+        deadTries.delete(tryReq.tryId);
+      }
+      return;
+    }
+
+    try {
+      var req = tryReq.req;
+      switch(req.tag) {
+      case 'FreeRef':
+        vals.delete(req.contents[0]);
+        break;
+      case 'NewJson':
+        result(req.contents[1], req.contents[0]);
+        break;
+      case 'GetJson':
         sendRsp({
-          'tag': 'CallAsync',
+          'tag': 'GetJson',
           'contents': [
-            callbackId,
-            wrapVal(this),
-            Array.prototype.slice.call(arguments).map(wrapVal)
+            req.contents[1],
+            unwrapVal(req.contents[0])
           ]
         });
+        break;
+      case 'SyncBlock':
+        runSyncCallback(req.contents[0], [], []);
+        break;
+      case 'NewSyncCallback':
+        result(req.contents[1], function() {
+          return unwrapVal(runSyncCallback(req.contents[0], wrapVal(this), Array.prototype.slice.call(arguments).map(wrapVal)));
+        });
+        break;
+      case 'NewAsyncCallback':
+        var callbackId = req.contents[0];
+        result(req.contents[1], function() {
+          sendRsp({
+            'tag': 'CallAsync',
+            'contents': [
+              callbackId,
+              wrapVal(this),
+              Array.prototype.slice.call(arguments).map(wrapVal)
+            ]
+          });
+        });
+        break;
+      case 'SetProperty':
+        unwrapVal(req.contents[2])[unwrapVal(req.contents[0])] = unwrapVal(req.contents[1]);
+        break;
+      case 'GetProperty':
+        result(req.contents[2], unwrapVal(req.contents[1])[unwrapVal(req.contents[0])]);
+        break;
+      case 'CallAsFunction':
+        result(req.contents[3], unwrapVal(req.contents[0]).apply(unwrapVal(req.contents[1]), req.contents[2].map(unwrapVal)));
+        break;
+      case 'CallAsConstructor':
+        result(req.contents[2], new (Function.prototype.bind.apply(unwrapVal(req.contents[0]), [null].concat(req.contents[1].map(unwrapVal)))));
+        break;
+      case 'Throw':
+        throw unwrapVal(req.contents[0]);
+      case 'FinishTry':
+        sendRsp({
+          'tag': 'FinishTry',
+          'contents': [
+            tryReq.tryId,
+            { 'Right': [] }
+          ]
+        });
+        break;
+      default:
+        throw 'processSingleReq: unknown request tag ' + JSON.stringify(req.tag);
+      }
+    } catch(e) {
+      sendRsp({
+        'tag': 'FinishTry',
+        'contents': [
+          tryReq.tryId,
+          { 'Left': wrapVal(e) }
+        ]
       });
-      break;
-    case 'SetProperty':
-      unwrapVal(req.contents[2])[unwrapVal(req.contents[0])] = unwrapVal(req.contents[1]);
-      break;
-    case 'GetProperty':
-      result(req.contents[2], unwrapVal(req.contents[1])[unwrapVal(req.contents[0])]);
-      break;
-    case 'CallAsFunction':
-      result(req.contents[3], unwrapVal(req.contents[0]).apply(unwrapVal(req.contents[1]), req.contents[2].map(unwrapVal)));
-      break;
-    case 'CallAsConstructor':
-      result(req.contents[2], new (Function.prototype.bind.apply(unwrapVal(req.contents[0]), [null].concat(req.contents[1].map(unwrapVal)))));
-      break;
-    default:
-      throw 'processSingleReq: unknown request tag ' + JSON.stringify(req.tag);
     }
   };
   var processReq = function(req) {

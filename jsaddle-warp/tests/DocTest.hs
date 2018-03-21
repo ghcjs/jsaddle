@@ -16,7 +16,7 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid ((<>))
 import System.Environment (getArgs)
-import Language.Javascript.JSaddle.Run.Files (jsaddleJs)
+import Language.Javascript.JSaddle.Run.Files (jsaddleCoreJs)
 import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
 import Test.WebDriver (runSession, defaultConfig, openPage, closeSession)
 
@@ -24,21 +24,23 @@ main :: IO ()
 main = do
     putStrLn "Hello"
     jsaddlePath <- getArgs >>= \case
+        [] -> return "../jsaddle"
         [arg] -> return arg
         _ -> do
             putStrLn "Please give the path to the jsaddle package source"
             exitFailure
     hSetBuffering stdout LineBuffering
     hSetBuffering stderr LineBuffering
-    node <- system "phantomjs --version" >>= \case
-                ExitSuccess -> return ()
-                e           -> do
-                    putStrLn "phantomjs not found"
-                    exitWith e
-    forkIO . void $ readProcess "phantomjs" ["--webdriver=4444"] (BS.unpack jsaddleJs) >>= putStr
-    runSession defaultConfig $ do
-        openPage "http://localhost:3709"
-        liftIO $ doctest [
+--    node <- system "phantomjs --version" >>= \case
+--                ExitSuccess -> return ()
+--                e           -> do
+--                    putStrLn "phantomjs not found"
+--                    exitWith e
+--    forkIO . void $ readProcess "phantomjs" ["--webdriver=4444"] (BS.unpack jsaddleCoreJs) >>= putStr
+--    runSession defaultConfig $ do
+        --openPage "http://localhost:3709"
+--    testJSaddle $ return ()
+    liftIO $ {-doctest-} putStrLn $ unwords [
             "-hide-all-packages",
             "-package=base-" ++ VERSION_base,
             "-package=lens-" ++ VERSION_lens,
@@ -60,7 +62,14 @@ main = do
             "-package=filepath-" ++ VERSION_filepath,
             "-package=ref-tf-" ++ VERSION_ref_tf,
             "-package=deepseq-" ++ VERSION_deepseq,
+            "-package=scientific-" ++ VERSION_scientific,
+            "-package=exceptions-" ++ VERSION_exceptions,
+            "-package=bifunctors-" ++ VERSION_bifunctors,
+            "-package=base64-bytestring-" ++ VERSION_base64_bytestring,
+            "-package=entropy-" ++ VERSION_entropy,
             "-package=ghc-prim-" ++ VERSION_ghc_prim,
+            "-package=async-" ++ VERSION_async,
+            "-package=mtl-" ++ VERSION_mtl,
             "-i" <> "src",
             "-i" <> "src-ghc",
             "src/Language/Javascript/JSaddle/Test.hs",
@@ -96,4 +105,4 @@ main = do
             jsaddlePath </> "src/Language/Javascript/JSaddle/String.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Types.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Value.hs" ]
-        closeSession
+--        closeSession

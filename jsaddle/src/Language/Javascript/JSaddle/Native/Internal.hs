@@ -95,7 +95,7 @@ newAsyncCallback :: JSCallAsFunction -> JSM (CallbackId, JSVal)
 newAsyncCallback = newSyncCallback'
 {-# INLINE newAsyncCallback #-}
 
-newSyncCallback :: JSCallAsFunction -> JSM (SyncCallbackId, JSVal)
+newSyncCallback :: JSCallAsFunction -> JSM (CallbackId, JSVal)
 newSyncCallback = newSyncCallback'
 {-# INLINE newSyncCallback #-}
 

@@ -54,10 +54,11 @@ import Data.Maybe (fromMaybe)
 import Data.IORef
        (readIORef, newIORef, atomicModifyIORef')
 import Data.ByteString.Lazy (ByteString)
-import Language.Javascript.JSaddle (SyncCallbackId, ValId)
+import Language.Javascript.JSaddle (CallbackId, ValId, runJSM)
 import Control.Monad.Trans.Reader
 import qualified Data.Map as Map
 import System.Entropy (getEntropy)
+import Control.Exception (try, SomeException (..))
 
 --TODO: stylish-haskell
 
@@ -67,23 +68,28 @@ jsaddleOr opts entryPoint otherApp = do
     let wsApp :: ServerApp
         wsApp pending_conn = do
             conn <- acceptRequest pending_conn
-            (processResult, runSyncCallback, continueSyncCallback, env) <- runJS (sendTextData conn . encode)
-            connId <- decodeUtf8 . Base64URL.encode <$> getEntropy 96
-            let syncFunc = \case
-                    Just (callback, this, args) -> runSyncCallback callback this args
-                    Nothing -> continueSyncCallback
+            (processResult, processSyncCommand, env) <- runJS $ \req -> do
+              sendTextData conn $ encode req
+            connId <- decodeUtf8 . Base64URL.encode <$> getEntropy 24
             sendTextData conn connId
             atomicModifyIORef' syncFuncs $ \fs ->
-              ( Map.insertWith (error $ "duplicate connection ID" <> show connId) connId syncFunc fs
+              ( Map.insertWith (error $ "duplicate connection ID" <> show connId) connId processSyncCommand fs
               , ()
               )
-            _ <- forkIO . forever $
+            recvThread <- forkIO . forever $
                 receiveDataMessage conn >>= \case
                     WS.Text t -> case decode t of
-                        Nothing -> error $ "jsaddle response decode failed: " <> show t
-                        Just r  -> processResult r
+                        Nothing -> putStrLn $ "jsaddle response decode failed: " <> show t
+                        Just r  -> do
+                          result <- try $ processResult r
+                          case result of
+                            Left e@(SomeException _) -> putStrLn $ "left: " <> show e
+                            Right _ -> return ()
                     _ -> error "jsaddle WebSocket unexpected binary data"
-            runReaderT (unJSM entryPoint) env
+            try (runJSM entryPoint env) >>= \case
+              Left e@(SomeException _) -> putStrLn $ "done: left: " <> show e
+              Right (Left _) -> putStrLn $ "done: right: left"
+              Right (Right _) -> putStrLn $ "done: right: right"
             waitTillClosed conn
             atomicModifyIORef' syncFuncs $ \fs -> (Map.delete connId fs, ())
 
@@ -105,7 +111,7 @@ jsaddleOr opts entryPoint otherApp = do
             ("POST", ["sync", connId]) -> do
                 Just syncFunc <- Map.lookup connId <$> readIORef syncFuncs
                 body <- lazyRequestBody req
-                case decode body :: Maybe (Maybe (SyncCallbackId, ValId, [ValId])) of
+                case decode body of
                     Nothing -> error $ "jsaddle sync message decode failed: " <> show body
                     Just parsed -> do
                       result <- syncFunc parsed
@@ -161,17 +167,13 @@ jsaddleJs refreshOnLoad = jsaddleCoreJs <> "\
     \    };\n\
     \    var core = jsaddle(window, function(a) {\n\
     \      ws.send(JSON.stringify(a));\n\
-    \    }, function(callback, that, args) {\n\
-    \      return sync([callback, that, args]);\n\
-    \    }, function() {\n\
-    \      return sync(null);\n\
-    \    });\n\
+    \    }, sync);\n\
     \    var syncKey = \"\";\n\
     \\n\
     \    ws.onopen = function(e) {\n\
     \\n\
     \        ws.onmessage = function(c) {\n\
-    \            connId = c;\n\
+    \            connId = c.data;\n\
     \            ws.onmessage = function(e) {\n\
     \                core.processReq(JSON.parse(e.data));\n\
     \            };\n\
