@@ -6,6 +6,7 @@ module Language.Javascript.JSaddle.WKWebView
     , runWithAppConfig
     , runFile
     , mainBundleResourcePath
+    , ApplicationState (..)
     , AppDelegateConfig (..)
     , AppDelegateNotificationConfig (..)
     , AuthorizationOption (..)
@@ -20,6 +21,7 @@ import Foreign.Marshal.Utils (fromBool)
 import Language.Javascript.JSaddle.WKWebView.Internal (jsaddleMain, jsaddleMainFile, WKWebView(..), mainBundleResourcePath)
 import System.Environment (getProgName)
 import Foreign.C.String (CString, withCString)
+import Foreign.C.Types (CInt)
 import Foreign.StablePtr (StablePtr, newStablePtr)
 import Language.Javascript.JSaddle (JSM)
 
@@ -35,6 +37,7 @@ foreign import ccall runInWKWebView
     -> StablePtr (IO ()) -- applicationWillTerminate
     -> StablePtr (IO ()) -- applicationSignificantTimeChange
     -> StablePtr (CString -> IO ()) -- applicationUniversalLink
+    -> StablePtr (CInt -> CString -> IO ()) -- applicationDidReceiveRemoteNotification
     -> Word64  -- whether to run requestAuthorizationWithOptions
     -> Word64 -- Ask for Badge authorization
     -> Word64 -- Ask for Sound authorization
@@ -55,6 +58,7 @@ data AppDelegateConfig = AppDelegateConfig
     , _appDelegateConfig_applicationWillTerminate :: IO ()
     , _appDelegateConfig_applicationSignificantTimeChange :: IO ()
     , _appDelegateConfig_applicationUniversalLink :: CString -> IO ()
+    , _appDelegateConfig_applicationDidReceiveRemoteNotification :: ApplicationState -> CString -> IO ()
     , _appDelegateConfig_appDelegateNotificationConfig :: AppDelegateNotificationConfig
     }
 
@@ -69,6 +73,7 @@ instance Default AppDelegateConfig where
         , _appDelegateConfig_applicationWillTerminate = return ()
         , _appDelegateConfig_applicationSignificantTimeChange = return ()
         , _appDelegateConfig_applicationUniversalLink = \_ -> return ()
+        , _appDelegateConfig_applicationDidReceiveRemoteNotification = \_ _ -> return ()
         , _appDelegateConfig_appDelegateNotificationConfig = def
         }
 
@@ -76,6 +81,12 @@ data AuthorizationOption = AuthorizationOption_Badge
                          | AuthorizationOption_Sound
                          | AuthorizationOption_Alert
                          | AuthorizationOption_CarPlay
+    deriving (Show, Read, Eq, Ord)
+
+data ApplicationState = ApplicationState_Active
+                      | ApplicationState_Inactive
+                      | ApplicationState_Background
+                      | ApplicationState_Unknown CInt
     deriving (Show, Read, Eq, Ord)
 
 data AppDelegateNotificationConfig = AppDelegateNotificationConfig
@@ -131,6 +142,13 @@ run' mUrl cfg f = do
     applicationWillTerminate <- newStablePtr $ _appDelegateConfig_applicationWillTerminate cfg
     applicationSignificantTimeChange <- newStablePtr $ _appDelegateConfig_applicationSignificantTimeChange cfg
     applicationUniversalLink <- newStablePtr $ _appDelegateConfig_applicationUniversalLink cfg
+    applicationDidReceiveRemoteNotification <- newStablePtr $ \n s -> do
+      let appState = case n of
+            0 -> ApplicationState_Active
+            1 -> ApplicationState_Inactive
+            2 -> ApplicationState_Background
+            _ -> ApplicationState_Unknown n
+      _appDelegateConfig_applicationDidReceiveRemoteNotification cfg appState s
 
     -- AppDelegate notification configuration
     let ncfg = _appDelegateConfig_appDelegateNotificationConfig cfg
@@ -153,6 +171,7 @@ run' mUrl cfg f = do
       applicationWillTerminate
       applicationSignificantTimeChange
       applicationUniversalLink
+      applicationDidReceiveRemoteNotification
       (fromBool requestAuthorizationWithOptions)
       (fromBool $ Set.member AuthorizationOption_Badge authorizationOptions)
       (fromBool $ Set.member AuthorizationOption_Sound authorizationOptions)
