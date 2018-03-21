@@ -54,8 +54,7 @@ import Data.Maybe (fromMaybe)
 import Data.IORef
        (readIORef, newIORef, atomicModifyIORef')
 import Data.ByteString.Lazy (ByteString)
-import Language.Javascript.JSaddle (CallbackId, ValId, runJSM)
-import Control.Monad.Trans.Reader
+import Language.Javascript.JSaddle (runJSM)
 import qualified Data.Map as Map
 import System.Entropy (getEntropy)
 import Control.Exception (try, SomeException (..))
@@ -76,7 +75,7 @@ jsaddleOr opts entryPoint otherApp = do
               ( Map.insertWith (error $ "duplicate connection ID" <> show connId) connId processSyncCommand fs
               , ()
               )
-            recvThread <- forkIO . forever $
+            _ <- forkIO . forever $
                 receiveDataMessage conn >>= \case
                     WS.Text t -> case decode t of
                         Nothing -> putStrLn $ "jsaddle response decode failed: " <> show t
@@ -88,8 +87,7 @@ jsaddleOr opts entryPoint otherApp = do
                     _ -> error "jsaddle WebSocket unexpected binary data"
             try (runJSM entryPoint env) >>= \case
               Left e@(SomeException _) -> putStrLn $ "done: left: " <> show e
-              Right (Left _) -> putStrLn $ "done: right: left"
-              Right (Right _) -> putStrLn $ "done: right: right"
+              Right _ -> putStrLn $ "done: right"
             waitTillClosed conn
             atomicModifyIORef' syncFuncs $ \fs -> (Map.delete connId fs, ())
 

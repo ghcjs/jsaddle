@@ -28,7 +28,6 @@ import Network.Wai.Handler.Warp
 import Network.WebSockets (defaultConnectionOptions)
 
 import Language.Javascript.JSaddle.Types (JSM)
-import Language.Javascript.JSaddle.Run (syncPoint)
 import Language.Javascript.JSaddle.WebSockets
 import Language.Javascript.JSaddle.Warp.Debug
 #endif
@@ -43,5 +42,5 @@ run :: Int -> JSM () -> IO ()
 run port f = do
     putStrLn $ "jsaddle: running on port " ++ show port
     runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
-        jsaddleOr defaultConnectionOptions (f >> syncPoint) jsaddleApp
+        jsaddleOr defaultConnectionOptions f jsaddleApp
 #endif

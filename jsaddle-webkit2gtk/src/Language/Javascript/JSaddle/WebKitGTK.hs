@@ -91,7 +91,7 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
 import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
        (jsvaluetostringcopy)
 
-import Language.Javascript.JSaddle (JSM, Rsp, SyncCallbackId, ValId, Req, RefId, runJSM)
+import Language.Javascript.JSaddle (JSM, Rsp, SyncCommand, ValId, TryReq, runJSM)
 import Language.Javascript.JSaddle.Run (runJS)
 import Language.Javascript.JSaddle.Run.Files (ghcjsHelpers, jsaddleCoreJs)
 
@@ -155,10 +155,10 @@ run main = do
 
 runInWebView :: JSM () -> WebView -> IO ()
 runInWebView f webView = do
-    (processResults, runSyncCallback, continueSyncCallback, jsCtx) <- runJS $ \batch -> postGUIAsync $
+    (processResults, processSyncCommand, jsCtx) <- runJS $ \batch -> postGUIAsync $
         webViewRunJavascript webView (decodeUtf8 . toStrict $ "runJSaddleBatch(" <> encode batch <> ");") noCancellable Nothing
 
-    addJSaddleHandler webView processResults runSyncCallback continueSyncCallback
+    addJSaddleHandler webView processResults processSyncCommand
     webViewRunJavascript webView (decodeUtf8 $ toStrict jsaddleJs) noCancellable . Just $
         \_obj _asyncResult -> do
             _ <- forkIO $ runJSM f jsCtx
@@ -174,8 +174,8 @@ connectUserContentManagerScriptMessageReceived obj cb after = liftIO $ do
     cb'' <- mk_UserContentManagerScriptMessageReceivedCallback cb'
     connectSignalFunPtr obj "script-message-received::jsaddle" cb'' after
 
-addJSaddleHandler :: WebView -> (Rsp -> IO ()) -> (SyncCallbackId -> ValId -> [ValId] -> IO [Either ValId (Req ValId RefId)]) -> IO [Either ValId (Req ValId RefId)] -> IO ()
-addJSaddleHandler webView processResult runSyncCallback continueSyncCallback = do
+addJSaddleHandler :: WebView -> (Rsp -> IO ()) -> (SyncCommand -> IO [Either ValId TryReq]) -> IO ()
+addJSaddleHandler webView processResult processSyncCommand = do
     manager <- webViewGetUserContentManager webView
     _ <- onUserContentManagerScriptMessageReceived manager $ \result -> do
         ctx <- javascriptResultGetGlobalContext result
@@ -194,9 +194,7 @@ addJSaddleHandler webView processResult runSyncCallback continueSyncCallback = d
                         resultsText <- scriptDialogPromptGetDefaultText dialog
                         case decode (fromStrict $ encodeUtf8 resultsText) of
                             Just results -> do
-                                batch <- case results of
-                                  Just (callback, this, args) -> runSyncCallback callback this args
-                                  Nothing -> continueSyncCallback
+                                batch <- processSyncCommand results
                                 scriptDialogPromptSetText dialog (decodeUtf8 . toStrict $ encode batch)
                                 return True
                             Nothing -> return False
@@ -210,10 +208,8 @@ jsaddleJs = jsaddleCoreJs <> ghcjsHelpers <> LBC8.unlines
     [ "runJSaddleBatch = (function() {"
     , "  var core = jsaddle(window, function(req) {"
     , "    window.webkit.messageHandlers.jsaddle.postMessage(JSON.stringify(req));"
-    , "  }, function(callback, that, args) {"
-    , "    return JSON.parse(window.prompt(\"JSaddleSync\", JSON.stringify([callback, that, args])));"
-    , "  }, function() {"
-    , "    return JSON.parse(window.prompt(\"JSaddleSync\", JSON.stringify(null)));"
+    , "  }, function(v) {"
+    , "    return JSON.parse(window.prompt(\"JSaddleSync\", JSON.stringify(v)));"
     , "  });"
     , "  return core.processReq;"
     , "})();"

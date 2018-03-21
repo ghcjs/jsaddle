@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Language.Javascript.JSaddle.Warp.Debug
-  where {-
   ( debug
   , debugWrapper
   , refreshMiddleware
@@ -36,7 +35,7 @@ debug :: Int -> JSM () -> IO ()
 debug port f = do
     debugWrapper $ \withRefresh registerContext ->
         runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
-            jsaddleOr defaultConnectionOptions (registerContext >> f >> syncPoint) (withRefresh $ jsaddleAppWithJs $ jsaddleJs True)
+            jsaddleOr defaultConnectionOptions (registerContext >> f) (withRefresh $ jsaddleAppWithJs $ jsaddleJs True)
     putStrLn $ "<a href=\"http://localhost:" <> show port <> "\">run</a>"
 
 refreshMiddleware :: ((Response -> IO ResponseReceived) -> IO ResponseReceived) -> Middleware
@@ -97,4 +96,3 @@ debugWrapper run = do
             void $ tryTakeMVar restartMVar
             putMVar restartMVar start
   where shutdown_0 = 0
--}

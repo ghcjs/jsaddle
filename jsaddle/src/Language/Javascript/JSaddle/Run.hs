@@ -51,7 +51,6 @@ import qualified JavaScript.Web.AnimationFrame as GHCJS
 import Control.Exception (try, SomeException(..))
 import Control.Monad (when, join, void)
 import Control.Monad.Trans.Reader (runReaderT)
-import Control.Monad.Trans.Cont (ContT(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.STM (atomically)
 import Control.Concurrent (forkIO)
@@ -59,21 +58,17 @@ import Control.Concurrent.STM.TVar (writeTVar, readTVar, newTVarIO)
 import Control.Concurrent.MVar
        (putMVar, takeMVar, newMVar, newEmptyMVar, modifyMVar, modifyMVar_, swapMVar)
 
-import Data.Bifunctor (first)
-import Data.Bitraversable (bitraverse)
 import Data.Monoid ((<>))
 import Data.Map (Map)
 import Data.Maybe
 import qualified Data.Map as M
 import Data.IORef (newIORef)
-import qualified Data.Text as T
 
 import Language.Javascript.JSaddle.Types
 --TODO: Handle JS exceptions
 import Data.Foldable (forM_)
 import System.IO.Unsafe
 import Language.Javascript.JSaddle.Monad (syncPoint)
-import GHCJS.Prim.Internal (primToJSVal)
 #endif
 
 -- | The RefId of the global object

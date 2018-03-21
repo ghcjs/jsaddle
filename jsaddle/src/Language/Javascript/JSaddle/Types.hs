@@ -89,6 +89,7 @@ module Language.Javascript.JSaddle.Types (
   , TryId (..)
   , PrimVal (..)
   , TryReq (..)
+  , JavaScriptException (..)
   , runJSM
   , sync
   , freeSyncCallback
@@ -122,6 +123,7 @@ import GHCJS.Prim.Internal
 import Data.JSString.Internal.Type (JSString(..))
 import Data.Monoid
 import Control.Concurrent (threadDelay)
+import Control.Exception (Exception, throwIO)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadThrow, MonadCatch(..), MonadMask(..), bracket_)
 import Control.Monad.Except
@@ -725,9 +727,19 @@ instance MonadMask JSM where
       where q :: (ReaderT JSContextRef IO a -> ReaderT JSContextRef IO a) -> JSM a -> JSM a
             q unmask (JSM b) = JSM $ unmask b
 
-runJSM :: MonadIO m => JSM a -> JSContextRef -> m (Either JSVal a)
-runJSM a ctx = liftIO $ flip runReaderT ctx $ unJSM $ do
-  catchError (Right <$> a) (return . Left)  -- <* waitForSync
+newtype JavaScriptException = JavaScriptException { unJavaScriptException :: JSVal }
+  deriving (Typeable)
+
+instance Show JavaScriptException where
+  show _ = "JavaScriptException _"
+
+instance Exception JavaScriptException
+
+runJSM :: MonadIO m => JSM a -> JSContextRef -> m a
+runJSM a ctx = liftIO $ do
+  result <- flip runReaderT ctx $ unJSM $ do
+    catchError (Right <$> a) (return . Left)  -- <* waitForSync
+  either (throwIO . JavaScriptException) return result
 
 askJSM :: MonadJSM m => m JSContextRef
 askJSM = liftJSM $ JSM ask
