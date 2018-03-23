@@ -444,7 +444,7 @@ instance FromJSON Rsp where
 data SyncCommand
    = SyncCommand_StartCallback CallbackId ValId [ValId] -- The input valIds here must always be allocated on the JS side --TODO: Make sure throwing stuff works when it ends up skipping over our own call stack entries
    | SyncCommand_Continue
-   deriving (Generic)
+   deriving (Show, Read, Eq, Ord, Generic)
 
 instance ToJSON SyncCommand where
   toEncoding = A.genericToEncoding $ aesonOptions "SyncCommand"

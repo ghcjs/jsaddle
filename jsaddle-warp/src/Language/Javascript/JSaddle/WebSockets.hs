@@ -48,7 +48,7 @@ import qualified Data.Text as T (pack)
 import Data.Text.Encoding (decodeUtf8)
 import qualified Network.HTTP.Types as H
        (status403, status200)
-import Language.Javascript.JSaddle.Run (runJS)
+import Language.Javascript.JSaddle.Run (runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (indexHtml, jsaddleCoreJs, ghcjsHelpers)
 import Data.Maybe (fromMaybe)
 import Data.IORef
@@ -67,7 +67,7 @@ jsaddleOr opts entryPoint otherApp = do
     let wsApp :: ServerApp
         wsApp pending_conn = do
             conn <- acceptRequest pending_conn
-            (processResult, processSyncCommand, env) <- runJS $ \req -> do
+            (processResult, processSyncCommand, env) <- runJavaScript $ \req -> do
               sendTextData conn $ encode req
             connId <- decodeUtf8 . Base64URL.encode <$> getEntropy 24
             sendTextData conn connId
@@ -82,7 +82,7 @@ jsaddleOr opts entryPoint otherApp = do
                         Just r  -> do
                           result <- try $ processResult r
                           case result of
-                            Left e@(SomeException _) -> putStrLn $ "left: " <> show e
+                            Left e@(SomeException _) -> putStrLn $ "jsaddle processResult failed: " <> show e
                             Right _ -> return ()
                     _ -> error "jsaddle WebSocket unexpected binary data"
             try (runJSM entryPoint env) >>= \case

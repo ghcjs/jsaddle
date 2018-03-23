@@ -26,7 +26,7 @@ import Foreign.Storable (poke)
 import Foreign.Marshal.Utils (new)
 
 import Language.Javascript.JSaddle (JSM, runJSM)
-import Language.Javascript.JSaddle.Run (runJS)
+import Language.Javascript.JSaddle.Run (runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (ghcjsHelpers, jsaddleCoreJs)
 
 import Language.Javascript.JSaddle.CLib.Internal
@@ -49,7 +49,7 @@ foreign import ccall safe "wrapper"
 jsaddleInit :: JSM () -> FunPtr (CString -> IO ()) -> IO (Ptr NativeCallbacks)
 jsaddleInit jsm evaluateJavascriptAsyncPtr = do
   let evaluateJavascriptAsync = mkCallback evaluateJavascriptAsyncPtr
-  (processResult, runSyncCallback, continueSyncCallback, jsCtx) <- runJS $ \req ->
+  (processResult, processSyncCommand, jsCtx) <- runJavaScript $ \req ->
     useAsCString (toStrict $ "runJSaddleBatch(" <> encode req <> ");")
       evaluateJavascriptAsync
   jsaddleStartPtr <- wrapStartCallback $ void $ forkIO $ runJSM jsm jsCtx
@@ -62,9 +62,7 @@ jsaddleInit jsm evaluateJavascriptAsyncPtr = do
     result <- decode . fromStrict <$> packCString s
     case result of
       Nothing -> error $ "jsaddle message decode failed: " <> show result
-      Just r -> newCString =<< unpack . toStrict . encode <$> case r of
-        Just (callback, this, args) -> runSyncCallback callback this args
-        Nothing -> continueSyncCallback
+      Just r -> newCString =<< unpack . toStrict . encode <$> processSyncCommand r
   jsaddleJsPtr <- newCString $ unpack $ toStrict jsaddleJs
   jsaddleHtmlPtr <- newCString $ unpack $ toStrict indexHtml
   new NativeCallbacks
@@ -138,14 +136,13 @@ jsaddleJs :: ByteString
 jsaddleJs = jsaddleCoreJs <> ghcjsHelpers <> "\n\
     \runJSaddleBatch = (function() {\n\
     \  var core = jsaddle(window, function(req) {\n\
-    \    jsaddle.postMessage(JSON.stringify(req));\n\
-    \  }, function(callback, that, args) {\n\
-    \    return JSON.parse(jsaddle.syncMessage(JSON.stringify([callback, that, args])));\n\
-    \  }, function() {\n\
-    \    return JSON.parse(jsaddle.syncMessage(JSON.stringify(null)));\n\
+    \    jsaddleCallbacks.postMessage(JSON.stringify(req));\n\
+    \  }, function(v) {\n\
+    \    return JSON.parse(jsaddleCallbacks.syncMessage(JSON.stringify(v)));\n\
+    \  });\n\
     \  return core.processReq;\n\
     \})();\n\
-    \jsaddle.postReady();\n"
+    \jsaddleCallbacks.postReady();\n"
 
 indexHtml :: ByteString
 indexHtml =

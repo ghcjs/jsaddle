@@ -22,7 +22,7 @@ module Language.Javascript.JSaddle.Run (
   -- * Running JSM
 #ifndef ghcjs_HOST_OS
   -- * Functions used to implement JSaddle using JSON messaging
-    runJS
+    runJavaScript
   , newJson
   , sync
   , lazyValResult
@@ -87,13 +87,13 @@ type CallbackResultId = ValId
 
 type CallbackResult = JSVal
 
-runJS
+runJavaScript
   :: (TryReq -> IO ()) -- ^ Send a request to the JS engine; we assume that requests are performed in the order they are sent; requests received while in a synchronous block must not be processed until the synchronous block ends (i.e. until the JS side receives the final value yielded back from the synchronous block)
   -> IO ( Rsp -> IO () -- Responses must be able to continue coming in as a sync block runs, or else the caller must be careful to ensure that sync blocks are only run after all outstanding responses have been processed
         , SyncCommand -> IO [Either CallbackResultId TryReq]
         , JSContextRef
         )
-runJS sendReqAsync = do
+runJavaScript sendReqAsync = do
   nextRefId <- newTVarIO initialRefId
   nextGetJsonReqId <- newTVarIO $ GetJsonReqId 1
   getJsonReqs <- newTVarIO M.empty
@@ -195,14 +195,12 @@ runJS sendReqAsync = do
             Just (callback :: JSVal -> [JSVal] -> JSM JSVal) -> do
               myDepth <- enterSyncFrame
               _ <- forkIO $ do
-                blah <- try $ do
+                _ :: Either SomeException () <- try $ do
                   let syncEnv = env { _jsContextRef_sendReq = enqueueYieldVal . Right }
                   result <- flip runReaderT syncEnv $ unJSM $
                     join $ callback <$> wrapJSVal this <*> traverse wrapJSVal args --TODO: Handle exceptions that occur within the callback
                   exitSyncFrame myDepth result
-                appendFile "blah.txt" $ case blah of
-                  Left (_ :: SomeException) -> "finished callback with left"
-                  Right _ -> "finished callback with right"
+                return ()
               yield
             Nothing -> error $ "sync callback " <> show callbackId <> " called, but does not exist"
         SyncCommand_Continue -> yield

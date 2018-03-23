@@ -92,7 +92,7 @@ import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
        (jsvaluetostringcopy)
 
 import Language.Javascript.JSaddle (JSM, Rsp, SyncCommand, ValId, TryReq, runJSM)
-import Language.Javascript.JSaddle.Run (runJS)
+import Language.Javascript.JSaddle.Run (runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (ghcjsHelpers, jsaddleCoreJs)
 
 quitWebView :: WebView -> IO ()
@@ -155,7 +155,7 @@ run main = do
 
 runInWebView :: JSM () -> WebView -> IO ()
 runInWebView f webView = do
-    (processResults, processSyncCommand, jsCtx) <- runJS $ \batch -> postGUIAsync $
+    (processResults, processSyncCommand, jsCtx) <- runJavaScript $ \batch -> postGUIAsync $
         webViewRunJavascript webView (decodeUtf8 . toStrict $ "runJSaddleBatch(" <> encode batch <> ");") noCancellable Nothing
 
     addJSaddleHandler webView processResults processSyncCommand
