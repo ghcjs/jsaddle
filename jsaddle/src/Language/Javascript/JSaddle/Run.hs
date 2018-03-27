@@ -106,16 +106,19 @@ runJavaScript sendReqAsync = do
   yieldReadyVar <- newEmptyMVar -- Filled when there is at least one item in yieldAccumVar
   -- Each value in the map corresponds to a value ready to be returned from the sync frame corresponding to its key
   -- INVARIANT: \(depth, readyFrames) -> all (< depth) $ M.keys readyFrames
-  syncState <- newMVar (0, M.empty)
+  syncCallbackState <- newMVar (0, M.empty)
+  syncState <- newMVar SyncState_InSync
+  nextSyncReqId <- newTVarIO $ SyncReqId 1
+  syncReqs <- newTVarIO mempty
   let enqueueYieldVal val = modifyMVar_ yieldAccumVar $ \old -> do
         let new = val : old
         when (null old) $ do
           putMVar yieldReadyVar ()
         return new
-      enterSyncFrame = modifyMVar syncState $ \(oldDepth, readyFrames) -> do
+      enterSyncFrame = modifyMVar syncCallbackState $ \(oldDepth, readyFrames) -> do
         let !newDepth = succ oldDepth
         return ((newDepth, readyFrames), newDepth)
-      exitSyncFrame myDepth myRetVal = modifyMVar_ syncState $ \(oldDepth, oldReadyFrames) -> case oldDepth `compare` myDepth of
+      exitSyncFrame myDepth myRetVal = modifyMVar_ syncCallbackState $ \(oldDepth, oldReadyFrames) -> case oldDepth `compare` myDepth of
         LT -> error "should be impossible: trying to return from deeper sync frame than the current depth"
         -- We're the top frame, so yield our value to the caller
         EQ -> do
@@ -176,6 +179,14 @@ runJavaScript sendReqAsync = do
             Just thisTry -> putMVar thisTry =<< case tryResult of
               Left v -> Left <$> runReaderT (unJSM (wrapJSVal v)) env
               Right _ -> return $ Right ()
+        Rsp_Sync syncReqId -> do
+          mThisSync <- atomically $ do
+            currentSyncReqs <- readTVar syncReqs
+            writeTVar syncReqs $! M.delete syncReqId currentSyncReqs
+            return $ M.lookup syncReqId currentSyncReqs
+          case mThisSync of
+            Nothing -> putStrLn $ "Rsp_Sync: " <> show syncReqId <> " not found"
+            Just thisSync -> putMVar thisSync ()
       env = JSContextRef
         { _jsContextRef_sendReq = sendReqAsync
         , _jsContextRef_nextRefId = nextRefId
@@ -187,6 +198,9 @@ runJavaScript sendReqAsync = do
         , _jsContextRef_nextTryId = nextTryId
         , _jsContextRef_tries = tries
         , _jsContextRef_myTryId = TryId 0 --TODO
+        , _jsContextRef_syncState = syncState
+        , _jsContextRef_nextSyncReqId = nextSyncReqId
+        , _jsContextRef_syncReqs = syncReqs
         }
       processSyncCommand = \case
         SyncCommand_StartCallback callbackId this args -> do

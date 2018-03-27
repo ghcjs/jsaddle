@@ -296,6 +296,12 @@ jsaddleCoreJs = "\
     \          ]\n\
     \        });\n\
     \        break;\n\
+    \      case 'Sync':\n\
+    \        sendRsp({\n\
+    \          'tag': 'Sync',\n\
+    \          'contents': req.contents\n\
+    \        });\n\
+    \        break;\n\
     \      default:\n\
     \        throw 'processSingleReq: unknown request tag ' + JSON.stringify(req.tag);\n\
     \      }\n\

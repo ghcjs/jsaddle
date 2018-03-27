@@ -86,9 +86,11 @@ module Language.Javascript.JSaddle.Types (
   , SyncCommand (..)
   , CallbackId (..)
   , GetJsonReqId (..)
+  , SyncReqId (..)
   , TryId (..)
   , PrimVal (..)
   , TryReq (..)
+  , SyncState (..)
   , JavaScriptException (..)
   , runJSM
   , sync
@@ -144,7 +146,7 @@ import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Fix (MonadFix)
 import Control.Concurrent.Async (withAsync, wait)
 import Control.Concurrent.STM.TVar (TVar)
-import Control.Concurrent.MVar (MVar)
+import Control.Concurrent.MVar (MVar, swapMVar, modifyMVar, readMVar)
 import Data.Bifunctor
 import Data.Bifoldable
 import Data.Bitraversable
@@ -380,12 +382,15 @@ newtype CallbackId = CallbackId { unCallbackId :: Int64 } deriving (Show, Read, 
 
 newtype TryId = TryId { unTryId :: Int64 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
 
+newtype SyncReqId = SyncReqId { unSyncReqId :: Int64 } deriving (Show, Read, Eq, Ord, Enum, ToJSON, FromJSON)
+
 aesonOptions :: String -> A.Options
 aesonOptions typeName = A.defaultOptions
   { A.constructorTagModifier = drop (length typeName + 1)
   , A.fieldLabelModifier = drop (length typeName + 2)
   }
 
+--TODO: Make outputs optional
 data Req input output
    = Req_FreeRef RefId --TODO: No thread IDs for these
    | Req_NewJson A.Value output
@@ -399,6 +404,7 @@ data Req input output
    | Req_CallAsConstructor input [input] output
    | Req_Throw input
    | Req_FinishTry
+   | Req_Sync SyncReqId
    deriving (Show, Read, Eq, Generic, Functor, Foldable, Traversable)
 
 instance Bifunctor Req where
@@ -421,6 +427,7 @@ instance Bitraversable Req where
     Req_CallAsConstructor a b c -> Req_CallAsConstructor <$> f a <*> traverse f b <*> g c
     Req_Throw a -> Req_Throw <$> f a
     Req_FinishTry -> pure Req_FinishTry
+    Req_Sync s -> pure $ Req_Sync s
 
 instance (ToJSON input, ToJSON output) => ToJSON (Req input output) where
   toEncoding = A.genericToEncoding $ aesonOptions "Req"
@@ -432,7 +439,9 @@ data Rsp
    = Rsp_GetJson GetJsonReqId A.Value
    | Rsp_Result RefId (PrimVal ())
    | Rsp_CallAsync CallbackId ValId [ValId]
+   --TODO: When an exception is thrown, make sure we stop waiting for any results from them; otherwise, the datastructures waiting for those results will leak
    | Rsp_FinishTry TryId (Either ValId ()) -- Left if an exception was thrown; Right if not
+   | Rsp_Sync SyncReqId
    deriving (Show, Read, Eq, Generic)
 
 instance ToJSON Rsp where
@@ -474,7 +483,10 @@ data JSContextRef = JSContextRef
   , _jsContextRef_pendingResults :: !(TVar (Map RefId (MVar (PrimVal ()))))
   , _jsContextRef_nextTryId :: !(TVar TryId)
   , _jsContextRef_tries :: !(TVar (Map TryId (MVar (Either JSVal ()))))
-  , _jsContextRef_myTryId :: TryId
+  , _jsContextRef_myTryId :: !TryId
+  , _jsContextRef_syncState :: !(MVar SyncState)
+  , _jsContextRef_nextSyncReqId :: !(TVar SyncReqId)
+  , _jsContextRef_syncReqs :: !(TVar (Map SyncReqId (MVar ())))
   }
 
 -- | Perform IO from JSM without synchronizing with the JS side; since requests
@@ -535,6 +547,8 @@ sendReqId :: Req ValId RefId -> JSM ()
 sendReqId r = JSM $ do
   s <- asks _jsContextRef_sendReq
   tid <- asks _jsContextRef_myTryId
+  syncState <- asks _jsContextRef_syncState
+  _ <- liftIO $ swapMVar syncState SyncState_OutOfSync
   liftIO $ s $ TryReq
     { _tryReq_tryId = tid
     , _tryReq_req = r
@@ -694,11 +708,6 @@ instance MonadError JSVal JSM where
     sendReq $ Req_Throw e --IDEA: Short-circuit this rather than actually sending it to the JS side
     JSM $ liftIO $ forever $ threadDelay maxBound
 
-waitForSync :: JSM ()
-waitForSync = do
-  _ <- getJson =<< newJson (A.Object mempty) --TODO: Make a lighter-weight sync function, and don't do anything if we know we're already in sync
-  return ()
-
 instance MonadIO JSM where
   liftIO a = do
     waitForSync
@@ -746,3 +755,31 @@ askJSM = liftJSM $ JSM ask
 
 withLog :: String -> IO a -> IO a
 withLog s = bracket_ (putStrLn $ s <> ": enter") (putStrLn $ s <> ": exit")
+
+data SyncState
+   = SyncState_InSync -- We are in sync with the JS engine
+   | SyncState_OutOfSync -- We are out of sync with the JS engine, but we have not started synchronizing
+   | SyncState_WaitingForSync (MVar ()) -- We are in the process of synchronizing with the JS engine; this MVar will get filled in when we finish
+
+waitForSync :: JSM ()
+waitForSync = do
+  syncState <- JSM $ asks _jsContextRef_syncState
+  syncReqs <- JSM $ asks _jsContextRef_syncReqs
+  nextSyncReqId <- JSM $ asks _jsContextRef_nextSyncReqId
+  sendReq' <- JSM $ asks _jsContextRef_sendReq
+  tid <- JSM $ asks _jsContextRef_myTryId
+  join $ unsafeInlineLiftIO $ modifyMVar syncState $ \old -> case old of
+    SyncState_InSync -> return (old, return ())
+    SyncState_OutOfSync -> do
+      synced <- newEmptyMVar
+      syncReqId <- getNextTVar nextSyncReqId
+      atomically $ modifyTVar' syncReqs $ M.insert syncReqId synced
+      sendReq' $ TryReq
+        { _tryReq_tryId = tid
+        , _tryReq_req = Req_Sync syncReqId
+        }
+      return $ (,) (SyncState_WaitingForSync synced) $ do
+        unsafeInlineLiftIO $ readMVar synced
+    SyncState_WaitingForSync synced -> do
+      return $ (,) old $ do
+        unsafeInlineLiftIO $ readMVar synced

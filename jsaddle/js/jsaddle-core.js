@@ -258,6 +258,12 @@ function jsaddle(global, sendRsp, processSyncCommand) {
           ]
         });
         break;
+      case 'Sync':
+        sendRsp({
+          'tag': 'Sync',
+          'contents': req.contents
+        });
+        break;
       default:
         throw 'processSingleReq: unknown request tag ' + JSON.stringify(req.tag);
       }
