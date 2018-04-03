@@ -53,7 +53,7 @@ import Control.Monad (when, join, void)
 import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.STM (atomically)
-import Control.Concurrent (forkIO)
+import Control.Concurrent (myThreadId, forkIO)
 import Control.Concurrent.STM.TVar (writeTVar, readTVar, newTVarIO)
 import Control.Concurrent.MVar
        (putMVar, takeMVar, newMVar, newEmptyMVar, modifyMVar, modifyMVar_, swapMVar)
@@ -189,6 +189,8 @@ runJavaScript sendReqAsync = do
             Just thisSync -> putMVar thisSync ()
       env = JSContextRef
         { _jsContextRef_sendReq = sendReqAsync
+        , _jsContextRef_sendReqAsync = sendReqAsync
+        , _jsContextRef_syncThreadId = Nothing
         , _jsContextRef_nextRefId = nextRefId
         , _jsContextRef_nextGetJsonReqId = nextGetJsonReqId
         , _jsContextRef_getJsonReqs = getJsonReqs
@@ -210,7 +212,11 @@ runJavaScript sendReqAsync = do
               myDepth <- enterSyncFrame
               _ <- forkIO $ do
                 _ :: Either SomeException () <- try $ do
-                  let syncEnv = env { _jsContextRef_sendReq = enqueueYieldVal . Right }
+                  threadId <- myThreadId
+                  syncStateLocal <- newMVar SyncState_InSync
+                  let syncEnv = env { _jsContextRef_sendReq = enqueueYieldVal . Right
+                                    , _jsContextRef_syncThreadId = Just threadId
+                                    , _jsContextRef_syncState = syncStateLocal }
                   result <- flip runReaderT syncEnv $ unJSM $
                     join $ callback <$> wrapJSVal this <*> traverse wrapJSVal args --TODO: Handle exceptions that occur within the callback
                   exitSyncFrame myDepth result

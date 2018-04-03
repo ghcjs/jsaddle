@@ -2,7 +2,6 @@
 #ifdef ghcjs_HOST_OS
 {-# OPTIONS_GHC -Wno-dodgy-exports      #-}
 #else
-{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -13,6 +12,7 @@
 {-# LANGUAGE DefaultSignatures          #-}
 {-# LANGUAGE ImplicitParams             #-}
 #endif
+{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE AllowAmbiguousTypes        #-}
@@ -124,7 +124,7 @@ import GHCJS.Nullable (Nullable(..))
 import GHCJS.Prim.Internal
 import Data.JSString.Internal.Type (JSString(..))
 import Data.Monoid
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (myThreadId, ThreadId, threadDelay)
 import Control.Exception (Exception, throwIO)
 import Control.Monad (void)
 import Control.Monad.Catch (MonadThrow, MonadCatch(..), MonadMask(..), bracket_)
@@ -475,6 +475,8 @@ instance FromJSON TryReq where
 
 data JSContextRef = JSContextRef
   { _jsContextRef_sendReq :: !(TryReq -> IO ())
+  , _jsContextRef_sendReqAsync :: !(TryReq -> IO ())
+  , _jsContextRef_syncThreadId :: Maybe (ThreadId)
   , _jsContextRef_nextRefId :: !(TVar RefId)
   , _jsContextRef_nextGetJsonReqId :: !(TVar GetJsonReqId)
   , _jsContextRef_getJsonReqs :: !(TVar (Map GetJsonReqId (MVar A.Value))) -- ^ The GetJson requests that are currently in-flight
@@ -746,7 +748,13 @@ instance Exception JavaScriptException
 
 runJSM :: MonadIO m => JSM a -> JSContextRef -> m a
 runJSM a ctx = liftIO $ do
-  result <- flip runReaderT ctx $ unJSM $ do
+  threadId <- myThreadId
+  let ctx' = if _jsContextRef_syncThreadId ctx == Just threadId
+                then ctx
+                else ctx {
+                    _jsContextRef_syncThreadId = Nothing,
+                    _jsContextRef_sendReq = _jsContextRef_sendReqAsync ctx }
+  result <- flip runReaderT ctx' $ unJSM $ do
     catchError (Right <$> a) (return . Left)  -- <* waitForSync
   either (throwIO . JavaScriptException) return result
 
@@ -774,12 +782,12 @@ waitForSync = do
       synced <- newEmptyMVar
       syncReqId <- getNextTVar nextSyncReqId
       atomically $ modifyTVar' syncReqs $ M.insert syncReqId synced
-      sendReq' $ TryReq
+      sendReq' TryReq
         { _tryReq_tryId = tid
         , _tryReq_req = Req_Sync syncReqId
         }
-      return $ (,) (SyncState_WaitingForSync synced) $ do
+      return $ (,) (SyncState_WaitingForSync synced) $
         unsafeInlineLiftIO $ readMVar synced
     SyncState_WaitingForSync synced -> do
-      return $ (,) old $ do
+      return $ (,) old $
         unsafeInlineLiftIO $ readMVar synced
