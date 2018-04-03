@@ -74,6 +74,9 @@ extern void jsaddleSyncResult(HsStablePtr, JSaddleHandler *, const char * _Nonnu
 void addJSaddleHandler(WKWebView *webView, HsStablePtr startHandler, HsStablePtr resultHandler, HsStablePtr syncHandler) {
     JSaddleHandler * handler = [[JSaddleHandler alloc] initHandler:startHandler resultHandler:resultHandler syncHandler:syncHandler];
     [[[webView configuration] userContentController] addScriptMessageHandler:handler name:@"jsaddle"];
+#ifdef USE_UIKIT
+    webView.scrollView.bounces = NO;
+#endif
     webView.navigationDelegate = handler;
     webView.UIDelegate = handler;
 }

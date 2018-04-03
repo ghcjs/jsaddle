@@ -37,12 +37,12 @@ import Network.Wai
 import Network.WebSockets
        (ConnectionOptions(..), sendTextData,
         receiveDataMessage, acceptRequest, ServerApp, sendPing)
-import qualified Network.WebSockets as WS (DataMessage(..))
 import Network.Wai.Handler.WebSockets (websocketsOr)
+import Network.HTTP.Types (Status(..))
 
 import Language.Javascript.JSaddle.Types (JSM(..))
 import qualified Network.Wai as W
-       (responseLBS, requestMethod, pathInfo)
+       (responseLBS, requestMethod, pathInfo, modifyResponse, responseStatus)
 import qualified Data.ByteString.Base64.URL as Base64URL
 import qualified Data.Text as T (pack)
 import Data.Text.Encoding (decodeUtf8)
@@ -61,6 +61,8 @@ import Control.Exception (try, SomeException (..))
 
 --TODO: stylish-haskell
 
+import Language.Javascript.JSaddle.WebSockets.Compat (getTextMessageByteString)
+
 jsaddleOr :: ConnectionOptions -> JSM () -> Application -> IO Application
 jsaddleOr opts entryPoint otherApp = do
     syncFuncs <- newIORef Map.empty
@@ -76,8 +78,8 @@ jsaddleOr opts entryPoint otherApp = do
               , ()
               )
             _ <- forkIO . forever $
-                receiveDataMessage conn >>= \case
-                    WS.Text t -> case decode t of
+                receiveDataMessage conn >>= \msg -> case getTextMessageByteString msg of
+                    Just t -> case decode t of
                         Nothing -> putStrLn $ "jsaddle response decode failed: " <> show t
                         Just r  -> do
                           result <- try $ processResult r
@@ -114,7 +116,11 @@ jsaddleOr opts entryPoint otherApp = do
                     Just parsed -> do
                       result <- syncFunc parsed
                       sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/json")] $ encode result
-            _ -> otherApp req sendResponse
+            (method, _) -> (catch404 otherApp) req sendResponse
+              where catch404 = W.modifyResponse $ \resp ->
+                      case (method, W.responseStatus resp) of
+                        ("GET", Status 404 _) -> indexResponse
+                        _ -> resp
     return $ websocketsOr opts wsApp syncHandler
 
 
@@ -135,9 +141,12 @@ jsaddleWithAppOr opts entryPoint otherApp = jsaddleOr opts entryPoint $ \req sen
 jsaddleAppPartial :: Request -> (Response -> IO ResponseReceived) -> Maybe (IO ResponseReceived)
 jsaddleAppPartial = jsaddleAppPartialWithJs $ jsaddleJs False
 
+indexResponse :: Response
+indexResponse = W.responseLBS H.status200 [("Content-Type", "text/html")] indexHtml
+
 jsaddleAppPartialWithJs :: ByteString -> Request -> (Response -> IO ResponseReceived) -> Maybe (IO ResponseReceived)
 jsaddleAppPartialWithJs js req sendResponse = case (W.requestMethod req, W.pathInfo req) of
-    ("GET", []) -> Just $ sendResponse $ W.responseLBS H.status200 [("Content-Type", "text/html")] indexHtml
+    ("GET", []) -> Just $ sendResponse indexResponse
     ("GET", ["jsaddle.js"]) -> Just $ sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/javascript")] js
     _ -> Nothing
 

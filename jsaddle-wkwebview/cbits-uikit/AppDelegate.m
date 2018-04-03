@@ -109,6 +109,15 @@ HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
     callWithCString([deviceTokenString UTF8String], global_didRegisterForRemoteNotificationsWithDeviceToken);
 }
 
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler {
+    // Sent when the application receives remote notifications in the foreground or background
+    // TODO Allow a configurable CString -> IO () to be passed into AppDelegateConfig
+    if ([userInfo valueForKeyPath:@"aps.badge"] != nil) {
+        [UIApplication sharedApplication].applicationIconBadgeNumber=[[[userInfo objectForKey:@"aps"] objectForKey:@"badge"] intValue];
+    }
+    completionHandler(UIBackgroundFetchResultNewData);
+}
+
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
     // Sent to the delegate when Apple Push Notification service cannot successfully complete the registration process.
     NSString *errorString = [error localizedDescription];

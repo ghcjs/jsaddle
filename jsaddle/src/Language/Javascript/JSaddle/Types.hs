@@ -169,6 +169,7 @@ import Control.Monad.STM (atomically)
 import Control.Concurrent.STM.TVar
        (writeTVar, readTVar, modifyTVar')
 import Control.Monad.Primitive
+import Control.Monad.IO.Unlift (MonadUnliftIO(..), UnliftIO(..))
 #endif
 
 #if MIN_VERSION_base(4,9,0) && defined(CHECK_UNCHECKED)
@@ -714,6 +715,11 @@ instance MonadIO JSM where
   liftIO a = do
     waitForSync
     JSM $ liftIO a
+
+instance MonadUnliftIO JSM where
+  askUnliftIO = do
+    ctx <- askJSM
+    return $ UnliftIO (`runJSM` ctx)
 
 instance MonadRef JSM where
     type Ref JSM = MonadRef.Ref IO
