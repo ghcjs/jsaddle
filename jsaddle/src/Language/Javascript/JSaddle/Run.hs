@@ -42,12 +42,7 @@ module Language.Javascript.JSaddle.Run (
 #endif
 ) where
 
-#ifdef ghcjs_HOST_OS
-import Language.Javascript.JSaddle.Types (JSM, syncPoint, syncAfter)
-import qualified JavaScript.Web.AnimationFrame as GHCJS
-       (waitForAnimationFrame)
-#else
-
+#ifndef ghcjs_HOST_OS
 import Control.Exception (try, SomeException(..))
 import Control.Monad (when, join, void)
 import Control.Monad.Trans.Reader (runReaderT)
@@ -69,7 +64,6 @@ import Language.Javascript.JSaddle.Types
 import Data.Foldable (forM_)
 import System.IO.Unsafe
 import Language.Javascript.JSaddle.Monad (syncPoint)
-#endif
 
 -- | The RefId of the global object
 globalRefId :: RefId
@@ -225,3 +219,5 @@ runJavaScript sendReqAsync = do
             Nothing -> error $ "sync callback " <> show callbackId <> " called, but does not exist"
         SyncCommand_Continue -> yield
   return (processRsp, processSyncCommand, env)
+
+#endif

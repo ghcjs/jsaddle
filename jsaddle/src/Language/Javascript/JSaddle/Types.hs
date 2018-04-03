@@ -41,6 +41,8 @@ module Language.Javascript.JSaddle.Types (
   , MonadJSM(..)
   , liftJSM
   , askJSM
+  , runJSM
+  , JSContextRef (..)
 
   -- * pure GHCJS functions
   , GHCJSPure(..)
@@ -73,7 +75,6 @@ module Language.Javascript.JSaddle.Types (
   , IsItMutable(..)
   , Mutability
 
-  , JSContextRef (..)
   , Req (..)
   , Val
   , ValId
@@ -92,7 +93,6 @@ module Language.Javascript.JSaddle.Types (
   , TryReq (..)
   , SyncState (..)
   , JavaScriptException (..)
-  , runJSM
   , sync
   , freeSyncCallback
   , newSyncCallback'
@@ -116,6 +116,8 @@ module Language.Javascript.JSaddle.Types (
 
 import Control.Monad.IO.Class (MonadIO(..))
 #ifdef ghcjs_HOST_OS
+import Control.Exception (Exception)
+import Data.Typeable (Typeable)
 import GHCJS.Types
 import JavaScript.Object.Internal (Object(..))
 import JavaScript.Array.Internal (SomeJSArray(..), JSArray, MutableJSArray, STJSArray)
@@ -178,6 +180,32 @@ import GHC.Stack (HasCallStack)
 import GHC.Exts (Constraint)
 #endif
 
+-- | Identifies a JavaScript execution context.
+--   When using GHCJS this is just '()' since their is only one context.
+--   When using GHC it includes the functions JSaddle needs to communicate
+--   with the JavaScript context.
+#ifdef ghcjs_HOST_OS
+type JSContextRef = ()
+#else
+data JSContextRef = JSContextRef
+  { _jsContextRef_sendReq :: !(TryReq -> IO ())
+  , _jsContextRef_sendReqAsync :: !(TryReq -> IO ())
+  , _jsContextRef_syncThreadId :: Maybe (ThreadId)
+  , _jsContextRef_nextRefId :: !(TVar RefId)
+  , _jsContextRef_nextGetJsonReqId :: !(TVar GetJsonReqId)
+  , _jsContextRef_getJsonReqs :: !(TVar (Map GetJsonReqId (MVar A.Value))) -- ^ The GetJson requests that are currently in-flight
+  , _jsContextRef_nextCallbackId :: !(TVar CallbackId)
+  , _jsContextRef_callbacks :: !(TVar (Map CallbackId (JSVal -> [JSVal] -> JSM JSVal)))
+  , _jsContextRef_pendingResults :: !(TVar (Map RefId (MVar (PrimVal ()))))
+  , _jsContextRef_nextTryId :: !(TVar TryId)
+  , _jsContextRef_tries :: !(TVar (Map TryId (MVar (Either JSVal ()))))
+  , _jsContextRef_myTryId :: !TryId
+  , _jsContextRef_syncState :: !(MVar SyncState)
+  , _jsContextRef_nextSyncReqId :: !(TVar SyncReqId)
+  , _jsContextRef_syncReqs :: !(TVar (Map SyncReqId (MVar ())))
+  }
+#endif
+
 -- | The 'JSM' monad keeps track of the JavaScript execution context.
 --
 --   When using GHCJS it is `IO`.
@@ -189,6 +217,7 @@ import GHC.Exts (Constraint)
 #ifdef ghcjs_HOST_OS
 type JSM = IO
 #else
+newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a } deriving (Functor, Applicative, Monad, MonadFix, MonadThrow)
 #endif
 
 -- | Type we can give to functions that are pure when using ghcjs, but
@@ -310,6 +339,38 @@ liftJSM = liftJSM'
 #endif
 {-# INLINE liftJSM #-}
 
+askJSM :: MonadJSM m => m JSContextRef
+#ifdef ghcjs_HOST_OS
+askJSM = return ()
+#else
+askJSM = liftJSM $ JSM ask
+#endif
+{-# INLINE askJSM #-}
+
+newtype JavaScriptException = JavaScriptException { unJavaScriptException :: JSVal }
+  deriving (Typeable)
+
+instance Show JavaScriptException where
+  show _ = "JavaScriptException _"
+
+instance Exception JavaScriptException
+
+runJSM :: MonadIO m => JSM a -> JSContextRef -> m a
+#ifdef ghcjs_HOST_OS
+runJSM = const . liftIO
+#else
+runJSM a ctx = liftIO $ do
+  threadId <- myThreadId
+  let ctx' = if _jsContextRef_syncThreadId ctx == Just threadId
+                then ctx
+                else ctx {
+                    _jsContextRef_syncThreadId = Nothing,
+                    _jsContextRef_sendReq = _jsContextRef_sendReqAsync ctx }
+  result <- flip runReaderT ctx' $ unJSM $ do
+    catchError (Right <$> a) (return . Left)  -- <* waitForSync
+  either (throwIO . JavaScriptException) return result
+#endif
+
 -- | Type used for Haskell functions called from JavaScript.
 type JSCallAsFunction = JSVal      -- ^ Function object
                      -> JSVal      -- ^ this
@@ -374,6 +435,8 @@ type JSadddleHasCallStack = HasCallStack
 type JSadddleHasCallStack = (() :: Constraint)
 #endif
 
+
+#ifndef ghcjs_HOST_OS
 
 --TODO: We know what order we issued SyncBlock, GetJson, etc. requests in, so we can probably match them up without explicit IDs
 
@@ -473,24 +536,6 @@ instance ToJSON TryReq where
 
 instance FromJSON TryReq where
   parseJSON = A.genericParseJSON $ aesonOptions "TryReq"
-
-data JSContextRef = JSContextRef
-  { _jsContextRef_sendReq :: !(TryReq -> IO ())
-  , _jsContextRef_sendReqAsync :: !(TryReq -> IO ())
-  , _jsContextRef_syncThreadId :: Maybe (ThreadId)
-  , _jsContextRef_nextRefId :: !(TVar RefId)
-  , _jsContextRef_nextGetJsonReqId :: !(TVar GetJsonReqId)
-  , _jsContextRef_getJsonReqs :: !(TVar (Map GetJsonReqId (MVar A.Value))) -- ^ The GetJson requests that are currently in-flight
-  , _jsContextRef_nextCallbackId :: !(TVar CallbackId)
-  , _jsContextRef_callbacks :: !(TVar (Map CallbackId (JSVal -> [JSVal] -> JSM JSVal)))
-  , _jsContextRef_pendingResults :: !(TVar (Map RefId (MVar (PrimVal ()))))
-  , _jsContextRef_nextTryId :: !(TVar TryId)
-  , _jsContextRef_tries :: !(TVar (Map TryId (MVar (Either JSVal ()))))
-  , _jsContextRef_myTryId :: !TryId
-  , _jsContextRef_syncState :: !(MVar SyncState)
-  , _jsContextRef_nextSyncReqId :: !(TVar SyncReqId)
-  , _jsContextRef_syncReqs :: !(TVar (Map SyncReqId (MVar ())))
-  }
 
 -- | Perform IO from JSM without synchronizing with the JS side; since requests
 -- are heavily pipelined, this may result in unpredictable ordering of IO and JS
@@ -688,8 +733,6 @@ callAsConstructor' :: JSVal -> [JSVal] -> JSM JSVal
 callAsConstructor' f args = withJSValOutput_ $ \ref -> do
   sendReq $ Req_CallAsConstructor f args ref
 
-newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a } deriving (Functor, Applicative, Monad, MonadFix, MonadThrow)
-
 --Exceptions: it's pointless for Haskell-side to throw exceptions to javascript side asynchronously, but perhaps it should be allowed
 instance MonadError JSVal JSM where
   catchError a h = do
@@ -744,29 +787,6 @@ instance MonadMask JSM where
       where q :: (ReaderT JSContextRef IO a -> ReaderT JSContextRef IO a) -> JSM a -> JSM a
             q unmask (JSM b) = JSM $ unmask b
 
-newtype JavaScriptException = JavaScriptException { unJavaScriptException :: JSVal }
-  deriving (Typeable)
-
-instance Show JavaScriptException where
-  show _ = "JavaScriptException _"
-
-instance Exception JavaScriptException
-
-runJSM :: MonadIO m => JSM a -> JSContextRef -> m a
-runJSM a ctx = liftIO $ do
-  threadId <- myThreadId
-  let ctx' = if _jsContextRef_syncThreadId ctx == Just threadId
-                then ctx
-                else ctx {
-                    _jsContextRef_syncThreadId = Nothing,
-                    _jsContextRef_sendReq = _jsContextRef_sendReqAsync ctx }
-  result <- flip runReaderT ctx' $ unJSM $ do
-    catchError (Right <$> a) (return . Left)  -- <* waitForSync
-  either (throwIO . JavaScriptException) return result
-
-askJSM :: MonadJSM m => m JSContextRef
-askJSM = liftJSM $ JSM ask
-
 withLog :: String -> IO a -> IO a
 withLog s = bracket_ (putStrLn $ s <> ": enter") (putStrLn $ s <> ": exit")
 
@@ -797,3 +817,5 @@ waitForSync = do
     SyncState_WaitingForSync synced -> do
       return $ (,) old $
         unsafeInlineLiftIO $ readMVar synced
+
+#endif

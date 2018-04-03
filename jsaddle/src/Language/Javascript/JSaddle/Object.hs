@@ -123,6 +123,7 @@ import Language.Javascript.JSaddle.Types
         SomeJSArray(..), JSVal(..), JSCallAsFunction)
 import JavaScript.Object.Internal (create, listProps)
 import Language.Javascript.JSaddle.Run
+import GHCJS.Prim.Internal (primToJSVal)
 #endif
 import JavaScript.Array.Internal (fromListIO)
 import Language.Javascript.JSaddle.Value (valToObject, jsNull)
@@ -131,7 +132,6 @@ import Language.Javascript.JSaddle.Marshal.String (ToJSString(..))
 import Language.Javascript.JSaddle.Arguments (MakeArgs(..))
 import Language.Javascript.JSaddle.Properties
 import Control.Lens (IndexPreservingGetter, to)
-import GHCJS.Prim.Internal (primToJSVal)
 
 -- $setup
 -- >>> import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
@@ -481,7 +481,7 @@ asyncFunction f = do
 
 freeFunction :: Function -> JSM ()
 #ifdef ghcjs_HOST_OS
-freeFunction (Function callback _) = liftIO $
+freeFunction (Function callback _) =
     releaseCallback callback
 #else
 freeFunction (Function syncCallbackId _) = do
@@ -547,8 +547,8 @@ objCallAsFunction :: MakeArgs args
                   -> JSM JSVal
 #ifdef ghcjs_HOST_OS
 objCallAsFunction f this args = do
-    rargs <- makeArgs args >>= liftIO . Array.fromListIO
-    liftIO $ js_apply f this rargs
+    rargs <- makeArgs args >>= Array.fromListIO
+    js_apply f this rargs
 foreign import javascript unsafe "$r = $1.apply($2, $3)"
     js_apply :: Object -> Object -> MutableJSArray -> IO JSVal
 #else
@@ -567,8 +567,8 @@ objCallAsConstructor :: MakeArgs args
                      -> JSM JSVal
 #ifdef ghcjs_HOST_OS
 objCallAsConstructor f args = do
-    rargs <- makeArgs args >>= liftIO . Array.fromListIO
-    liftIO $ js_new f rargs
+    rargs <- makeArgs args >>= Array.fromListIO
+    js_new f rargs
 foreign import javascript unsafe "\
         switch($2.length) {\
             case 0 : $r = new $1(); break;\
