@@ -35,7 +35,7 @@ debug :: Int -> JSM () -> IO ()
 debug port f = do
     debugWrapper $ \withRefresh registerContext ->
         runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
-            jsaddleOr defaultConnectionOptions (registerContext >> f) (withRefresh $ jsaddleAppWithJs $ jsaddleJs True)
+            jsaddleOr defaultConnectionOptions (registerContext >> f) (withRefresh $ jsaddleAppWithJs $ jsaddleJs Nothing True)
     putStrLn $ "<a href=\"http://localhost:" <> show port <> "\">run</a>"
 
 refreshMiddleware :: ((Response -> IO ResponseReceived) -> IO ResponseReceived) -> Middleware

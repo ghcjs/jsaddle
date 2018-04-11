@@ -54,6 +54,7 @@ import Data.Maybe (fromMaybe)
 import Data.IORef
        (readIORef, newIORef, atomicModifyIORef')
 import Data.ByteString.Lazy (ByteString)
+import qualified Data.ByteString.Lazy as LBS (stripPrefix)
 import Language.Javascript.JSaddle (runJSM)
 import qualified Data.Map as Map
 import System.Entropy (getEntropy)
@@ -125,7 +126,7 @@ jsaddleOr opts entryPoint otherApp = do
 
 
 jsaddleApp :: Application
-jsaddleApp = jsaddleAppWithJs $ jsaddleJs False
+jsaddleApp = jsaddleAppWithJs $ jsaddleJs Nothing False
 
 jsaddleAppWithJs :: ByteString -> Application
 jsaddleAppWithJs js req sendResponse =
@@ -139,7 +140,7 @@ jsaddleWithAppOr opts entryPoint otherApp = jsaddleOr opts entryPoint $ \req sen
      (jsaddleAppPartial req sendResponse))
 
 jsaddleAppPartial :: Request -> (Response -> IO ResponseReceived) -> Maybe (IO ResponseReceived)
-jsaddleAppPartial = jsaddleAppPartialWithJs $ jsaddleJs False
+jsaddleAppPartial = jsaddleAppPartialWithJs $ jsaddleJs Nothing False
 
 indexResponse :: Response
 indexResponse = W.responseLBS H.status200 [("Content-Type", "text/html")] indexHtml
@@ -153,21 +154,25 @@ jsaddleAppPartialWithJs js req sendResponse = case (W.requestMethod req, W.pathI
 --TODO: Make refreshOnLoad work
 -- Use this to generate this string for embedding
 -- sed -e 's|\\|\\\\|g' -e 's|^|    \\|' -e 's|$|\\n\\|' -e 's|"|\\"|g' data/jsaddle.js | pbcopy
-jsaddleJs :: Bool -> ByteString
-jsaddleJs refreshOnLoad = jsaddleCoreJs <> "\
+jsaddleJs :: Maybe ByteString -> Bool -> ByteString
+jsaddleJs jsaddleUri refreshOnLoad = jsaddleCoreJs <> "\
     \if(typeof global !== \"undefined\") {\n\
     \    global.window = global;\n\
     \    global.WebSocket = require('ws');\n\
     \}\n\
     \\n\
     \var connect = function() {\n\
-    \    var wsaddress = window.location.protocol.replace('http', 'ws')+\"//\"+window.location.hostname+(window.location.port?(\":\"+window.location.port):\"\");\n\
+    \    var wsaddress = "
+      <> maybe "window.location.protocol.replace('http', 'ws')+\"//\"+window.location.hostname+(window.location.port?(\":\"+window.location.port):\"\")"
+            (\ s -> "\"ws" <> s <> "\"")
+            (jsaddleUri >>= LBS.stripPrefix "http")
+      <> ";\n\
     \\n\
     \    var ws = new WebSocket(wsaddress);\n\
     \    var connId;\n\
     \    var sync = function(v) {\n\
     \      var xhr = new XMLHttpRequest();\n\
-    \      xhr.open('POST', '/sync/' + connId, false);\n\
+    \      xhr.open('POST', '" <> fromMaybe "" jsaddleUri <> "/sync/' + connId, false);\n\
     \      xhr.setRequestHeader(\"Content-type\", \"application/json\");\n\
     \      xhr.send(JSON.stringify(v));\n\
     \      return JSON.parse(xhr.response);\n\
