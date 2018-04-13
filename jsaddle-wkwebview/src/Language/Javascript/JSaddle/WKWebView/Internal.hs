@@ -34,7 +34,7 @@ foreign export ccall callWithWebView :: WKWebView -> StablePtr (WKWebView -> IO 
 foreign export ccall callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
 foreign export ccall callIO :: StablePtr (IO ()) -> IO ()
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> StablePtr (Results -> IO Batch) -> IO ()
-foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
+foreign import ccall loadHTMLStringWithBaseURL :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall evaluateJavaScript :: WKWebView -> CString -> IO ()
 foreign import ccall completeSync :: JSaddleHandler -> CString -> IO ()
@@ -44,7 +44,9 @@ foreign import ccall mainBundleResourcePathC :: IO CString
 jsaddleMain :: JSM () -> WKWebView -> IO ()
 jsaddleMain f webView =
     jsaddleMain' f webView $
-        useAsCString (toStrict indexHtml) $ loadHTMLString webView
+        useAsCString (toStrict indexHtmlBaseURL) $ \url ->
+            useAsCString (toStrict indexHtml) $ \html ->
+                loadHTMLStringWithBaseURL webView html url
 
 -- | Run JSaddle in a WKWebView first loading the specified file
 --   from the mainBundle (relative to the resourcePath).
@@ -123,6 +125,10 @@ jsaddleJs = ghcjsHelpers <> "\
     \})();\n\
     \"
 
+
+indexHtmlBaseURL :: ByteString
+indexHtmlBaseURL = "file:///tmp/index.html"
+
 indexHtml :: ByteString
 indexHtml =
     "<!DOCTYPE html>\n\
@@ -140,4 +146,3 @@ mainBundleResourcePath = do
     if bs == nullPtr
         then return Nothing
         else Just <$> packCString bs
-

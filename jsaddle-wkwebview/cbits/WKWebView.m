@@ -61,9 +61,9 @@ extern void jsaddleSyncResult(HsStablePtr, JSaddleHandler *, const char * _Nonnu
 
     if(!navigationAction.targetFrame && ![url.scheme isEqualToString:@"file"]) {
         if(openApp(url))
-		    decisionHandler(WKNavigationActionPolicyCancel);
-		else
-		    decisionHandler(WKNavigationActionPolicyAllow);
+        decisionHandler(WKNavigationActionPolicyCancel);
+    else
+        decisionHandler(WKNavigationActionPolicyAllow);
     }
     else
         decisionHandler(WKNavigationActionPolicyAllow);
@@ -95,10 +95,11 @@ void completeSync(JSaddleHandler *handler, const char * _Nonnull s) {
     handler.completionHandler = NULL;
 }
 
-void loadHTMLString(WKWebView *webView, const char * _Nonnull html) {
-    NSString *htmlString = [NSString stringWithCString:html encoding:NSUTF8StringEncoding];
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [webView loadHTMLString:htmlString baseURL:NULL];
+void loadHTMLStringWithBaseURL(WKWebView *webView, const char * _Nonnull html, const char * _Nonnull url) {
+  NSString *htmlString = [NSString stringWithCString:html encoding:NSUTF8StringEncoding];
+  NSURL *baseURL = [NSURL fileURLWithPath:[[NSString alloc] initWithCString:url encoding:NSUTF8StringEncoding]];
+  dispatch_async(dispatch_get_main_queue(), ^{
+      [webView loadHTMLString:htmlString baseURL:baseURL];
     });
 }
 
@@ -121,6 +122,3 @@ void loadBundleFile(WKWebView *webView, const char * _Nonnull file, const char *
         }
     }
 }
-
-
-
