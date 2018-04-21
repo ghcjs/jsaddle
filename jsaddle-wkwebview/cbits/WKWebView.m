@@ -61,9 +61,9 @@ extern void jsaddleSyncResult(HsStablePtr, JSaddleHandler *, const char * _Nonnu
 
     if(!navigationAction.targetFrame && ![url.scheme isEqualToString:@"file"]) {
         if(openApp(url))
-        decisionHandler(WKNavigationActionPolicyCancel);
-    else
-        decisionHandler(WKNavigationActionPolicyAllow);
+            decisionHandler(WKNavigationActionPolicyCancel);
+         else
+            decisionHandler(WKNavigationActionPolicyAllow);
     }
     else
         decisionHandler(WKNavigationActionPolicyAllow);
