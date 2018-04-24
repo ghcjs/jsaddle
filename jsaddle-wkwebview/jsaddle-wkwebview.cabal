@@ -30,7 +30,9 @@ library
         aeson >=0.8.0.2 && <1.3,
         base <5,
         bytestring >=0.10.6.0 && <0.11,
+        directory,
         jsaddle >= 0.9.4.0 && <0.10,
+        text,
         data-default,
         containers
     default-language: Haskell2010

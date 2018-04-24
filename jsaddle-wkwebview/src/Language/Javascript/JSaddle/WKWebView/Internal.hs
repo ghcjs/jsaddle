@@ -15,6 +15,8 @@ import Data.ByteString (useAsCString, packCString)
 import qualified Data.ByteString as BS (ByteString)
 import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
 import Data.Aeson (encode, decode)
+import qualified Data.Text as T (pack)
+import Data.Text.Encoding (encodeUtf8)
 
 import Foreign.C.String (CString)
 import Foreign.Ptr (Ptr, nullPtr)
@@ -23,6 +25,8 @@ import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 import Language.Javascript.JSaddle (Results, Batch, JSM)
 import Language.Javascript.JSaddle.Run (runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
+
+import System.Directory (getCurrentDirectory)
 
 newtype WKWebView = WKWebView (Ptr WKWebView)
 newtype JSaddleHandler = JSaddleHandler (Ptr JSaddleHandler)
@@ -34,7 +38,7 @@ foreign export ccall callWithWebView :: WKWebView -> StablePtr (WKWebView -> IO 
 foreign export ccall callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
 foreign export ccall callIO :: StablePtr (IO ()) -> IO ()
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> StablePtr (Results -> IO Batch) -> IO ()
-foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
+foreign import ccall loadHTMLStringWithBaseURL :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall evaluateJavaScript :: WKWebView -> CString -> IO ()
 foreign import ccall completeSync :: JSaddleHandler -> CString -> IO ()
@@ -42,9 +46,13 @@ foreign import ccall mainBundleResourcePathC :: IO CString
 
 -- | Run JSaddle in WKWebView
 jsaddleMain :: JSM () -> WKWebView -> IO ()
-jsaddleMain f webView =
+jsaddleMain f webView = do
+    pwd <- getCurrentDirectory
+    let baseURL = encodeUtf8 $ "file://" <> T.pack pwd <> "/index.html"
     jsaddleMain' f webView $
-        useAsCString (toStrict indexHtml) $ loadHTMLString webView
+        useAsCString baseURL $ \url ->
+            useAsCString (toStrict indexHtml) $ \html ->
+                loadHTMLStringWithBaseURL webView html url
 
 -- | Run JSaddle in a WKWebView first loading the specified file
 --   from the mainBundle (relative to the resourcePath).
@@ -140,4 +148,3 @@ mainBundleResourcePath = do
     if bs == nullPtr
         then return Nothing
         else Just <$> packCString bs
-
