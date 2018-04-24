@@ -148,7 +148,7 @@ run main = do
     void . onWebViewLoadChanged webView $ \case
         LoadEventFinished -> runInWebView main webView
         _ -> return ()
-    webViewLoadHtml  webView "" . Just $ "file://" <> T.pack pwd <> "/"
+    webViewLoadHtml webView "" . Just $ "file://" <> T.pack pwd <> "/index.html"
     installQuitHandler webView
     Gtk.main
 
