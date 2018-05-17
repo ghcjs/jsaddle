@@ -158,6 +158,7 @@ import Data.Aeson (ToJSON(..), FromJSON(..))
 import GHC.Generics (Generic)
 import Data.Int
 import qualified Data.Aeson as A
+import qualified Data.Aeson.TH as A
 import Data.Map (Map)
 import System.IO.Unsafe
 import Data.IORef

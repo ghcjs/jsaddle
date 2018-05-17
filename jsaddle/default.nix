@@ -16,7 +16,7 @@ mkDerivation {
   ] else [
     attoparsec containers deepseq filepath ghc-prim http-types process
     random ref-tf scientific stm time unordered-containers vector
-    unliftio-core, async
+    unliftio-core async
   ]);
   description = "Interface for JavaScript that works with GHCJS and GHC";
   license = stdenv.lib.licenses.mit;
