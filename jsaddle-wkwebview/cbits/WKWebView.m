@@ -97,7 +97,7 @@ void completeSync(JSaddleHandler *handler, const char * _Nonnull s) {
 
 void loadHTMLStringWithBaseURL(WKWebView *webView, const char * _Nonnull html, const char * _Nonnull url) {
   NSString *htmlString = [NSString stringWithCString:html encoding:NSUTF8StringEncoding];
-  NSURL *baseURL = [NSURL fileURLWithPath:[[NSString alloc] initWithCString:url encoding:NSUTF8StringEncoding]];
+  NSURL *baseURL = [NSURL URLWithString:[[NSString alloc] initWithCString:url encoding:NSUTF8StringEncoding]];
   dispatch_async(dispatch_get_main_queue(), ^{
       [webView loadHTMLString:htmlString baseURL:baseURL];
     });

@@ -1,6 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface, OverloadedStrings #-}
 module Language.Javascript.JSaddle.WKWebView.Internal
     ( jsaddleMain
+    , jsaddleMainHTMLWithBaseURL
     , jsaddleMainFile
     , WKWebView(..)
     , mainBundleResourcePath
@@ -49,9 +50,19 @@ jsaddleMain :: JSM () -> WKWebView -> IO ()
 jsaddleMain f webView = do
     pwd <- getCurrentDirectory
     let baseURL = encodeUtf8 $ "file://" <> T.pack pwd <> "/index.html"
+    jsaddleMainHTMLWithBaseURL (toStrict indexHtml) baseURL f webView
+
+-- | Run JSaddle in WKWebView with initial html and base url
+jsaddleMainHTMLWithBaseURL
+  :: BS.ByteString -- ^ HTML
+  -> BS.ByteString -- ^ Base URL
+  -> JSM ()
+  -> WKWebView
+  -> IO ()
+jsaddleMainHTMLWithBaseURL initialHTML baseURL f webView =
     jsaddleMain' f webView $
         useAsCString baseURL $ \url ->
-            useAsCString (toStrict indexHtml) $ \html ->
+            useAsCString initialHTML $ \html ->
                 loadHTMLStringWithBaseURL webView html url
 
 -- | Run JSaddle in a WKWebView first loading the specified file

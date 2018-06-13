@@ -1,9 +1,12 @@
 module Language.Javascript.JSaddle.WKWebView
     ( jsaddleMain
+    , jsaddleMainHTMLWithBaseURL
     , jsaddleMainFile
     , WKWebView(..)
     , run
+    , run'
     , runWithAppConfig
+    , runHTMLWithBaseURL
     , runFile
     , mainBundleResourcePath
     , AppDelegateConfig (..)
@@ -17,7 +20,8 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Word
 import Foreign.Marshal.Utils (fromBool)
-import Language.Javascript.JSaddle.WKWebView.Internal (jsaddleMain, jsaddleMainFile, WKWebView(..), mainBundleResourcePath)
+import Language.Javascript.JSaddle.WKWebView.Internal
+       (jsaddleMain, jsaddleMainHTMLWithBaseURL, jsaddleMainFile, WKWebView(..), mainBundleResourcePath)
 import System.Environment (getProgName)
 import Foreign.C.String (CString, withCString)
 import Foreign.StablePtr (StablePtr, newStablePtr)
@@ -96,29 +100,38 @@ instance Default AppDelegateNotificationConfig where
 
 -- | Run JSaddle in a WKWebView
 run :: JSM () -> IO ()
-run = run' Nothing def
+run f = run' def (jsaddleMain f)
 
 -- | Run JSaddle in a WKWebView
 runWithAppConfig :: AppDelegateConfig -> JSM () -> IO ()
-runWithAppConfig = run' Nothing
+runWithAppConfig cfg = run' cfg . jsaddleMain
 
 -- | Run JSaddle in a WKWebView first loading the specified file
 --   from the mainBundle (relative to the resourcePath).
-runFile :: ByteString -- ^ The file to navigate to.
-        -> ByteString -- ^ The path to allow read access to.
-        -> AppDelegateConfig
-        -> JSM ()
-        -> IO ()
-runFile url allowing = run' $ Just (url, allowing)
+runFile
+  :: ByteString -- ^ The file to navigate to.
+  -> ByteString -- ^ The path to allow read access to.
+  -> AppDelegateConfig
+  -> JSM ()
+  -> IO ()
+runFile url allowing cfg = run' cfg . jsaddleMainFile url allowing
 
-run' :: Maybe (ByteString, ByteString)
-     -> AppDelegateConfig
-     -> JSM ()
+-- | Run JSaddle in a WKWebView first loading the specified html
+--   as though it came from the specified URL
+--   (calls WKWebKit function loadHTMLString).
+runHTMLWithBaseURL
+  :: ByteString -- ^ HTML to load.
+  -> ByteString -- ^ pretend it came from this URL.
+  -> AppDelegateConfig
+  -> JSM ()
+  -> IO ()
+runHTMLWithBaseURL url allowing cfg = run' cfg . jsaddleMainHTMLWithBaseURL url allowing
+
+run' :: AppDelegateConfig
+     -> (WKWebView -> IO ())
      -> IO ()
-run' mUrl cfg f = do
-    handler <- case mUrl of
-      Just (url, allowing) -> newStablePtr (jsaddleMainFile url allowing f)
-      Nothing -> newStablePtr (jsaddleMain f)
+run' cfg main = do
+    handler <- newStablePtr main
     progName <- getProgName
 
     -- AppDelegate callbacks
