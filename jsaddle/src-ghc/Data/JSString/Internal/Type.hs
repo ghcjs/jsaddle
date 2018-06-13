@@ -38,10 +38,11 @@ import Data.Aeson                     (ToJSON(..), FromJSON(..))
 import Data.Data                      (Data)
 -- import Data.Text.Internal.Unsafe.Char (ord)
 import Data.Typeable                  (Typeable)
+import Data.Semigroup                 (Semigroup)
 import GHC.Exts                       (Char(..), ord#, andI#, (/=#), isTrue#)
 
 -- | A wrapper around a JavaScript string
-newtype JSString = JSString Text deriving(Show, Read, IsString, Monoid, Ord, Eq, Data, ToJSON, FromJSON, Typeable)
+newtype JSString = JSString Text deriving(Show, Read, IsString, Semigroup, Monoid, Ord, Eq, Data, ToJSON, FromJSON, Typeable)
 
 instance NFData JSString where rnf !_ = ()
 
