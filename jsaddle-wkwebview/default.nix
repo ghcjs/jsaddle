@@ -7,8 +7,8 @@ mkDerivation {
   version = "0.9.4.0";
   src = ./.;
   libraryHaskellDepends = [ aeson base bytestring jsaddle data-default ];
-  libraryFrameworkDepends = with buildPackages; if hostPlatform.useiOSCross or false then [
-    (assert osx_sdk != null; osx_sdk)
+  libraryFrameworkDepends = with buildPackages; if hostPlatform.useiOSPrebuilt then [
+    "${darwin.xcode_8_2}/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System"
   ] else [
     darwin.libobjc
     darwin.apple_sdk.libs.xpc
