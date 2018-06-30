@@ -22,6 +22,7 @@ module Language.Javascript.JSaddle.WebSockets (
   , jsaddleAppWithJs
   , jsaddleAppPartial
   , jsaddleJs
+  , jsaddleJs'
   , debug
   , debugWrapper
 ) where
