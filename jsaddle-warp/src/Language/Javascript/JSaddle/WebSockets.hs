@@ -21,6 +21,7 @@ module Language.Javascript.JSaddle.WebSockets (
   , jsaddleWithAppOr
   , jsaddleAppPartial
   , jsaddleJs
+  , jsaddleJsWithUrlExpressions
   , debug
   , debugWrapper
 ) where
@@ -150,14 +151,24 @@ jsaddleAppPartialWithJs js req sendResponse = case (W.requestMethod req, W.pathI
 -- Use this to generate this string for embedding
 -- sed -e 's|\\|\\\\|g' -e 's|^|    \\|' -e 's|$|\\n\\|' -e 's|"|\\"|g' data/jsaddle.js | pbcopy
 jsaddleJs :: Bool -> ByteString
-jsaddleJs refreshOnLoad = "\
+jsaddleJs = jsaddleJsWithUrlExpressions
+  "window.location.protocol.replace('http', 'ws')+\"//\"+window.location.hostname+(window.location.port?(\":\"+window.location.port):\"\")"
+  "''"
+
+jsaddleJsWithUrlExpressions
+  :: ByteString -- ^ JavaScript expression returning the websocket path to connect to
+  -> ByteString -- ^ JavaScript expression returning the root of the xhr path to connect to; "/sync" and "/reload" will be appended to this path
+  -> Bool
+  -> ByteString
+jsaddleJsWithUrlExpressions websocketPathExpr xhrRootPathExpr refreshOnLoad = "\
     \if(typeof global !== \"undefined\") {\n\
     \    global.window = global;\n\
     \    global.WebSocket = require('ws');\n\
     \}\n\
     \\n\
     \var connect = function() {\n\
-    \    var wsaddress = window.location.protocol.replace('http', 'ws')+\"//\"+window.location.hostname+(window.location.port?(\":\"+window.location.port):\"\");\n\
+    \    var wsaddress = " <> websocketPathExpr <> ";\n\
+    \    var xhrRoot = " <> xhrRootPathExpr <> ";\n\
     \\n\
     \    var ws = new WebSocket(wsaddress);\n\
     \    var syncKey = \"\";\n\
@@ -175,7 +186,7 @@ jsaddleJs refreshOnLoad = "\
     \                syncKey = batch;\n" <>
     (if refreshOnLoad
      then "                var xhr = new XMLHttpRequest();\n\
-          \                xhr.open('POST', '/reload/'+syncKey, true);\n\
+          \                xhr.open('POST', xhrRoot+'/reload/'+syncKey, true);\n\
           \                xhr.onreadystatechange = function() {\n\
           \                    if(xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200)\n\
           \                        setTimeout(function(){window.location.reload();}, 100);\n\
@@ -188,7 +199,7 @@ jsaddleJs refreshOnLoad = "\
     \ " <> runBatch (\a -> "ws.send(JSON.stringify(" <> a <> "));")
               (Just (\a -> "(function(){\n\
                   \                       var xhr = new XMLHttpRequest();\n\
-                  \                       xhr.open('POST', '/sync/'+syncKey, false);\n\
+                  \                       xhr.open('POST', xhrRoot+'/sync/'+syncKey, false);\n\
                   \                       xhr.setRequestHeader(\"Content-type\", \"application/json\");\n\
                   \                       xhr.send(JSON.stringify(" <> a <> "));\n\
                   \                       return JSON.parse(xhr.response);})()")) <> "\
