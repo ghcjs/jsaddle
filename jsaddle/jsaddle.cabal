@@ -107,11 +107,11 @@ library
         Language.Javascript.JSaddle.Value
         Language.Javascript.JSaddle.Types
     build-depends:
-        aeson >=0.8.0.2 && <1.3,
+        aeson >=0.8.0.2 && <1.4,
         base <5,
         base64-bytestring >=1.0.0.1 && <1.1,
         bytestring >=0.10.6.0 && <0.11,
-        exceptions >=0.8 && <0.9,
+        exceptions >=0.8 && <0.11,
         lens >=3.8.5 && <4.17,
         primitive >=0.6.1.0 && <0.7,
         text >=1.2.1.3 && <1.3,
@@ -123,5 +123,3 @@ library
         cpp-options: -DCHECK_UNCHECKED
     if flag(call-stacks) || flag(check-unchecked)
         cpp-options: -DJSADDLE_HAS_CALL_STACK
-
-
