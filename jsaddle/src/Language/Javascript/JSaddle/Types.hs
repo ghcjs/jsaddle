@@ -178,6 +178,13 @@ instance MonadMask JSM where
     JSM $ uninterruptibleMask $ \unmask -> unJSM (a $ q unmask)
       where q :: (ReaderT JSContextRef IO a -> ReaderT JSContextRef IO a) -> JSM a -> JSM a
             q unmask (JSM b) = syncAfter . JSM $ unmask b
+#if MIN_VERSION_exceptions(0,9,0)
+  generalBracket acquire release use =
+    JSM $ generalBracket
+      (unJSM acquire)
+      (\resource exitCase -> unJSM $ release resource exitCase)
+      (unJSM . syncAfter . use)
+#endif
 
 #endif
 
