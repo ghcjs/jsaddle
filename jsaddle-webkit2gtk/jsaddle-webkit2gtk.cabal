@@ -26,7 +26,7 @@ library
         base <5
     if !impl(ghcjs -any)
       build-depends:
-        aeson >=0.8.0.2 && <1.3,
+        aeson >=0.8.0.2 && <1.4,
         base <5,
         bytestring >=0.10.6.0 && <0.11,
         directory >=1.0.0.2 && <1.4,
