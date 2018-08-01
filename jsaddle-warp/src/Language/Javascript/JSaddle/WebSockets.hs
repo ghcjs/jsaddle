@@ -20,10 +20,12 @@ module Language.Javascript.JSaddle.WebSockets (
   , jsaddleApp
   , jsaddleWithAppOr
   , jsaddleAppWithJs
+  , jsaddleAppWithJsOr
   , jsaddleAppPartial
   , jsaddleJs
   , jsaddleJs'
   , debug
+  , debugOr
   , debugWrapper
 ) where
 
@@ -129,9 +131,14 @@ jsaddleApp = jsaddleAppWithJs $ jsaddleJs False
 
 jsaddleAppWithJs :: ByteString -> Application
 jsaddleAppWithJs js req sendResponse =
-    fromMaybe
-        (sendResponse $  W.responseLBS H.status403 [("Content-Type", "text/plain")] "Forbidden")
-        (jsaddleAppPartialWithJs js req sendResponse)
+  jsaddleAppWithJsOr js
+    (\_ _ -> sendResponse $ W.responseLBS H.status403 [("Content-Type", "text/plain")] "Forbidden")
+    req sendResponse
+
+jsaddleAppWithJsOr :: ByteString -> Application -> Application
+jsaddleAppWithJsOr js otherApp req sendResponse =
+  fromMaybe (otherApp req sendResponse)
+    (jsaddleAppPartialWithJs js req sendResponse)
 
 jsaddleWithAppOr :: ConnectionOptions -> JSM () -> Application -> IO Application
 jsaddleWithAppOr opts entryPoint otherApp = jsaddleOr opts entryPoint $ \req sendResponse ->
@@ -221,6 +228,13 @@ debug port f = do
     debugWrapper $ \withRefresh registerContext ->
         runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
             jsaddleOr defaultConnectionOptions (registerContext >> f >> syncPoint) (withRefresh $ jsaddleAppWithJs $ jsaddleJs True)
+    putStrLn $ "<a href=\"http://localhost:" <> show port <> "\">run</a>"
+
+debugOr :: Int -> JSM () -> Application -> IO ()
+debugOr port f b = do
+    debugWrapper $ \withRefresh registerContext ->
+        runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
+            jsaddleOr defaultConnectionOptions (registerContext >> f >> syncPoint) (withRefresh $ jsaddleAppWithJsOr (jsaddleJs True) b)
     putStrLn $ "<a href=\"http://localhost:" <> show port <> "\">run</a>"
 
 refreshMiddleware :: ((Response -> IO ResponseReceived) -> IO ResponseReceived) -> Middleware
