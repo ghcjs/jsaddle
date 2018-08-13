@@ -24,6 +24,8 @@ library
     if !impl(ghcjs -any)
         exposed-modules:
             Language.Javascript.JSaddle.WebSockets
+        other-modules:
+            Language.Javascript.JSaddle.WebSockets.Compat
         build-depends:
             aeson >=0.8.0.2 && <1.3,
             bytestring >=0.10.6.0 && <0.11,
