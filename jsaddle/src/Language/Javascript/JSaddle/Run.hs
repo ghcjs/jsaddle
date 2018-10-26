@@ -227,10 +227,11 @@ runJavaScript sendBatch entryPoint = do
                         zipWithM_ putMVar resultMVars results
                         forM_ callbacksToFree $ \(JSValueReceived val) ->
                             atomically (modifyTVar' callbacks (M.delete val))
-                    (_, Failure callbacksToFree results exception) -> do
+                    (_, Failure callbacksToFree results exception err) -> do
                         -- The exception will only be rethrown in Haskell if/when one of the
                         -- missing results (if any) is evaluated.
                         putStrLn "A JavaScript exception was thrown! (may not reach Haskell code)"
+                        putStrLn err
                         zipWithM_ putMVar resultMVars $ results <> repeat (ThrowJSValue exception)
                         forM_ callbacksToFree $ \(JSValueReceived val) ->
                             atomically (modifyTVar' callbacks (M.delete val))
