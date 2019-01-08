@@ -124,6 +124,7 @@ import Data.Aeson
        (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..), Value)
 import GHC.Generics (Generic)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
+import qualified Control.Monad.Fail as Fail
 #endif
 
 #if MIN_VERSION_base(4,9,0) && defined(CHECK_UNCHECKED)
@@ -165,7 +166,7 @@ data JSContextRef = JSContextRef {
 type JSM = IO
 #else
 newtype JSM a = JSM { unJSM :: ReaderT JSContextRef IO a }
-    deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadThrow, MonadUnliftIO)
+    deriving (Functor, Applicative, Monad, MonadIO, MonadFix, MonadThrow, MonadUnliftIO, Fail.MonadFail)
 
 instance MonadCatch JSM where
     t `catch` c = JSM (unJSM (syncAfter t) `catch` \e -> unJSM (c e))
