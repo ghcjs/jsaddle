@@ -80,7 +80,7 @@ main = run 3708 $ do
         appendChild newParagraph text
         appendChild body (Just newParagraph)
         return ()
-    
+
     -- Make an exit button
     exitMVar <- liftIO newEmptyMVar
     Just exit <- createElement doc (Just "span")
@@ -111,8 +111,8 @@ There are a number of different JSaddle runners to choose from
 * [jsaddle-clib](https://hackage.haskell.org/package/jsaddle-clib) - C interface used to run JSaddle on Android using JNI.
 
 In all of these cases a web control or browser of some sort is used.  An
-[HTML file](https://github.com/ghcjs/jsaddle/blob/master/data/index.html)
-and a [small JavaScript command interpreter](https://github.com/ghcjs/jsaddle/blob/master/data/jsaddle.js)
+[HTML file](./jsaddle/src/Language/Javascript/JSaddle/Run/Files.hs#L24)
+and a [small JavaScript command interpreter](./jsaddle/src/Language/Javascript/JSaddle/Run/Files.hs#L340)
 are loaded into it.  Then the native GHC compiled JSaddle code runs.  In order to interact with the browser
 it sends commands to the JavaScript command interpreter.  The mechanism for sending the commands differs
 for the different runners, but they are always combined into batches and encoded in JSON.
