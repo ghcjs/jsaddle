@@ -9,7 +9,7 @@
 -- | This package provides an EDSL for calling JavaScript that
 --   can be used both from GHCJS and GHC.  When using GHC
 --   the application is run using Warp and WebSockets to
---   drive a small JavaScipt helper.
+--   drive a small JavaScript helper.
 -----------------------------------------------------------------------------
 
 module Language.Javascript.JSaddle (
@@ -35,10 +35,10 @@ module Language.Javascript.JSaddle (
   --
   --   Where it makes sense code examples are given in two forms.  One
   --   that uses 'eval' to run a purely JavaScript version and one that
-  --   uses more of the JSaddle EDSL feature being demonstated.
+  --   uses more of the JSaddle EDSL feature being demonstrated.
 
   -- * Calling Haskell from JavaScript
-  -- | You can call back into haskell from JavaScript using 'fun' to
+  -- | You can call back into Haskell from JavaScript using 'fun' to
   --   convert a Haskell function in the JSM monad into a javascript
   --   value.
 
@@ -52,8 +52,8 @@ module Language.Javascript.JSaddle (
   --   and the server will run the Haskell code.  The JSaddle parts will
   --   be executed by sending commands back to the browser.
 
-  --   Although the code JavaScript code is executed in the the strict order
-  --   set out by the EDSL it done asynchonously to the Haskell code.
+  --   Although the JavaScript code is executed in the strict order
+  --   set out by the EDSL it is done asynchronously to the Haskell code.
   --   This improves the performance by reducing the number of round trips
   --   needed between the Haskell and JavaScript code.
 

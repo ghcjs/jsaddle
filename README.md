@@ -123,7 +123,7 @@ JavaScript thread until the Haskell callback completes) or asynchronous.
 ### Why use a JavaScript command interpreter?
 
 Older versions of JSaddle relied on the WebKit1 interface to WebKitGTK and JavaScriptCore that is only supported in older versions of
-WebKitGTK.  With the newer WekKit2 interface this level of access is only available to WebKit Extensions.
+WebKitGTK.  With the newer WebKit2 interface this level of access is only available to WebKit Extensions.
 The general advice for people migrating from WebKit1 to WebKit2 seems to be to use JavaScript.
 
 As a bonus we have been able to support a number of different platforms with the JavaScript command interpreter and it should
@@ -138,7 +138,7 @@ these values.  Both the Haskell code and `jsaddle.js` can allocate new `JSVal` k
 keys and `jsaddle.js` allocates positive keys to avoid clashing.
 
 The haskell code will not know the value of the to go with the key, but it will include it in commands to the server
-that are sort of "hey call this function and and put the result in the map with this key").  This allows for the
+that are sort of "hey call this function and put the result in the map with this key").  This allows for the
 lazy execution of the JSaddle code.
 
 A finalizer is added on the Haskell code and an asynchronous `FreeJSVal` command is automatically sent to `jsaddle.js`
@@ -146,7 +146,7 @@ when the JSVal is no longer reachable.  The `jsaddle.js` code then deletes the k
 
 ### JSStrings
 
-These are haskell `Text` type and so reside on the native side of the WebSocket.  If you want to make avoid transferring large string values over the WebSocket use `toJSVal` to conevt it to a `JSVal`. 
+These are haskell `Text` type and so reside on the native side of the WebSocket.  If you want to make avoid transferring large string values over the WebSocket use `toJSVal` to convert it to a `JSVal`.
 
 ### Lazy Execution
 
@@ -178,7 +178,7 @@ force all the pending asynchronous commands to be executed.
 It uses a handful of JS FFI calls to execute JavaScript functions indirectly.  This indirection will be small compared to the overhead of the WebSockets approach (used when JSaddle is compiled with GHC), but it will be significant compared to hand crafted JS FFI calls.
 
 For the best performance you may want to write both JS FFI and JSaddle wrappers
-For your JavaScript code.  This is the approach taken by `ghcjs-dom`.
+for your JavaScript code.  This is the approach taken by `ghcjs-dom`.
 
 For instance here is `getElementById` from the `ghcjs-dom-jsffi` (used by `ghcjs-dom` when compiled with GHCJS)
 
