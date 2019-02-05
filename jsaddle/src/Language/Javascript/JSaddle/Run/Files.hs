@@ -13,7 +13,6 @@
 
 module Language.Javascript.JSaddle.Run.Files (
     indexHtml
-  , jsaddleJs
   , initState
   , runBatch
   , ghcjsHelpers
@@ -335,41 +334,6 @@ runBatch send sendSync = "\
     \    }\n\
     \  };\n\
     \  runBatch(batch);\n\
-    \"
-
--- Use this to generate this string for embedding
--- sed -e 's|\\|\\\\|g' -e 's|^|    \\|' -e 's|$|\\n\\|' -e 's|"|\\"|g' data/jsaddle.js | pbcopy
-jsaddleJs :: ByteString
-jsaddleJs = "\
-    \if(typeof global !== \"undefined\") {\n\
-    \    global.window = global;\n\
-    \    global.WebSocket = require('ws');\n\
-    \}\n\
-    \\n\
-    \var connect = function() {\n\
-    \    var wsaddress =\n\
-    \            typeof window.location === \"undefined\"\n\
-    \                ? \"ws://localhost:3709/\"\n\
-    \                : window.location.protocol.replace('http', 'ws')+\"//\"+window.location.hostname+(window.location.port?(\":\"+window.location.port):\"\");\n\
-    \\n\
-    \    var ws = new WebSocket(wsaddress);\n\
-    \\n\
-    \    ws.onopen = function(e) {\n\
-    \ " <> initState <> "\
-    \\n\
-    \        ws.onmessage = function(e) {\n\
-    \            var batch = JSON.parse(e.data);\n\
-    \\n\
-    \ " <> runBatch (\a -> "ws.send(JSON.stringify(" <> a <> "));") Nothing <> "\
-    \        };\n\
-    \    };\n\
-    \    ws.onerror = function() {\n\
-    \        setTimeout(connect, 1000);\n\
-    \    };\n\
-    \}\n\
-    \\n\
-    \ " <> ghcjsHelpers <> "\
-    \connect();\n\
     \"
 
 ghcjsHelpers :: ByteString

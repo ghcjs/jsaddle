@@ -52,12 +52,12 @@ startServer =
 
 -- >>> testJSaddle $ ((global ^. js "console" . js "log") # ["Hello"])
 testJSaddle :: ToJSVal val => JSM val -> IO ()
-testJSaddle f = do
+testJSaddle f = timeout 10000000 (do
     startServer
     c <- takeMVar context
     runReaderT (unJSM $ (f >>= valToText >>= liftIO . putStrLn . T.unpack)
         `catch` \ (JSException e) -> valToText e >>= liftIO . putStrLn . T.unpack) c
-    putMVar context c
+    putMVar context c) >>= maybe (putStrLn "testJSaddle timed out") return
 
 debugLog :: String -> IO ()
 debugLog _ = return ()

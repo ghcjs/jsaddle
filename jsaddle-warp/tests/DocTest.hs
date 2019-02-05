@@ -16,8 +16,6 @@ import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid ((<>))
 import System.Environment (getArgs)
-import Language.Javascript.JSaddle.Run.Files (jsaddleJs)
-import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
 import Test.WebDriver (runSession, defaultConfig, openPage, closeSession)
 
 main :: IO ()
@@ -37,7 +35,7 @@ main = do
                     putStrLn "phantomjs not found"
                     exitWith e
     putStrLn "Starting phantomjs"
-    forkIO . void $ readProcess "phantomjs" ["--webdriver=4444"] (BS.unpack jsaddleJs) >>= putStr
+    forkIO . void $ readProcess "phantomjs" ["--webdriver=4444"] "" >>= putStr
     threadDelay 5000000
     putStrLn "Running Tests"
     runSession defaultConfig $ do
