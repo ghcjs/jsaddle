@@ -66,7 +66,7 @@ main = do
             "-package=deepseq-" ++ VERSION_deepseq,
             "-package=ghc-prim-" ++ VERSION_ghc_prim,
             "-package=exceptions-" ++ VERSION_exceptions,
-            "-package=unliftio-core" ++ VERSION_unliftio_core,
+            "-package=unliftio-core-" ++ VERSION_unliftio_core,
             "-i" <> "src",
             "-i" <> "src-ghc",
             "src/Language/Javascript/JSaddle/Test.hs",
