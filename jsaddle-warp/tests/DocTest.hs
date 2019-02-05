@@ -11,7 +11,8 @@ import System.IO (stderr, BufferMode(..), stdout, hSetBuffering)
 import System.FilePath ((</>))
 import System.Exit (exitFailure, exitWith, ExitCode(..))
 import System.Process (readProcess, system)
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent
+       (takeMVar, newEmptyMVar, forkIO, threadDelay, putMVar)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid ((<>))
@@ -38,8 +39,9 @@ main = do
     forkIO . void $ readProcess "phantomjs" ["--webdriver=4444"] "" >>= putStr
     threadDelay 5000000
     putStrLn "Running Tests"
-    runSession defaultConfig $ do
-        openPage "http://localhost:3709"
+    done <- newEmptyMVar
+    forkIO $ do
+        threadDelay 5000000
         liftIO $ doctest [
             "-hide-all-packages",
             "-package=base-" ++ VERSION_base,
@@ -103,4 +105,8 @@ main = do
             jsaddlePath </> "src/Language/Javascript/JSaddle/String.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Types.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Value.hs" ]
+        putMVar done ()
+    runSession defaultConfig $ do
+        openPage "http://localhost:3709"
+        liftIO $ takeMVar done
         closeSession
