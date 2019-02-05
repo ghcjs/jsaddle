@@ -107,6 +107,6 @@ main = do
         putMVar done ()
     threadDelay 5000000
     runSession defaultConfig $ do
-        openPage "http://localhost:3709"
+        openPage "http://127.0.0.1:3709"
         liftIO $ takeMVar done
         closeSession
