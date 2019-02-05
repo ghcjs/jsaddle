@@ -11,18 +11,17 @@ import System.IO (stderr, BufferMode(..), stdout, hSetBuffering)
 import System.FilePath ((</>))
 import System.Exit (exitFailure, exitWith, ExitCode(..))
 import System.Process (readProcess, system)
-import Control.Concurrent (forkIO)
+import Control.Concurrent
+       (takeMVar, newEmptyMVar, forkIO, threadDelay, putMVar)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid ((<>))
 import System.Environment (getArgs)
-import Language.Javascript.JSaddle.Run.Files (jsaddleJs)
-import qualified Data.ByteString.Lazy.Char8 as BS (unpack)
 import Test.WebDriver (runSession, defaultConfig, openPage, closeSession)
 
 main :: IO ()
 main = do
-    putStrLn "Hello"
+    putStrLn "Testing JSaddle"
     jsaddlePath <- getArgs >>= \case
         [arg] -> return arg
         _ -> do
@@ -30,14 +29,18 @@ main = do
             exitFailure
     hSetBuffering stdout LineBuffering
     hSetBuffering stderr LineBuffering
+    putStrLn "Checking for phantomjs"
     node <- system "phantomjs --version" >>= \case
                 ExitSuccess -> return ()
                 e           -> do
                     putStrLn "phantomjs not found"
                     exitWith e
-    forkIO . void $ readProcess "phantomjs" ["--webdriver=4444"] (BS.unpack jsaddleJs) >>= putStr
-    runSession defaultConfig $ do
-        openPage "http://localhost:3709"
+    putStrLn "Starting phantomjs"
+    forkIO . void $ readProcess "phantomjs" ["--webdriver=4444"] "" >>= putStr
+    threadDelay 5000000
+    putStrLn "Running Tests"
+    done <- newEmptyMVar
+    forkIO $ do
         liftIO $ doctest [
             "-hide-all-packages",
             "-package=base-" ++ VERSION_base,
@@ -61,6 +64,10 @@ main = do
             "-package=ref-tf-" ++ VERSION_ref_tf,
             "-package=deepseq-" ++ VERSION_deepseq,
             "-package=ghc-prim-" ++ VERSION_ghc_prim,
+            "-package=exceptions-" ++ VERSION_exceptions,
+            "-package=unliftio-core-" ++ VERSION_unliftio_core,
+            "-package=random-" ++ VERSION_random,
+            "-package=foreign-store-" ++ VERSION_foreign_store,
             "-i" <> "src",
             "-i" <> "src-ghc",
             "src/Language/Javascript/JSaddle/Test.hs",
@@ -83,6 +90,7 @@ main = do
             jsaddlePath </> "src/Language/Javascript/JSaddle/Arguments.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Classes.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Classes/Internal.hs",
+            jsaddlePath </> "src/Language/Javascript/JSaddle/Debug.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Evaluate.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Exception.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Monad.hs",
@@ -96,4 +104,9 @@ main = do
             jsaddlePath </> "src/Language/Javascript/JSaddle/String.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Types.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Value.hs" ]
+        putMVar done ()
+    threadDelay 5000000
+    runSession defaultConfig $ do
+        openPage "http://127.0.0.1:3709"
+        liftIO $ takeMVar done
         closeSession
