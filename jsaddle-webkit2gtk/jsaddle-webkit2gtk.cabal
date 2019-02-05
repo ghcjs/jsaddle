@@ -1,5 +1,5 @@
 name: jsaddle-webkit2gtk
-version: 0.9.4.0
+version: 0.9.6.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
