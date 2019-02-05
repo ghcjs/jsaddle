@@ -1,36 +1,36 @@
-language: haskell
+language: c
 
-ghc:
- - "8.4.4"
+#ghc:
+# - "8.4.4"
 
 sudo: false
 
 dist: xenial
-addons:
-  apt:
-    sources:
-      - ppa:hvr/ghc
-    packages:
-      - libgirepository1.0-dev
-      - libwebkit2gtk-4.0-dev,phantomjs
+#addons:
+#  apt:
+#    sources:
+#      - ppa:hvr/ghc
+#    packages:
+#      - libgirepository1.0-dev
+#      - libwebkit2gtk-4.0-dev,phantomjs
 
 cache:
   directories:
     - $HOME/.cabal
     - $HOME/.ghc
 
-#matrix:
-#  include:
+matrix:
+  include:
 #    - env: CABALVER=2.0 GHCVER=8.2.2
 #      addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2,happy-1.19.5,alex-3.1.7,libgirepository1.0-dev,libwebkit2gtk-4.0-dev,phantomjs], sources: [hvr-ghc]}}
-#    - env: CABALVER=2.2 GHCVER=8.4.4
-#      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.4,happy-1.19.5,alex-3.1.7,libgirepository1.0-dev,libwebkit2gtk-4.0-dev,phantomjs], sources: [hvr-ghc]}}
+    - env: CABALVER=2.2 GHCVER=8.4.4
+      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.4,happy-1.19.5,alex-3.1.7,libgirepository1.0-dev,libwebkit2gtk-4.0-dev,phantomjs], sources: [hvr-ghc]}}
 #    - env: CABALVER=2.4 GHCVER=8.6.3
 #      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3,happy-1.19.5,alex-3.1.7,libgirepository1.0-dev,libwebkit2gtk-4.0-dev,phantomjs], sources: [hvr-ghc]}}
 #    - env: CABALVER=head GHCVER=head
 #      addons: {apt: {packages: [cabal-install-head,ghc-head,happy-1.19.5,alex-3.1.7,libgirepository1.0-dev,libwebkit2gtk-4.0-dev,phantomjs],  sources: [hvr-ghc]}}
-#  allow_failures:
-#    - env: CABALVER=head GHCVER=head
+  allow_failures:
+    - env: CABALVER=head GHCVER=head
 
 before_install:
   - export PATH=$HOME/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/alex/3.1.7/bin:/opt/happy/1.19.5/bin:$PATH
