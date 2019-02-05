@@ -67,6 +67,7 @@ main = do
             "-package=ghc-prim-" ++ VERSION_ghc_prim,
             "-package=exceptions-" ++ VERSION_exceptions,
             "-package=unliftio-core-" ++ VERSION_unliftio_core,
+            "-package=random-" ++ VERSION_random,
             "-i" <> "src",
             "-i" <> "src-ghc",
             "src/Language/Javascript/JSaddle/Test.hs",

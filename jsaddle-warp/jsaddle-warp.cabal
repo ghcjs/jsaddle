@@ -71,6 +71,7 @@ test-suite test-tool
             ref-tf -any,
             primitive -any,
             process >=1.2.3.0 && <1.7,
+            random -any,
             stm -any,
             text -any,
             time -any,
