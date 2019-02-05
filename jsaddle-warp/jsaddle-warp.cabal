@@ -60,6 +60,7 @@ test-suite test-tool
             containers -any,
             deepseq -any,
             doctest >=0.10.1 && <0.17,
+            exceptions -any,
             filepath >=1.4.0.0 && <1.5,
             ghc-prim -any,
             http-types -any,
