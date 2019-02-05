@@ -38,7 +38,7 @@ main = do
                     exitWith e
     putStrLn "Starting phantomjs"
     forkIO . void $ readProcess "phantomjs" ["--webdriver=4444"] (BS.unpack jsaddleJs) >>= putStr
-    threadDelay 50000000
+    threadDelay 5000000
     putStrLn "Running Tests"
     runSession defaultConfig $ do
         openPage "http://localhost:3709"
@@ -66,6 +66,7 @@ main = do
             "-package=deepseq-" ++ VERSION_deepseq,
             "-package=ghc-prim-" ++ VERSION_ghc_prim,
             "-package=exceptions-" ++ VERSION_exceptions,
+            "-package=unliftio-core" ++ VERSION_unliftio_core,
             "-i" <> "src",
             "-i" <> "src-ghc",
             "src/Language/Javascript/JSaddle/Test.hs",
