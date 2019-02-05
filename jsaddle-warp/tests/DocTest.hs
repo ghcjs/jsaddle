@@ -41,7 +41,6 @@ main = do
     putStrLn "Running Tests"
     done <- newEmptyMVar
     forkIO $ do
-        threadDelay 5000000
         liftIO $ doctest [
             "-hide-all-packages",
             "-package=base-" ++ VERSION_base,
@@ -106,6 +105,7 @@ main = do
             jsaddlePath </> "src/Language/Javascript/JSaddle/Types.hs",
             jsaddlePath </> "src/Language/Javascript/JSaddle/Value.hs" ]
         putMVar done ()
+    threadDelay 5000000
     runSession defaultConfig $ do
         openPage "http://localhost:3709"
         liftIO $ takeMVar done
