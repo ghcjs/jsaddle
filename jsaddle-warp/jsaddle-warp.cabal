@@ -75,6 +75,7 @@ test-suite test-tool
             text -any,
             time -any,
             transformers -any,
+            unliftio-core -any,
             wai -any,
             wai-websockets -any,
             warp -any,
