@@ -11,7 +11,7 @@ import System.IO (stderr, BufferMode(..), stdout, hSetBuffering)
 import System.FilePath ((</>))
 import System.Exit (exitFailure, exitWith, ExitCode(..))
 import System.Process (readProcess, system)
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.Monoid ((<>))
@@ -22,7 +22,7 @@ import Test.WebDriver (runSession, defaultConfig, openPage, closeSession)
 
 main :: IO ()
 main = do
-    putStrLn "Hello"
+    putStrLn "Testing JSaddle"
     jsaddlePath <- getArgs >>= \case
         [arg] -> return arg
         _ -> do
@@ -30,12 +30,16 @@ main = do
             exitFailure
     hSetBuffering stdout LineBuffering
     hSetBuffering stderr LineBuffering
+    putStrLn "Checking for phantomjs"
     node <- system "phantomjs --version" >>= \case
                 ExitSuccess -> return ()
                 e           -> do
                     putStrLn "phantomjs not found"
                     exitWith e
+    putStrLn "Starting phantomjs"
     forkIO . void $ readProcess "phantomjs" ["--webdriver=4444"] (BS.unpack jsaddleJs) >>= putStr
+    threadDelay 50000000
+    putStrLn "Running Tests"
     runSession defaultConfig $ do
         openPage "http://localhost:3709"
         liftIO $ doctest [
