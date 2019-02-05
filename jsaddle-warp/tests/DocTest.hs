@@ -65,6 +65,7 @@ main = do
             "-package=ref-tf-" ++ VERSION_ref_tf,
             "-package=deepseq-" ++ VERSION_deepseq,
             "-package=ghc-prim-" ++ VERSION_ghc_prim,
+            "-package=exceptions-" ++ VERSION_exceptions,
             "-i" <> "src",
             "-i" <> "src-ghc",
             "src/Language/Javascript/JSaddle/Test.hs",
