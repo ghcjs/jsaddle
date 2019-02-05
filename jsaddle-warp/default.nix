@@ -2,18 +2,24 @@
 , doctest, filepath, foreign-store, ghc-prim, http-types, jsaddle
 , lens, network, primitive, process, QuickCheck, ref-tf, stdenv
 , stm, text, time, transformers, uuid, uuid-types, wai
-, wai-websockets, warp, webdriver, websockets
+, wai-websockets, warp, webdriver, websockets, ghc
 }:
 mkDerivation {
   pname = "jsaddle-warp";
   version = "0.9.4.0";
   src = builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "dist" ])) ./.;
   libraryHaskellDepends = [
-    aeson base bytestring containers foreign-store http-types jsaddle
+    base
+  ] ++ (if ghc.isGhcjs or false
+    then []
+    else [
+    aeson bytestring containers foreign-store http-types jsaddle
     stm text time transformers uuid uuid-types wai wai-websockets warp
     websockets
-  ];
-  testHaskellDepends = [
+  ]);
+  testHaskellDepends = if ghc.isGhcjs or false
+    then []
+    else [
     aeson base bytestring containers deepseq doctest filepath ghc-prim
     http-types jsaddle lens network primitive process QuickCheck ref-tf
     stm text time transformers wai wai-websockets warp webdriver
