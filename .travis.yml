@@ -11,8 +11,8 @@ addons:
 
 cache:
   directories:
-    - .cabal
-    - .ghc
+    - $HOME/.cabal
+    - $HOME/.ghc
 
 matrix:
   include:
