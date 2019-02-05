@@ -9,5 +9,5 @@ JSADDLE_WARP_VERSION=`head -n2 jsaddle-warp/jsaddle-warp.cabal | tail -n1 | sed 
 cabal update
 cabal new-build 'jsaddle-warp:lib:jsaddle-warp' 'jsaddle-warp:test:test-tool'
 cd jsaddle-warp
-GHC_PACKAGE_PATH=/opt/ghc/$GHCVER/lib/ghc-$GHCVER/package.conf.d:~/.cabal/store/ghc-$GHCVER/package.db:./dist-newstyle/packagedb/ghc-$GHCVER jsaddle_datadir=`pwd` ../dist-newstyle/build/jsaddle-warp-$JSADDLE_WARP_VERSION/build/test-tool/test-tool ../jsaddle-warp
+GHC_PACKAGE_PATH=/opt/ghc/$GHCVER/lib/ghc-$GHCVER/package.conf.d:~/.cabal/store/ghc-$GHCVER/package.db:./dist-newstyle/packagedb/ghc-$GHCVER jsaddle_datadir=`pwd` ../dist-newstyle/build/x86_64-linux/ghc-$GHCVER/jsaddle-warp-$JSADDLE_WARP_VERSION/t/test-tool/build/test-tool/test-tool ../jsaddle-warp
 
