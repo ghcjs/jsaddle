@@ -17,21 +17,22 @@ module Language.Javascript.JSaddle.Test (
   , listWindowProperties
 ) where
 
-import Control.Applicative
 import Prelude hiding((!!), catch)
-import Control.Monad.Trans.Reader (runReaderT)
-import Language.Javascript.JSaddle
-import qualified Data.Text as T
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad (forever, forM)
-import Control.Lens.Getter ((^.))
-import Data.Monoid ((<>))
+import Control.Applicative
+import Control.Concurrent (threadDelay, forkIO, ThreadId)
 import Control.Concurrent.MVar
        (tryTakeMVar, putMVar, takeMVar, newEmptyMVar, MVar)
-import System.IO.Unsafe (unsafePerformIO)
-import Control.Concurrent (threadDelay, forkIO, ThreadId)
+import Control.Lens.Getter ((^.))
+import Control.Monad (forever, forM)
+import Control.Monad.IO.Class (MonadIO(..))
+import Control.Monad.Trans.Reader (runReaderT)
+import Data.Monoid ((<>))
 import Data.Text (Text)
+import qualified Data.Text as T
+import Language.Javascript.JSaddle
 import Language.Javascript.JSaddle.Warp (run)
+import System.IO.Unsafe (unsafePerformIO)
+import System.Timeout (timeout)
 
 context :: MVar JSContextRef
 context = unsafePerformIO newEmptyMVar
