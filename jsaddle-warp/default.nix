@@ -6,7 +6,7 @@
 }:
 mkDerivation {
   pname = "jsaddle-warp";
-  version = "0.9.4.0";
+  version = "0.9.6.0";
   src = builtins.filterSource (path: type: !(builtins.elem (baseNameOf path) [ ".git" "dist" ])) ./.;
   libraryHaskellDepends = [
     base
