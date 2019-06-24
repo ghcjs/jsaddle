@@ -315,7 +315,8 @@ runBatch send sendSync = "\
     \      catch (err) {\n\
     \        var n = ++jsaddle_index;\n\
     \        jsaddle_values.set(n, err);\n\
-    \        " <> send "{\"tag\": \"BatchResults\", \"contents\": [batch[2], {\"tag\": \"Failure\", \"contents\": [callbacksToFree, results, n]}]}" <> "\n\
+    \        console.log(err);\n\
+    \        " <> send "{\"tag\": \"BatchResults\", \"contents\": [batch[2], {\"tag\": \"Failure\", \"contents\": [callbacksToFree, results, n, String(err)]}]}" <> "\n\
     \      }\n\
     \      if(inCallback == 1) {\n\
     \          while(asyncBatch !== null) {\n\

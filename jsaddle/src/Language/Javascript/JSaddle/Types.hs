@@ -504,7 +504,7 @@ instance ToJSON Result where
 instance FromJSON Result
 
 data BatchResults = Success [JSValueReceived] [Result]
-                  | Failure [JSValueReceived] [Result] JSValueReceived
+                  | Failure [JSValueReceived] [Result] JSValueReceived String
              deriving (Show, Generic)
 
 instance ToJSON BatchResults where
