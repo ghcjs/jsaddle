@@ -4,7 +4,7 @@
 
 mkDerivation {
   pname = "jsaddle-wkwebview";
-  version = "0.9.4.0";
+  version = "0.9.6.0";
   src = ./.;
   libraryHaskellDepends = [ aeson base bytestring jsaddle data-default ];
 
