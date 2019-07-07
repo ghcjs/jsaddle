@@ -50,7 +50,7 @@ eval :: (ToJSString script)
      -> JSM JSVal
 #ifdef ghcjs_HOST_OS
 eval script = liftIO $ js_eval (toJSString script)
-foreign import javascript unsafe "$r = eval($1);"
+foreign import javascript safe "$r = eval($1);"
     js_eval :: JSString -> IO JSVal
 #else
 eval = evaluateScript . toJSString
