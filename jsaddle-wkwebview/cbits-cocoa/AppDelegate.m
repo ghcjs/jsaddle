@@ -16,6 +16,7 @@ extern void callWithWebView(WKWebView *, HsStablePtr);
 HsStablePtr global_willFinishLaunchingWithOptions = 0;
 HsStablePtr global_didFinishLaunchingWithOptions = 0;
 HsStablePtr global_applicationUniversalLink = 0;
+uint64_t global_developerExtrasEnabled = 1;
 
 @implementation AppDelegate
 
@@ -39,7 +40,9 @@ HsStablePtr global_applicationUniversalLink = 0;
 
 -(void)applicationWillFinishLaunching:(NSNotification *)notification {
     WKWebViewConfiguration *theConfiguration = [[WKWebViewConfiguration alloc] init];
-    [theConfiguration.preferences setValue:@YES forKey:@"developerExtrasEnabled"];
+    if (global_developerExtrasEnabled) {
+      [theConfiguration.preferences setValue:@YES forKey:@"developerExtrasEnabled"];
+    }
     WKWebView *webView = [[WKWebView alloc] initWithFrame: [_window.contentView frame] configuration:theConfiguration];
     [_window setContentView:webView];
     callWithWebView(webView, _handler);
@@ -89,11 +92,13 @@ void runInWKWebView(HsStablePtr handler,
                     const uint64_t hs_requestAuthorizationOptionCarPlay,
                     const uint64_t hs_registerForRemoteNotifications,
                     HsStablePtr hs_didRegisterForRemoteNotificationsWithDeviceToken,
-                    HsStablePtr hs_didFailToRegisterForRemoteNotificationsWithError) {
+                    HsStablePtr hs_didFailToRegisterForRemoteNotificationsWithError,
+                    const uint64_t hs_developerExtrasEnabled) {
     @autoreleasepool {
         global_willFinishLaunchingWithOptions = hs_willFinishLaunchingWithOptions;
         global_didFinishLaunchingWithOptions = hs_didFinishLaunchingWithOptions;
         global_applicationUniversalLink = hs_applicationUniversalLink;
+        global_developerExtrasEnabled = hs_developerExtrasEnabled;
         NSApplication *application = [NSApplication sharedApplication];
         AppDelegate *appDelegate = [[AppDelegate alloc] initApp:handler progName:[NSString stringWithCString:progName encoding:NSUTF8StringEncoding]];
         [application setDelegate:appDelegate];

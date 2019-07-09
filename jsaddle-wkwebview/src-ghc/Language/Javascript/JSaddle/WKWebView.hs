@@ -47,6 +47,7 @@ foreign import ccall runInWKWebView
     -> Word64 -- registerForRemoteNotifications
     -> StablePtr (CString -> IO ()) -- didRegisterForRemoteNotificationsWithDeviceToken
     -> StablePtr (CString -> IO ()) -- didFailToRegisterForRemoteNotificationsWithError
+    -> Word64 -- Allow developer tools
     -> IO ()
 
 data AppDelegateConfig = AppDelegateConfig
@@ -60,6 +61,7 @@ data AppDelegateConfig = AppDelegateConfig
     , _appDelegateConfig_applicationSignificantTimeChange :: IO ()
     , _appDelegateConfig_applicationUniversalLink :: CString -> IO ()
     , _appDelegateConfig_appDelegateNotificationConfig :: AppDelegateNotificationConfig
+    , _appDelegateConfig_developerExtrasEnabled :: Bool
     }
 
 instance Default AppDelegateConfig where
@@ -74,6 +76,7 @@ instance Default AppDelegateConfig where
         , _appDelegateConfig_applicationSignificantTimeChange = return ()
         , _appDelegateConfig_applicationUniversalLink = \_ -> return ()
         , _appDelegateConfig_appDelegateNotificationConfig = def
+        , _appDelegateConfig_developerExtrasEnabled = True
         }
 
 data AuthorizationOption = AuthorizationOption_Badge
@@ -174,3 +177,4 @@ run' cfg main = do
       (fromBool registerForRemoteNotifications)
       didRegisterForRemoteNotificationsWithDeviceToken
       didFailToRegisterForRemoteNotificationsWithError
+      (fromBool $ _appDelegateConfig_developerExtrasEnabled cfg)
