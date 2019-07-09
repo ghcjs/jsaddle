@@ -159,7 +159,8 @@ void runInWKWebView(HsStablePtr handler,
                     const uint64_t hs_requestAuthorizationOptionCarPlay,
                     const uint64_t hs_registerForRemoteNotifications,
                     HsStablePtr hs_didRegisterForRemoteNotificationsWithDeviceToken,
-                    HsStablePtr hs_didFailToRegisterForRemoteNotificationsWithError) {
+                    HsStablePtr hs_didFailToRegisterForRemoteNotificationsWithError,
+                    const uint64_t hs_developerExtrasEnabled) {
     @autoreleasepool {
         globalHandler = handler;
         global_willFinishLaunchingWithOptions = hs_willFinishLaunchingWithOptions;
