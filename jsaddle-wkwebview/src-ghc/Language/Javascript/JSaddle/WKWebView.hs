@@ -24,6 +24,7 @@ import Language.Javascript.JSaddle.WKWebView.Internal
        (jsaddleMain, jsaddleMainHTMLWithBaseURL, jsaddleMainFile, WKWebView(..), mainBundleResourcePath)
 import System.Environment (getProgName)
 import Foreign.C.String (CString, withCString)
+import Foreign.C.Types (CBool)
 import Foreign.StablePtr (StablePtr, newStablePtr)
 import Language.Javascript.JSaddle (JSM)
 
@@ -47,7 +48,8 @@ foreign import ccall runInWKWebView
     -> Word64 -- registerForRemoteNotifications
     -> StablePtr (CString -> IO ()) -- didRegisterForRemoteNotificationsWithDeviceToken
     -> StablePtr (CString -> IO ()) -- didFailToRegisterForRemoteNotificationsWithError
-    -> Word64 -- Allow developer tools
+    -> Word64 -- developerExtrasEnabled
+    -> StablePtr (CString -> IO CBool) -- applicationOpenFile
     -> IO ()
 
 data AppDelegateConfig = AppDelegateConfig
@@ -60,8 +62,20 @@ data AppDelegateConfig = AppDelegateConfig
     , _appDelegateConfig_applicationWillTerminate :: IO ()
     , _appDelegateConfig_applicationSignificantTimeChange :: IO ()
     , _appDelegateConfig_applicationUniversalLink :: CString -> IO ()
+    -- ^ Called when the app is launched from a URL. 'CString' contains the URL.
+    --
+    -- The Core Foundation plist key CFBundleURLTypes controls which URL schemes
+    -- the app should respond to.
     , _appDelegateConfig_appDelegateNotificationConfig :: AppDelegateNotificationConfig
     , _appDelegateConfig_developerExtrasEnabled :: Bool
+    -- ^ Allow devtools in the app. Defaults to 'True'
+    , _appDelegateConfig_applicationOpenFile :: CString -> IO Bool
+    -- ^ Called when the app is launched by opening a file. 'CString' contains
+    -- the file path. Return value is 'True' if the file was successfully
+    -- opened. Defaults to ignoring the file and returning 'False'.
+    --
+    -- The Core Foundation plist key CFBundleDocumentTypes controls which file
+    -- types should be associated with the app.
     }
 
 instance Default AppDelegateConfig where
@@ -77,6 +91,7 @@ instance Default AppDelegateConfig where
         , _appDelegateConfig_applicationUniversalLink = \_ -> return ()
         , _appDelegateConfig_appDelegateNotificationConfig = def
         , _appDelegateConfig_developerExtrasEnabled = True
+        , _appDelegateConfig_applicationOpenFile = \_ -> return False
         }
 
 data AuthorizationOption = AuthorizationOption_Badge
@@ -147,6 +162,7 @@ run' cfg main = do
     applicationWillTerminate <- newStablePtr $ _appDelegateConfig_applicationWillTerminate cfg
     applicationSignificantTimeChange <- newStablePtr $ _appDelegateConfig_applicationSignificantTimeChange cfg
     applicationUniversalLink <- newStablePtr $ _appDelegateConfig_applicationUniversalLink cfg
+    applicationOpenFile <- newStablePtr $ fmap fromBool . _appDelegateConfig_applicationOpenFile cfg
 
     -- AppDelegate notification configuration
     let ncfg = _appDelegateConfig_appDelegateNotificationConfig cfg
@@ -178,3 +194,4 @@ run' cfg main = do
       didRegisterForRemoteNotificationsWithDeviceToken
       didFailToRegisterForRemoteNotificationsWithError
       (fromBool $ _appDelegateConfig_developerExtrasEnabled cfg)
+      applicationOpenFile
