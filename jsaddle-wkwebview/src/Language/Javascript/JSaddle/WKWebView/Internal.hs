@@ -20,6 +20,7 @@ import qualified Data.Text as T (pack)
 import Data.Text.Encoding (encodeUtf8)
 
 import Foreign.C.String (CString)
+import Foreign.C.Types (CBool(..))
 import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
@@ -37,6 +38,7 @@ foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString ->
 foreign export ccall jsaddleSyncResult :: StablePtr (Results -> IO Batch) -> JSaddleHandler -> CString -> IO ()
 foreign export ccall callWithWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
 foreign export ccall callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
+foreign export ccall callWithCStringReturningBool :: CString -> StablePtr (CString -> IO CBool) -> IO CBool
 foreign export ccall callIO :: StablePtr (IO ()) -> IO ()
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> StablePtr (Results -> IO Batch) -> IO ()
 foreign import ccall loadHTMLStringWithBaseURL :: WKWebView -> CString -> CString -> IO ()
@@ -123,6 +125,11 @@ callWithWebView webView ptrF = do
 
 callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
 callWithCString c fptr = do
+    f <- deRefStablePtr fptr
+    f c
+
+callWithCStringReturningBool :: CString -> StablePtr (CString -> IO CBool) -> IO CBool
+callWithCStringReturningBool c fptr = do
     f <- deRefStablePtr fptr
     f c
 

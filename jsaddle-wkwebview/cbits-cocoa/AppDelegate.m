@@ -3,6 +3,7 @@
 #import <WebKit/WebKit.h>
 
 extern void callIO(HsStablePtr);
+extern bool callWithCStringReturningBool(const char * _Nonnull, HsStablePtr);
 extern void callWithCString(const char * _Nonnull, HsStablePtr);
 extern void callWithWebView(WKWebView *, HsStablePtr);
 
@@ -16,6 +17,7 @@ extern void callWithWebView(WKWebView *, HsStablePtr);
 HsStablePtr global_willFinishLaunchingWithOptions = 0;
 HsStablePtr global_didFinishLaunchingWithOptions = 0;
 HsStablePtr global_applicationUniversalLink = 0;
+HsStablePtr global_applicationOpenFile = 0;
 uint64_t global_developerExtrasEnabled = 1;
 
 @implementation AppDelegate
@@ -36,6 +38,11 @@ uint64_t global_developerExtrasEnabled = 1;
         _window.title = progName;
     }
     return self;
+}
+
+-(BOOL)application:(NSApplication *)sender openFile:(NSString *)filename {
+    bool b = callWithCStringReturningBool([filename UTF8String], global_applicationOpenFile);
+    return b ? YES : NO;
 }
 
 -(void)applicationWillFinishLaunching:(NSNotification *)notification {
@@ -93,11 +100,13 @@ void runInWKWebView(HsStablePtr handler,
                     const uint64_t hs_registerForRemoteNotifications,
                     HsStablePtr hs_didRegisterForRemoteNotificationsWithDeviceToken,
                     HsStablePtr hs_didFailToRegisterForRemoteNotificationsWithError,
-                    const uint64_t hs_developerExtrasEnabled) {
+                    const uint64_t hs_developerExtrasEnabled,
+                    HsStablePtr hs_applicationOpenFile) {
     @autoreleasepool {
         global_willFinishLaunchingWithOptions = hs_willFinishLaunchingWithOptions;
         global_didFinishLaunchingWithOptions = hs_didFinishLaunchingWithOptions;
         global_applicationUniversalLink = hs_applicationUniversalLink;
+        global_applicationOpenFile = hs_applicationOpenFile;
         global_developerExtrasEnabled = hs_developerExtrasEnabled;
         NSApplication *application = [NSApplication sharedApplication];
         AppDelegate *appDelegate = [[AppDelegate alloc] initApp:handler progName:[NSString stringWithCString:progName encoding:NSUTF8StringEncoding]];
