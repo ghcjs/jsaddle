@@ -1,4 +1,6 @@
-haskellPackages: {
+{ pkgs ? import <nixpkgs> {}, haskellPackages ? pkgs.haskellPackages }:
+
+{
   jsaddle = haskellPackages.callPackage ./jsaddle {};
   jsaddle-warp = haskellPackages.callPackage ./jsaddle-warp {};
   jsaddle-wkwebview = haskellPackages.callPackage ./jsaddle-wkwebview {};
