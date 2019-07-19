@@ -1,6 +1,4 @@
-{ mkDerivation, stdenv, aeson, base, bytestring, jsaddle, data-default
-, buildPackages, hostPlatform
-}:
+{ mkDerivation, lib, stdenv, aeson, base, bytestring, jsaddle, data-default, pkgs }:
 
 mkDerivation {
   pname = "jsaddle-wkwebview";
@@ -8,23 +6,15 @@ mkDerivation {
   src = ./.;
   libraryHaskellDepends = [ aeson base bytestring jsaddle data-default ];
 
-  # HACK(matthewbauer): Can’t figure out why cf-private framework is
-  #                     not getting pulled in correctly. Has something
-  #                     to with how headers are looked up in xcode.
-  preBuild = stdenv.lib.optionalString (!hostPlatform.useiOSPrebuilt) ''
-    mkdir include
-    ln -s ${buildPackages.darwin.cf-private}/Library/Frameworks/CoreFoundation.framework/Headers include/CoreFoundation
-    export NIX_CFLAGS_COMPILE="-I$PWD/include $NIX_CFLAGS_COMPILE"
-  '';
-
+  # Xcode is needed for iOS; macOS SDK is used otherwise
   libraryFrameworkDepends =
-    stdenv.lib.optional (hostPlatform.useiOSPrebuilt)
-      "${buildPackages.darwin.xcode}/Contents/Developer/Platforms/${hostPlatform.xcodePlatform}.platform/Developer/SDKs/${hostPlatform.xcodePlatform}.sdk/System"
-    ++ stdenv.lib.optional (!hostPlatform.useiOSPrebuilt)
-      (with buildPackages.darwin; with apple_sdk.frameworks; [
-        Cocoa
-        WebKit
-      ]);
+    if stdenv.hostPlatform.useiOSPrebuilt then
+      "${pkgs.darwin.xcode}/Contents/Developer/Platforms/${stdenv.hostPlatform.xcodePlatform}.platform/Developer/SDKs/${stdenv.hostPlatform.xcodePlatform}.sdk/System"
+    else (with pkgs.darwin.apple_sdk.frameworks; [ Cocoa WebKit ]);
+
+  # cf-private is needed for NSURL (_OBJC_CLASS_$_NSURL) symbols
+  buildDepends = lib.optional (!stdenv.hostPlatform.useiOSPrebuilt) [ pkgs.darwin.cf-private ];
+
   description = "Interface for JavaScript that works with GHCJS and GHC";
   license = stdenv.lib.licenses.mit;
 }
