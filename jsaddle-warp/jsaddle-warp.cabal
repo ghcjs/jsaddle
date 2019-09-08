@@ -81,7 +81,7 @@ test-suite test-tool
             wai -any,
             wai-websockets -any,
             warp -any,
-            webdriver >=0.8.4 && <0.9,
+            webdriver >=0.8.4 && <1.0,
             websockets -any
     type: exitcode-stdio-1.0
     main-is: DocTest.hs
