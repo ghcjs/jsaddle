@@ -145,6 +145,9 @@ connectUserContentManagerScriptMessageReceived obj cb after = liftIO $ do
     let cb' = wrap_UserContentManagerScriptMessageReceivedCallback cb
     cb'' <- mk_UserContentManagerScriptMessageReceivedCallback cb'
     connectSignalFunPtr obj "script-message-received::jsaddle" cb'' after
+#if MIN_VERSION_haskell_gi_base(0,23,0)
+      Nothing
+#endif
 
 addJSaddleHandler :: WebView -> (Results -> IO ()) -> (Results -> IO Batch) -> IO ()
 addJSaddleHandler webView processResult syncResults = do
