@@ -48,7 +48,7 @@ import Language.Javascript.JSaddle.Types
        (JSM, JSVal, SomeJSArray(..), JSArray,
         MutableJSArray, GHCJSPure(..))
 import Control.Lens.Operators ((^.))
-import Language.Javascript.JSaddle.Object (js2, js0, (##), js1, js)
+import Language.Javascript.JSaddle.Object (js2, js0, (<##), js1, js)
 import Language.Javascript.JSaddle.Value (valToNumber)
 import JavaScript.Array.Internal (create, fromList, fromListIO, toList, toListIO, index, read, push)
 
@@ -69,7 +69,7 @@ append (SomeJSArray x) (SomeJSArray y) = SomeJSArray <$> x ^. js1 "concat" y
 {-# INLINE append #-}
 
 write :: Int -> JSVal -> MutableJSArray -> JSM ()
-write n e (SomeJSArray x) = void $ (x ## n) e
+write n e (SomeJSArray x) = void $ (x <## n) e
 {-# INLINE write #-}
 
 pop :: MutableJSArray -> JSM JSVal
