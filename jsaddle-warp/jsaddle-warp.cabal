@@ -10,7 +10,7 @@ description:
     This package provides an EDSL for calling JavaScript that
     can be used both from GHCJS and GHC.  When using GHC
     the application is run using Warp and WebSockets to
-    drive a small JavaScipt helper.
+    drive a small JavaScript helper.
 category: Web, Javascript
 author: Hamish Mackenzie
 
