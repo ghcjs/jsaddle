@@ -31,6 +31,7 @@ script:
 - nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle.components.library
 - nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle-warp.components.library
 - nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle-clib.components.library
+- nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle-wkwebview.components.library
 # TODO try to find how to get working webkitgtk with nix on macOS
 - |
   if [ "$OS" != "macos" ]; then
