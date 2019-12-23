@@ -1,5 +1,3 @@
-flags: -overloaded-methods -overloaded-signals -overloaded-properties
-
 packages:
  jsaddle/
  jsaddle-warp/
@@ -8,35 +6,12 @@ packages:
  jsaddle-webkit2gtk/
  jsaddle-clib/
 
-package gi-atk
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-cairo
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-gdk
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-gdkpixbuf
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-gio
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-glib
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-gobject
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-gtk
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-gtk-hs
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-gtkosxapplication
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-gtksource
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-javascriptcore
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-pango
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-soup
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-webkit
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
-package gi-webkit2
- flags: -overloaded-methods -overloaded-signals -overloaded-properties
+constraints: haskell-gi-overloading == 0.0
+
+write-ghc-environment-files: never
+
+source-repository-package
+  type: git
+  location: https://github.com/gtk2hs/webkit-javascriptcore
+  tag: 5868624d0ea1db6e6279c301f7f56adb808a85bf
+  --sha256: 0aj0cvcbnzrdi1ynahpb4034vadfrs99n5qa8dar1srhijv55g8b

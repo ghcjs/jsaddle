@@ -18,7 +18,6 @@ let
     src = pkgs.haskell-nix.haskellLib.cleanGit { src = ./.; };
     ghc = pkgs.buildPackages.pkgs.haskell-nix.compiler.${haskellCompiler};
     modules = [
-      { reinstallableLibGhc = true; }
       ({ config, ...}: {
         packages.gi-gtk.components.setup.frameworks = frameworks;
         packages.vault.components.library.doHaddock = false;

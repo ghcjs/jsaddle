@@ -1,50 +1,43 @@
-language: c
+language: nix
+nix: 2.2.2
 
-#ghc:
-# - "8.4.4"
-
-sudo: false
-
-dist: xenial
-#addons:
-#  apt:
-#    sources:
-#      - ppa:hvr/ghc
-#    packages:
-#      - libgirepository1.0-dev
-#      - libwebkit2gtk-4.0-dev,phantomjs
-
-cache:
-  directories:
-    - $HOME/.cabal
-    - $HOME/.ghc
-
-matrix:
+jobs:
   include:
-#    - env: CABALVER=2.0 GHCVER=8.2.2
-#      addons: {apt: {packages: [cabal-install-2.0,ghc-8.2.2,happy-1.19.5,alex-3.1.7,libgirepository1.0-dev,libwebkit2gtk-4.0-dev,phantomjs], sources: [hvr-ghc]}}
-    - env: CABALVER=2.2 GHCVER=8.4.4
-      addons: {apt: {packages: [cabal-install-2.2,ghc-8.4.4,happy-1.19.5,alex-3.1.7,libgirepository1.0-dev,libwebkit2gtk-4.0-dev,phantomjs], sources: [hvr-ghc]}}
-#    - env: CABALVER=2.4 GHCVER=8.6.3
-#      addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3,happy-1.19.5,alex-3.1.7,libgirepository1.0-dev,libwebkit2gtk-4.0-dev,phantomjs], sources: [hvr-ghc]}}
-#    - env: CABALVER=head GHCVER=head
-#      addons: {apt: {packages: [cabal-install-head,ghc-head,happy-1.19.5,alex-3.1.7,libgirepository1.0-dev,libwebkit2gtk-4.0-dev,phantomjs],  sources: [hvr-ghc]}}
-  allow_failures:
-    - env: CABALVER=head GHCVER=head
-
-before_install:
-  - export PATH=$HOME/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/alex/3.1.7/bin:/opt/happy/1.19.5/bin:$PATH
+    - stage: Build
+      env: OS=linux GHCVER=ghc865
+    - stage: Build
+      env: OS=linux GHCVER=ghc881
+    - env: OS=macos GHCVER=ghc865
+      os: osx
+      # Fix OSX, see https://travis-ci.community/t/cannot-use-nix-support-on-osx/2927
+      language: generic
+      before_install:
+      - curl https://nixos.org/nix/install | sh
+      - source /Users/travis/.nix-profile/etc/profile.d/nix.sh
+    - env: OS=macos GHCVER=ghc881
+      os: osx
+      # Fix OSX, see https://travis-ci.community/t/cannot-use-nix-support-on-osx/2927
+      language: generic
+      before_install:
+      - curl https://nixos.org/nix/install | sh
+      - source /Users/travis/.nix-profile/etc/profile.d/nix.sh
 
 install:
-  - cabal --version
-  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
-  - cabal update
+- sudo mkdir -p /etc/nix
+- echo "substituters = https://cache.nixos.org https://hydra.iohk.io" | sudo tee -a /etc/nix/nix.conf > /dev/null
+- echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=" | sudo tee -a /etc/nix/nix.conf > /dev/null
 
 script:
-  ./travis/build.sh
+- nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle.components.library
+- nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle-warp.components.library
+- nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle-clib.components.library
+# TODO try to find how to get working webkitgtk with nix on macOS
+- |
+  if [ "$OS" != "macos" ]; then
+    nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle-webkit2gtk.components.library
+  fi
 
 notifications:
   irc:
-    channels: "irc.freenode.net#ghcjs"
-    skip_join: true
+    channels: "irc.freenode.net#gtk2hs"
   email: true
