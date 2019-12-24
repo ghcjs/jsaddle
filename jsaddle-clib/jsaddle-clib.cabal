@@ -33,7 +33,7 @@ library
     Include-dirs: cbits/include
     Includes: jsaddle.h
     Install-includes: jsaddle.h
-    ghc-options: -ferror-spans -Wall -Werror
+    ghc-options: -ferror-spans -Wall
     if impl(ghcjs)
         hs-source-dirs: src-ghcjs
     else
