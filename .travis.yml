@@ -43,5 +43,5 @@ script:
 
 notifications:
   irc:
-    channels: "irc.freenode.net#gtk2hs"
+    channels: "irc.freenode.net#ghcjs"
   email: true
