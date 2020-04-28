@@ -1,5 +1,5 @@
 name: jsaddle-clib
-version: 0.9.6.0
+version: 0.9.7.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -23,6 +23,7 @@ library
     build-depends:
         aeson >=0.8.0.2 && <1.5,
         base <5,
+        base-compat >=0.9.0 && <0.12,
         bytestring >=0.10.6.0 && <0.11,
         jsaddle >= 0.9.0.0 && <0.10,
         data-default,
@@ -32,7 +33,7 @@ library
     Include-dirs: cbits/include
     Includes: jsaddle.h
     Install-includes: jsaddle.h
-    ghc-options: -ferror-spans -Wall -Werror
+    ghc-options: -ferror-spans -Wall
     if impl(ghcjs)
         hs-source-dirs: src-ghcjs
     else
