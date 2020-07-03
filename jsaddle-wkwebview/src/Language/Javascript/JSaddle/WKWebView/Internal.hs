@@ -1,6 +1,7 @@
 {-# LANGUAGE ForeignFunctionInterface, OverloadedStrings #-}
 module Language.Javascript.JSaddle.WKWebView.Internal
     ( jsaddleMain
+    , jsaddleMainHTMLWithBaseURL
     , jsaddleMainFile
     , WKWebView(..)
     , mainBundleResourcePath
@@ -15,15 +16,19 @@ import Data.ByteString (useAsCString, packCString)
 import qualified Data.ByteString as BS (ByteString)
 import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
 import Data.Aeson (encode, decode)
+import qualified Data.Text as T (pack)
+import Data.Text.Encoding (encodeUtf8)
 
 import Foreign.C.String (CString)
-import Foreign.C.Types (CInt(..))
+import Foreign.C.Types (CBool(..), CInt(..))
 import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
 import Language.Javascript.JSaddle (Results, Batch, JSM)
 import Language.Javascript.JSaddle.Run (runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
+
+import System.Directory (getCurrentDirectory)
 
 newtype WKWebView = WKWebView (Ptr WKWebView)
 newtype JSaddleHandler = JSaddleHandler (Ptr JSaddleHandler)
@@ -34,9 +39,10 @@ foreign export ccall jsaddleSyncResult :: StablePtr (Results -> IO Batch) -> JSa
 foreign export ccall callWithWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
 foreign export ccall callWithCIntCString :: CInt -> CString -> StablePtr (CInt -> CString -> IO ()) -> IO ()
 foreign export ccall callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
+foreign export ccall callWithCStringReturningBool :: CString -> StablePtr (CString -> IO CBool) -> IO CBool
 foreign export ccall callIO :: StablePtr (IO ()) -> IO ()
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> StablePtr (Results -> IO Batch) -> IO ()
-foreign import ccall loadHTMLString :: WKWebView -> CString -> IO ()
+foreign import ccall loadHTMLStringWithBaseURL :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall evaluateJavaScript :: WKWebView -> CString -> IO ()
 foreign import ccall completeSync :: JSaddleHandler -> CString -> IO ()
@@ -44,9 +50,23 @@ foreign import ccall mainBundleResourcePathC :: IO CString
 
 -- | Run JSaddle in WKWebView
 jsaddleMain :: JSM () -> WKWebView -> IO ()
-jsaddleMain f webView =
+jsaddleMain f webView = do
+    pwd <- getCurrentDirectory
+    let baseURL = encodeUtf8 $ "file://" <> T.pack pwd <> "/index.html"
+    jsaddleMainHTMLWithBaseURL (toStrict indexHtml) baseURL f webView
+
+-- | Run JSaddle in WKWebView with initial html and base url
+jsaddleMainHTMLWithBaseURL
+  :: BS.ByteString -- ^ HTML
+  -> BS.ByteString -- ^ Base URL
+  -> JSM ()
+  -> WKWebView
+  -> IO ()
+jsaddleMainHTMLWithBaseURL initialHTML baseURL f webView =
     jsaddleMain' f webView $
-        useAsCString (toStrict indexHtml) $ loadHTMLString webView
+        useAsCString baseURL $ \url ->
+            useAsCString initialHTML $ \html ->
+                loadHTMLStringWithBaseURL webView html url
 
 -- | Run JSaddle in a WKWebView first loading the specified file
 --   from the mainBundle (relative to the resourcePath).
@@ -114,6 +134,11 @@ callWithCIntCString n s fptr = do
     f <- deRefStablePtr fptr
     f n s
 
+callWithCStringReturningBool :: CString -> StablePtr (CString -> IO CBool) -> IO CBool
+callWithCStringReturningBool c fptr = do
+    f <- deRefStablePtr fptr
+    f c
+
 callIO :: StablePtr (IO ()) -> IO ()
 callIO ptr = do
     f <- deRefStablePtr ptr
@@ -147,4 +172,3 @@ mainBundleResourcePath = do
     if bs == nullPtr
         then return Nothing
         else Just <$> packCString bs
-

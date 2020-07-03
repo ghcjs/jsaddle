@@ -43,18 +43,13 @@ import Data.Monoid ((<>))
 import Data.ByteString.Lazy (toStrict, fromStrict)
 import qualified Data.ByteString.Lazy as LB (ByteString)
 import Data.Aeson (encode, decode)
-import Data.Text (Text)
 import qualified Data.Text as T (pack)
-import Data.Text.Foreign (fromPtr)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-
-import Foreign.Ptr (castPtr, nullPtr)
 
 import Data.GI.Base.BasicTypes (GObject)
 import Data.GI.Base.Signals
        (connectSignalFunPtr, SignalConnectMode(..), SignalConnectMode,
         SignalHandlerId)
-import Data.GI.Base.ManagedPtr (withManagedPtr)
 
 import GI.GLib (timeoutAdd, idleAdd, pattern PRIORITY_HIGH, pattern PRIORITY_DEFAULT)
 import qualified GI.Gtk as Gtk (main, init)
@@ -65,7 +60,7 @@ import GI.Gtk
         widgetGetToplevel, widgetShowAll, onWidgetDestroy,
         mainQuit)
 import GI.Gio (noCancellable)
-import GI.JavaScriptCore (Value(..), GlobalContext(..))
+import GI.JavaScriptCore (valueToString)
 import GI.WebKit2
        (scriptDialogPromptSetText, scriptDialogPromptGetDefaultText,
         scriptDialogGetMessage, scriptDialogGetDialogType,
@@ -74,7 +69,7 @@ import GI.WebKit2
         setSettingsEnableJavascript, webViewNewWithUserContentManager,
         userContentManagerNew,
         userContentManagerRegisterScriptMessageHandler,
-        javascriptResultGetValue, javascriptResultGetGlobalContext,
+        javascriptResultGetJsValue,
         webViewGetUserContentManager,
         mk_UserContentManagerScriptMessageReceivedCallback,
         wrap_UserContentManagerScriptMessageReceivedCallback,
@@ -82,13 +77,6 @@ import GI.WebKit2
         UserContentManagerScriptMessageReceivedCallback, webViewLoadHtml,
         onWebViewLoadChanged, setSettingsEnableDeveloperExtras,
         webViewSetSettings, webViewGetSettings, ScriptDialogType(..))
-
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSBase
-       (JSValueRef, JSContextRef)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSStringRef
-       (jsstringgetcharactersptr, jsstringgetlength, jsstringrelease)
-import Graphics.UI.Gtk.WebKit.JavaScriptCore.JSValueRef
-       (jsvaluetostringcopy)
 
 import Language.Javascript.JSaddle (JSM, Results, Batch)
 import Language.Javascript.JSaddle.Run (runJavaScript)
@@ -108,21 +96,6 @@ installQuitHandler wv = void $ installHandler keyboardSignal (Catch (quitWebView
 postGUIAsync :: IO () -> IO ()
 postGUIAsync action =
   void . idleAdd PRIORITY_DEFAULT $ action >> return False
-
-withJSContextRef :: GlobalContext -> (JSContextRef -> IO a) -> IO a
-withJSContextRef (GlobalContext ctx) f = withManagedPtr ctx (f . castPtr)
-
-withJSValueRef :: Value -> (JSValueRef -> IO a) -> IO a
-withJSValueRef (Value ptr) f = withManagedPtr ptr (f . castPtr)
-
-valueToText :: JSContextRef -> JSValueRef -> IO Text
-valueToText ctxRef s = do
-    jsstring <- jsvaluetostringcopy ctxRef s nullPtr
-    l <- jsstringgetlength jsstring
-    p <- jsstringgetcharactersptr jsstring
-    result <- fromPtr (castPtr p) (fromIntegral l)
-    jsstringrelease jsstring
-    return result
 
 run :: JSM () -> IO ()
 run main = do
@@ -148,7 +121,7 @@ run main = do
     void . onWebViewLoadChanged webView $ \case
         LoadEventFinished -> runInWebView main webView
         _ -> return ()
-    webViewLoadHtml  webView "" . Just $ "file://" <> T.pack pwd <> "/"
+    webViewLoadHtml webView "" . Just $ "file://" <> T.pack pwd <> "/index.html"
     installQuitHandler webView
     Gtk.main
 
@@ -172,16 +145,16 @@ connectUserContentManagerScriptMessageReceived obj cb after = liftIO $ do
     let cb' = wrap_UserContentManagerScriptMessageReceivedCallback cb
     cb'' <- mk_UserContentManagerScriptMessageReceivedCallback cb'
     connectSignalFunPtr obj "script-message-received::jsaddle" cb'' after
+#if MIN_VERSION_haskell_gi_base(0,23,0)
+      Nothing
+#endif
 
 addJSaddleHandler :: WebView -> (Results -> IO ()) -> (Results -> IO Batch) -> IO ()
 addJSaddleHandler webView processResult syncResults = do
     manager <- webViewGetUserContentManager webView
     _ <- onUserContentManagerScriptMessageReceived manager $ \result -> do
-        ctx <- javascriptResultGetGlobalContext result
-        arg <- javascriptResultGetValue result
-        bs <- withJSContextRef ctx $ \ctxRef ->
-            withJSValueRef arg $ \argRef ->
-                encodeUtf8 <$> valueToText ctxRef argRef
+        arg <- javascriptResultGetJsValue result
+        bs <- encodeUtf8 <$> valueToString arg
         mapM_ processResult (decode (fromStrict bs))
     _ <- onWebViewScriptDialog webView $ \dialog ->
         scriptDialogGetDialogType dialog >>= \case

@@ -13,7 +13,6 @@
 
 module Language.Javascript.JSaddle.Run.Files (
     indexHtml
-  , jsaddleJs
   , initState
   , runBatch
   , ghcjsHelpers
@@ -91,6 +90,10 @@ runBatch send sendSync = "\
     \                                jsaddle_values.set(n, eval(d.contents[0]));\n\
     \                                break;\n\
     \                            case \"StringToValue\":\n\
+    \                                var n = d.contents[1];\n\
+    \                                jsaddle_values.set(n, d.contents[0]);\n\
+    \                                break;\n\
+    \                            case \"JSONValueToValue\":\n\
     \                                var n = d.contents[1];\n\
     \                                jsaddle_values.set(n, d.contents[0]);\n\
     \                                break;\n\
@@ -312,7 +315,8 @@ runBatch send sendSync = "\
     \      catch (err) {\n\
     \        var n = ++jsaddle_index;\n\
     \        jsaddle_values.set(n, err);\n\
-    \        " <> send "{\"tag\": \"BatchResults\", \"contents\": [batch[2], {\"tag\": \"Failure\", \"contents\": [callbacksToFree, results, n]}]}" <> "\n\
+    \        console.log(err);\n\
+    \        " <> send "{\"tag\": \"BatchResults\", \"contents\": [batch[2], {\"tag\": \"Failure\", \"contents\": [callbacksToFree, results, n, String(err)]}]}" <> "\n\
     \      }\n\
     \      if(inCallback == 1) {\n\
     \          while(asyncBatch !== null) {\n\
@@ -331,41 +335,6 @@ runBatch send sendSync = "\
     \    }\n\
     \  };\n\
     \  runBatch(batch);\n\
-    \"
-
--- Use this to generate this string for embedding
--- sed -e 's|\\|\\\\|g' -e 's|^|    \\|' -e 's|$|\\n\\|' -e 's|"|\\"|g' data/jsaddle.js | pbcopy
-jsaddleJs :: ByteString
-jsaddleJs = "\
-    \if(typeof global !== \"undefined\") {\n\
-    \    global.window = global;\n\
-    \    global.WebSocket = require('ws');\n\
-    \}\n\
-    \\n\
-    \var connect = function() {\n\
-    \    var wsaddress =\n\
-    \            typeof window.location === \"undefined\"\n\
-    \                ? \"ws://localhost:3709/\"\n\
-    \                : window.location.protocol.replace('http', 'ws')+\"//\"+window.location.hostname+(window.location.port?(\":\"+window.location.port):\"\");\n\
-    \\n\
-    \    var ws = new WebSocket(wsaddress);\n\
-    \\n\
-    \    ws.onopen = function(e) {\n\
-    \ " <> initState <> "\
-    \\n\
-    \        ws.onmessage = function(e) {\n\
-    \            var batch = JSON.parse(e.data);\n\
-    \\n\
-    \ " <> runBatch (\a -> "ws.send(JSON.stringify(" <> a <> "));") Nothing <> "\
-    \        };\n\
-    \    };\n\
-    \    ws.onerror = function() {\n\
-    \        setTimeout(connect, 1000);\n\
-    \    };\n\
-    \}\n\
-    \\n\
-    \ " <> ghcjsHelpers <> "\
-    \connect();\n\
     \"
 
 ghcjsHelpers :: ByteString

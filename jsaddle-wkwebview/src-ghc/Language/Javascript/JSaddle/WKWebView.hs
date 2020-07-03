@@ -1,9 +1,12 @@
 module Language.Javascript.JSaddle.WKWebView
     ( jsaddleMain
+    , jsaddleMainHTMLWithBaseURL
     , jsaddleMainFile
     , WKWebView(..)
     , run
+    , run'
     , runWithAppConfig
+    , runHTMLWithBaseURL
     , runFile
     , mainBundleResourcePath
     , ApplicationState (..)
@@ -18,10 +21,11 @@ import Data.Set (Set)
 import qualified Data.Set as Set
 import Data.Word
 import Foreign.Marshal.Utils (fromBool)
-import Language.Javascript.JSaddle.WKWebView.Internal (jsaddleMain, jsaddleMainFile, WKWebView(..), mainBundleResourcePath)
+import Language.Javascript.JSaddle.WKWebView.Internal
+       (jsaddleMain, jsaddleMainHTMLWithBaseURL, jsaddleMainFile, WKWebView(..), mainBundleResourcePath)
 import System.Environment (getProgName)
 import Foreign.C.String (CString, withCString)
-import Foreign.C.Types (CInt)
+import Foreign.C.Types (CBool, CInt)
 import Foreign.StablePtr (StablePtr, newStablePtr)
 import Language.Javascript.JSaddle (JSM)
 
@@ -46,6 +50,8 @@ foreign import ccall runInWKWebView
     -> Word64 -- registerForRemoteNotifications
     -> StablePtr (CString -> IO ()) -- didRegisterForRemoteNotificationsWithDeviceToken
     -> StablePtr (CString -> IO ()) -- didFailToRegisterForRemoteNotificationsWithError
+    -> Word64 -- developerExtrasEnabled
+    -> StablePtr (CString -> IO CBool) -- applicationOpenFile
     -> IO ()
 
 data AppDelegateConfig = AppDelegateConfig
@@ -58,8 +64,25 @@ data AppDelegateConfig = AppDelegateConfig
     , _appDelegateConfig_applicationWillTerminate :: IO ()
     , _appDelegateConfig_applicationSignificantTimeChange :: IO ()
     , _appDelegateConfig_applicationUniversalLink :: CString -> IO ()
+    -- ^ Called when the app is launched from a URL. 'CString' contains the URL.
+    --
+    -- The Core Foundation plist key CFBundleURLTypes controls which URL schemes
+    -- the app should respond to.
     , _appDelegateConfig_applicationDidReceiveRemoteNotification :: ApplicationState -> CString -> IO ()
+    -- ^ Called when the application receives a remote notification.
+    -- 'ApplicationState' is the current state of the app.
+    -- The 'CString' JSON-encoded user info contained in the notification.
+    -- For more information see https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623117-application?language=objc
     , _appDelegateConfig_appDelegateNotificationConfig :: AppDelegateNotificationConfig
+    , _appDelegateConfig_developerExtrasEnabled :: Bool
+    -- ^ Allow devtools in the app. Defaults to 'True'
+    , _appDelegateConfig_applicationOpenFile :: CString -> IO Bool
+    -- ^ Called when the app is launched by opening a file. 'CString' contains
+    -- the file path. Return value is 'True' if the file was successfully
+    -- opened. Defaults to ignoring the file and returning 'False'.
+    --
+    -- The Core Foundation plist key CFBundleDocumentTypes controls which file
+    -- types should be associated with the app.
     }
 
 instance Default AppDelegateConfig where
@@ -75,6 +98,8 @@ instance Default AppDelegateConfig where
         , _appDelegateConfig_applicationUniversalLink = \_ -> return ()
         , _appDelegateConfig_applicationDidReceiveRemoteNotification = \_ _ -> return ()
         , _appDelegateConfig_appDelegateNotificationConfig = def
+        , _appDelegateConfig_developerExtrasEnabled = True
+        , _appDelegateConfig_applicationOpenFile = \_ -> return False
         }
 
 data AuthorizationOption = AuthorizationOption_Badge
@@ -107,29 +132,38 @@ instance Default AppDelegateNotificationConfig where
 
 -- | Run JSaddle in a WKWebView
 run :: JSM () -> IO ()
-run = run' Nothing def
+run f = run' def (jsaddleMain f)
 
 -- | Run JSaddle in a WKWebView
 runWithAppConfig :: AppDelegateConfig -> JSM () -> IO ()
-runWithAppConfig = run' Nothing
+runWithAppConfig cfg = run' cfg . jsaddleMain
 
 -- | Run JSaddle in a WKWebView first loading the specified file
 --   from the mainBundle (relative to the resourcePath).
-runFile :: ByteString -- ^ The file to navigate to.
-        -> ByteString -- ^ The path to allow read access to.
-        -> AppDelegateConfig
-        -> JSM ()
-        -> IO ()
-runFile url allowing = run' $ Just (url, allowing)
+runFile
+  :: ByteString -- ^ The file to navigate to.
+  -> ByteString -- ^ The path to allow read access to.
+  -> AppDelegateConfig
+  -> JSM ()
+  -> IO ()
+runFile url allowing cfg = run' cfg . jsaddleMainFile url allowing
 
-run' :: Maybe (ByteString, ByteString)
-     -> AppDelegateConfig
-     -> JSM ()
+-- | Run JSaddle in a WKWebView first loading the specified html
+--   as though it came from the specified URL
+--   (calls WKWebKit function loadHTMLString).
+runHTMLWithBaseURL
+  :: ByteString -- ^ HTML to load.
+  -> ByteString -- ^ pretend it came from this URL.
+  -> AppDelegateConfig
+  -> JSM ()
+  -> IO ()
+runHTMLWithBaseURL url allowing cfg = run' cfg . jsaddleMainHTMLWithBaseURL url allowing
+
+run' :: AppDelegateConfig
+     -> (WKWebView -> IO ())
      -> IO ()
-run' mUrl cfg f = do
-    handler <- case mUrl of
-      Just (url, allowing) -> newStablePtr (jsaddleMainFile url allowing f)
-      Nothing -> newStablePtr (jsaddleMain f)
+run' cfg main = do
+    handler <- newStablePtr main
     progName <- getProgName
 
     -- AppDelegate callbacks
@@ -149,6 +183,7 @@ run' mUrl cfg f = do
             2 -> ApplicationState_Background
             _ -> ApplicationState_Unknown n
       _appDelegateConfig_applicationDidReceiveRemoteNotification cfg appState s
+    applicationOpenFile <- newStablePtr $ fmap fromBool . _appDelegateConfig_applicationOpenFile cfg
 
     -- AppDelegate notification configuration
     let ncfg = _appDelegateConfig_appDelegateNotificationConfig cfg
@@ -180,3 +215,5 @@ run' mUrl cfg f = do
       (fromBool registerForRemoteNotifications)
       didRegisterForRemoteNotificationsWithDeviceToken
       didFailToRegisterForRemoteNotificationsWithError
+      (fromBool $ _appDelegateConfig_developerExtrasEnabled cfg)
+      applicationOpenFile

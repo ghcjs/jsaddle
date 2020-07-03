@@ -1,31 +1,47 @@
-sudo: required
-services:
- - docker
+language: nix
+nix: 2.2.2
 
-cache:
-  directories:
-    - .cabal
-    - .ghc
+jobs:
+  include:
+    - stage: Build
+      env: OS=linux GHCVER=ghc865
+    - stage: Build
+      env: OS=linux GHCVER=ghc881
+    - env: OS=macos GHCVER=ghc865
+      os: osx
+      # Fix OSX, see https://travis-ci.community/t/cannot-use-nix-support-on-osx/2927
+      language: generic
+      before_install:
+      - curl https://nixos.org/nix/install | sh
+      - source /Users/travis/.nix-profile/etc/profile.d/nix.sh
+    - env: OS=macos GHCVER=ghc881
+      os: osx
+      # Fix OSX, see https://travis-ci.community/t/cannot-use-nix-support-on-osx/2927
+      language: generic
+      before_install:
+      - curl https://nixos.org/nix/install | sh
+      - source /Users/travis/.nix-profile/etc/profile.d/nix.sh
 
-env:
-# - CABALVER=1.24 GHCVER=7.10.3 OSVER=xenial
- - CABALVER=1.24 GHCVER=8.0.1 OSVER=xenial
- - CABALVER=1.24 GHCVER=8.0.2 OSVER=xenial
- - CABALVER=1.24 GHCVER=7.10.3 OSVER=trusty
- - CABALVER=1.24 GHCVER=8.0.1 OSVER=trusty
- - CABALVER=1.24 GHCVER=8.0.2 OSVER=trusty
-
-before_install:
- - docker build -t ghc -f travis/$OSVER.Dockerfile travis
+install:
+- sudo mkdir -p /etc/nix
+- echo "substituters = https://cache.nixos.org https://hydra.iohk.io" | sudo tee -a /etc/nix/nix.conf > /dev/null
+- echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ=" | sudo tee -a /etc/nix/nix.conf > /dev/null
 
 script:
- - docker run -v `pwd`:/build ghc
-   sh -x -c "
-      apt-get install -y cabal-install-$CABALVER ghc-$GHCVER &&
-      export PATH=\$HOME/.cabal/bin:/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:/opt/alex/3.1.7/bin:/opt/happy/1.19.5/bin:\$PATH &&
-      ./travis/build.sh"
+- nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle.components.library
+- nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle-warp.components.library
+- nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle-clib.components.library
+- |
+  if [ "$OS" == "macos" ]; then
+    nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle-wkwebview.components.library
+  fi
+# TODO try to find how to get working webkitgtk with nix on macOS
+- |
+  if [ "$OS" != "macos" ]; then
+    nix-build --argstr haskellCompiler $GHCVER -A hsPkgs.jsaddle-webkit2gtk.components.library
+  fi
+
 notifications:
   irc:
     channels: "irc.freenode.net#ghcjs"
-    skip_join: true
   email: true

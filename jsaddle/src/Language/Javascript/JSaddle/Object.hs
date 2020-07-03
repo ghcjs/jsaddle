@@ -557,7 +557,7 @@ objCallAsFunction :: MakeArgs args
 objCallAsFunction f this args = do
     rargs <- makeArgs args >>= liftIO . Array.fromListIO
     liftIO $ js_apply f this rargs
-foreign import javascript unsafe "$r = $1.apply($2, $3)"
+foreign import javascript safe "$r = $1.apply($2, $3)"
     js_apply :: Object -> Object -> MutableJSArray -> IO JSVal
 #else
 objCallAsFunction f this args = do
@@ -577,7 +577,7 @@ objCallAsConstructor :: MakeArgs args
 objCallAsConstructor f args = do
     rargs <- makeArgs args >>= liftIO . Array.fromListIO
     liftIO $ js_new f rargs
-foreign import javascript unsafe "\
+foreign import javascript safe "\
         switch($2.length) {\
             case 0 : $r = new $1(); break;\
             case 1 : $r = new $1($2[0]); break;\

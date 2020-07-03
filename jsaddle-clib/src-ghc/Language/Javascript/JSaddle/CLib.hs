@@ -8,6 +8,9 @@ module Language.Javascript.JSaddle.CLib
   , appConfigToAppCallbacks
   ) where
 
+import Prelude ()
+import Prelude.Compat
+
 import Control.Monad (void)
 import Control.Concurrent (forkIO)
 
@@ -16,7 +19,6 @@ import Data.ByteString (useAsCString, packCString)
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Lazy (ByteString, toStrict, fromStrict)
 import Data.Default (def, Default)
-import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text.Encoding as T
 

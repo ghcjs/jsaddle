@@ -73,8 +73,21 @@ import Language.Javascript.JSaddle.Types
         Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..), syncPoint, syncAfter, sendCommand)
 import Language.Javascript.JSaddle.Exception (JSException(..))
 import Control.DeepSeq (force, deepseq)
+#if MIN_VERSION_base(4,11,0)
+import GHC.Stats (getRTSStatsEnabled, getRTSStats, RTSStats(..), gcdetails_live_bytes, gc)
+#else
 import GHC.Stats (getGCStatsEnabled, getGCStats, GCStats(..))
+#endif
 import Data.Foldable (forM_)
+#endif
+
+#ifndef ghcjs_HOST_OS
+#if MIN_VERSION_base(4,11,0)
+currentBytesUsed = gcdetails_live_bytes . gc
+#else
+getRTSStatsEnabled = getGCStatsEnabled
+getRTSStats = getGCStats
+#endif
 #endif
 
 -- | Enable (or disable) JSaddle logging
@@ -193,8 +206,8 @@ runJavaScript sendBatch entryPoint = do
         logInfo s =
             readIORef loggingEnabled >>= \case
                 True -> do
-                    currentBytesUsedStr <- getGCStatsEnabled >>= \case
-                        True  -> show . currentBytesUsed <$> getGCStats
+                    currentBytesUsedStr <- getRTSStatsEnabled >>= \case
+                        True  -> show . currentBytesUsed <$> getRTSStats
                         False -> return "??"
                     cbCount <- M.size <$> readTVarIO callbacks
                     putStrLn . s $ "M " <> currentBytesUsedStr <> " CB " <> show cbCount <> " "
@@ -214,10 +227,11 @@ runJavaScript sendBatch entryPoint = do
                         zipWithM_ putMVar resultMVars results
                         forM_ callbacksToFree $ \(JSValueReceived val) ->
                             atomically (modifyTVar' callbacks (M.delete val))
-                    (_, Failure callbacksToFree results exception) -> do
+                    (_, Failure callbacksToFree results exception err) -> do
                         -- The exception will only be rethrown in Haskell if/when one of the
                         -- missing results (if any) is evaluated.
                         putStrLn "A JavaScript exception was thrown! (may not reach Haskell code)"
+                        putStrLn err
                         zipWithM_ putMVar resultMVars $ results <> repeat (ThrowJSValue exception)
                         forM_ callbacksToFree $ \(JSValueReceived val) ->
                             atomically (modifyTVar' callbacks (M.delete val))
