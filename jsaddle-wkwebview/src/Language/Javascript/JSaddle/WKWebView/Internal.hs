@@ -20,7 +20,7 @@ import qualified Data.Text as T (pack)
 import Data.Text.Encoding (encodeUtf8)
 
 import Foreign.C.String (CString)
-import Foreign.C.Types (CBool(..))
+import Foreign.C.Types (CBool(..), CInt(..))
 import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
@@ -37,6 +37,7 @@ foreign export ccall jsaddleStart :: StablePtr (IO ()) -> IO ()
 foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString -> IO ()
 foreign export ccall jsaddleSyncResult :: StablePtr (Results -> IO Batch) -> JSaddleHandler -> CString -> IO ()
 foreign export ccall callWithWebView :: WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()
+foreign export ccall callWithCIntCString :: CInt -> CString -> StablePtr (CInt -> CString -> IO ()) -> IO ()
 foreign export ccall callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
 foreign export ccall callWithCStringReturningBool :: CString -> StablePtr (CString -> IO CBool) -> IO CBool
 foreign export ccall callIO :: StablePtr (IO ()) -> IO ()
@@ -127,6 +128,11 @@ callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
 callWithCString c fptr = do
     f <- deRefStablePtr fptr
     f c
+
+callWithCIntCString :: CInt -> CString -> StablePtr (CInt -> CString -> IO ()) -> IO ()
+callWithCIntCString n s fptr = do
+    f <- deRefStablePtr fptr
+    f n s
 
 callWithCStringReturningBool :: CString -> StablePtr (CString -> IO CBool) -> IO CBool
 callWithCStringReturningBool c fptr = do

@@ -5,6 +5,7 @@
 
 extern void callIO(HsStablePtr);
 extern void callWithCString(const char * _Nonnull, HsStablePtr);
+extern void callWithCIntCString(int n, const char * _Nonnull, HsStablePtr);
 
 @interface AppDelegate ()
 
@@ -20,6 +21,7 @@ HsStablePtr global_applicationWillEnterForeground = 0;
 HsStablePtr global_applicationWillTerminate = 0;
 HsStablePtr global_applicationSignificantTimeChange = 0;
 HsStablePtr global_applicationUniversalLink = 0;
+HsStablePtr global_applicationDidReceiveRemoteNotification = 0;
 uint64_t global_requestAuthorizationWithOptions = 0;
 uint64_t global_requestAuthorizationOptionBadge = 0;
 uint64_t global_requestAuthorizationOptionSound = 0;
@@ -115,6 +117,14 @@ HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
     if ([userInfo valueForKeyPath:@"aps.badge"] != nil) {
         [UIApplication sharedApplication].applicationIconBadgeNumber=[[[userInfo objectForKey:@"aps"] objectForKey:@"badge"] intValue];
     }
+    NSError *error;
+    NSData *jsonData = [NSJSONSerialization dataWithJSONObject:userInfo options:0 error:&error];
+    if (jsonData) {
+        NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
+        callWithCIntCString((int) application.applicationState, [jsonString UTF8String], global_applicationDidReceiveRemoteNotification);
+    } else {
+        NSLog(@"jsaddle-wkwebview didReceiveRemoteNotification handler: error while serialising push notification as JSON");
+    }
     completionHandler(UIBackgroundFetchResultNewData);
 }
 
@@ -152,6 +162,7 @@ void runInWKWebView(HsStablePtr handler,
                     HsStablePtr hs_applicationWillTerminate,
                     HsStablePtr hs_applicationSignificantTimeChange,
                     HsStablePtr hs_applicationUniversalLink,
+                    HsStablePtr hs_applicationDidReceiveRemoteNotification,
                     const uint64_t hs_requestAuthorizationWithOptions,
                     const uint64_t hs_requestAuthorizationOptionBadge,
                     const uint64_t hs_requestAuthorizationOptionSound,
@@ -172,6 +183,7 @@ void runInWKWebView(HsStablePtr handler,
         global_applicationWillTerminate = hs_applicationWillTerminate;
         global_applicationSignificantTimeChange = hs_applicationSignificantTimeChange;
         global_applicationUniversalLink = hs_applicationUniversalLink;
+        global_applicationDidReceiveRemoteNotification = hs_applicationDidReceiveRemoteNotification;
         global_requestAuthorizationWithOptions = hs_requestAuthorizationWithOptions;
         global_requestAuthorizationOptionBadge = hs_requestAuthorizationOptionBadge;
         global_requestAuthorizationOptionSound = hs_requestAuthorizationOptionSound;

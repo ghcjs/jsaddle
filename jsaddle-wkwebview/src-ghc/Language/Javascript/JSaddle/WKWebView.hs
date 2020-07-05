@@ -9,6 +9,7 @@ module Language.Javascript.JSaddle.WKWebView
     , runHTMLWithBaseURL
     , runFile
     , mainBundleResourcePath
+    , ApplicationState (..)
     , AppDelegateConfig (..)
     , AppDelegateNotificationConfig (..)
     , AuthorizationOption (..)
@@ -24,7 +25,7 @@ import Language.Javascript.JSaddle.WKWebView.Internal
        (jsaddleMain, jsaddleMainHTMLWithBaseURL, jsaddleMainFile, WKWebView(..), mainBundleResourcePath)
 import System.Environment (getProgName)
 import Foreign.C.String (CString, withCString)
-import Foreign.C.Types (CBool)
+import Foreign.C.Types (CBool, CInt)
 import Foreign.StablePtr (StablePtr, newStablePtr)
 import Language.Javascript.JSaddle (JSM)
 
@@ -40,6 +41,7 @@ foreign import ccall runInWKWebView
     -> StablePtr (IO ()) -- applicationWillTerminate
     -> StablePtr (IO ()) -- applicationSignificantTimeChange
     -> StablePtr (CString -> IO ()) -- applicationUniversalLink
+    -> StablePtr (CInt -> CString -> IO ()) -- applicationDidReceiveRemoteNotification
     -> Word64  -- whether to run requestAuthorizationWithOptions
     -> Word64 -- Ask for Badge authorization
     -> Word64 -- Ask for Sound authorization
@@ -66,6 +68,11 @@ data AppDelegateConfig = AppDelegateConfig
     --
     -- The Core Foundation plist key CFBundleURLTypes controls which URL schemes
     -- the app should respond to.
+    , _appDelegateConfig_applicationDidReceiveRemoteNotification :: ApplicationState -> CString -> IO ()
+    -- ^ Called when the application receives a remote notification.
+    -- 'ApplicationState' is the current state of the app.
+    -- The 'CString' JSON-encoded user info contained in the notification.
+    -- For more information see https://developer.apple.com/documentation/uikit/uiapplicationdelegate/1623117-application?language=objc
     , _appDelegateConfig_appDelegateNotificationConfig :: AppDelegateNotificationConfig
     , _appDelegateConfig_developerExtrasEnabled :: Bool
     -- ^ Allow devtools in the app. Defaults to 'True'
@@ -89,6 +96,7 @@ instance Default AppDelegateConfig where
         , _appDelegateConfig_applicationWillTerminate = return ()
         , _appDelegateConfig_applicationSignificantTimeChange = return ()
         , _appDelegateConfig_applicationUniversalLink = \_ -> return ()
+        , _appDelegateConfig_applicationDidReceiveRemoteNotification = \_ _ -> return ()
         , _appDelegateConfig_appDelegateNotificationConfig = def
         , _appDelegateConfig_developerExtrasEnabled = True
         , _appDelegateConfig_applicationOpenFile = \_ -> return False
@@ -98,6 +106,12 @@ data AuthorizationOption = AuthorizationOption_Badge
                          | AuthorizationOption_Sound
                          | AuthorizationOption_Alert
                          | AuthorizationOption_CarPlay
+    deriving (Show, Read, Eq, Ord)
+
+data ApplicationState = ApplicationState_Active
+                      | ApplicationState_Inactive
+                      | ApplicationState_Background
+                      | ApplicationState_Unknown CInt
     deriving (Show, Read, Eq, Ord)
 
 data AppDelegateNotificationConfig = AppDelegateNotificationConfig
@@ -162,6 +176,13 @@ run' cfg main = do
     applicationWillTerminate <- newStablePtr $ _appDelegateConfig_applicationWillTerminate cfg
     applicationSignificantTimeChange <- newStablePtr $ _appDelegateConfig_applicationSignificantTimeChange cfg
     applicationUniversalLink <- newStablePtr $ _appDelegateConfig_applicationUniversalLink cfg
+    applicationDidReceiveRemoteNotification <- newStablePtr $ \n s -> do
+      let appState = case n of
+            0 -> ApplicationState_Active
+            1 -> ApplicationState_Inactive
+            2 -> ApplicationState_Background
+            _ -> ApplicationState_Unknown n
+      _appDelegateConfig_applicationDidReceiveRemoteNotification cfg appState s
     applicationOpenFile <- newStablePtr $ fmap fromBool . _appDelegateConfig_applicationOpenFile cfg
 
     -- AppDelegate notification configuration
@@ -185,6 +206,7 @@ run' cfg main = do
       applicationWillTerminate
       applicationSignificantTimeChange
       applicationUniversalLink
+      applicationDidReceiveRemoteNotification
       (fromBool requestAuthorizationWithOptions)
       (fromBool $ Set.member AuthorizationOption_Badge authorizationOptions)
       (fromBool $ Set.member AuthorizationOption_Sound authorizationOptions)
