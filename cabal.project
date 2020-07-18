@@ -6,12 +6,9 @@ packages:
  jsaddle-webkit2gtk/
  jsaddle-clib/
 
-constraints: haskell-gi-overloading == 0.0
+constraints: haskell-gi-overloading == 0.0, random >=1.2, time >=1.10, process >=1.6.10.0
 
-write-ghc-environment-files: never
+package jsaddle-warp
+  tests: False
 
-source-repository-package
-  type: git
-  location: https://github.com/gtk2hs/webkit-javascriptcore
-  tag: 5868624d0ea1db6e6279c301f7f56adb808a85bf
-  --sha256: 0aj0cvcbnzrdi1ynahpb4034vadfrs99n5qa8dar1srhijv55g8b
+allow-newer: websockets:random splitmix:time *:time *:unix *:process
