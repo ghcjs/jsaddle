@@ -137,7 +137,7 @@ The first five keys `[0..4]` are
 these values.  Both the Haskell code and `jsaddle.js` can allocate new `JSVal` keys.  The Haskell code allocates negative
 keys and `jsaddle.js` allocates positive keys to avoid clashing.
 
-The haskell code will not know the value of the to go with the key, but it will include it in commands to the server
+The haskell code will not know the value to go with the key, but it will include it in commands to the server
 that are sort of "hey call this function and put the result in the map with this key").  This allows for the
 lazy execution of the JSaddle code.
 
@@ -146,7 +146,7 @@ when the JSVal is no longer reachable.  The `jsaddle.js` code then deletes the k
 
 ### JSStrings
 
-These are haskell `Text` type and so reside on the native side of the WebSocket.  If you want to make avoid transferring large string values over the WebSocket use `toJSVal` to convert it to a `JSVal`.
+These are haskell `Text` type and so reside on the native side of the WebSocket.  If you want to avoid transferring large string values over the WebSocket use `toJSVal` to convert it to a `JSVal`.
 
 ### Lazy Execution
 
@@ -213,7 +213,7 @@ JSaddle does not support exceptions well.  When compiled with GHCJS an exception
 at the point the exception is thrown.
 
 When using GHC the Haskell executions will probably continue for a while before the exception is received at all by the Haskell code
-(because the lazy execution of the JS code).  The exception will be thrown when the the next synchronous command is executed.
+(because the lazy execution of the JS code).  The exception will be thrown when the next synchronous command is executed.
 When it reaches the synchronous command a haskell type JSException will be thrown (this may not be the thread that initiated the
 command that caused the exception).  You can use `syncPoint` and `syncAfter` to force the exception to be thrown.
 There are `JSM` versions of `catch` and `bracket` that also include a `syncPoint` call.
