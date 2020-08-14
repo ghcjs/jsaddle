@@ -55,11 +55,11 @@ import GI.GLib (timeoutAdd, idleAdd, pattern PRIORITY_HIGH, pattern PRIORITY_DEF
 import qualified GI.Gtk as Gtk (main, init)
 import GI.Gtk
        (windowSetPosition, windowSetDefaultSize, windowNew,
-        scrolledWindowNew, noAdjustment, containerAdd,
+        scrolledWindowNew, Adjustment, containerAdd,
         WindowType(..), WindowPosition(..), widgetDestroy,
         widgetGetToplevel, widgetShowAll, onWidgetDestroy,
         mainQuit)
-import GI.Gio (noCancellable)
+import GI.Gio (Cancellable)
 import GI.JavaScriptCore (valueToString)
 import GI.WebKit2
        (scriptDialogPromptSetText, scriptDialogPromptGetDefaultText,
@@ -81,6 +81,12 @@ import GI.WebKit2
 import Language.Javascript.JSaddle (JSM, Results, Batch)
 import Language.Javascript.JSaddle.Run (runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
+
+noAdjustment :: Maybe Adjustment
+noAdjustment = Nothing
+
+noCancellable :: Maybe Cancellable
+noCancellable = Nothing
 
 quitWebView :: WebView -> IO ()
 quitWebView wv = postGUIAsync $ do w <- widgetGetToplevel wv --TODO: Shouldn't this be postGUISync?
