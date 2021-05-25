@@ -6,9 +6,6 @@ packages:
  jsaddle-webkit2gtk/
  jsaddle-clib/
 
-constraints: haskell-gi-overloading == 0.0, random >=1.2, time >=1.10, process >=1.6.10.0
+constraints: haskell-gi-overloading == 0.0
 
-package jsaddle-warp
-  tests: False
-
-allow-newer: websockets:random splitmix:time *:time *:unix *:process
+allow-newer: websockets:random, splitmix:time, *:time, *:unix, *:process, stm:base

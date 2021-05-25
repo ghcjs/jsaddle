@@ -59,7 +59,7 @@ test-suite test-tool
             bytestring -any,
             containers -any,
             deepseq -any,
-            doctest >=0.10.1 && <0.18,
+            doctest >=0.10.1 && <0.19,
             exceptions -any,
             filepath >=1.4.0.0 && <1.5,
             foreign-store -any,
