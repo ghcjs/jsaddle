@@ -1,6 +1,6 @@
 {pkgs, ...}:
 { modules = [({pkgs, ...}: {
-    packages.jsaddle-webkit2gtk.components.library.buildable = pkgs.lib.mkForce pkgs.stdenv.hostPlatform.isLinux;
+    packages.webkit2gtk3-javascriptcore.components.library.doHaddock = false;
   })];
   shell.buildInputs = [ pkgs.nodejs ];
   shell.tools.cabal = {};
