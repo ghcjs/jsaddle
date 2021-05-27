@@ -526,11 +526,11 @@ array args = do
     Object . coerce <$> fromListIO rargs
 
 -- | JavaScript's global object
-global :: Object
 #ifdef ghcjs_HOST_OS
 foreign import javascript unsafe "$r = globalThis"
     global :: Object
 #else
+global :: Object
 global = Object . JSVal . unsafePerformIO $ newIORef 4
 #endif
 
