@@ -82,6 +82,12 @@ import Language.Javascript.JSaddle (JSM, Results, Batch)
 import Language.Javascript.JSaddle.Run (runJavaScript)
 import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
 
+noAdjustment :: Maybe Adjustment
+noAdjustment = Nothing
+
+noCancellable :: Maybe Cancellable
+noCancellable = Nothing
+
 quitWebView :: WebView -> IO ()
 quitWebView wv = postGUIAsync $ do w <- widgetGetToplevel wv --TODO: Shouldn't this be postGUISync?
                                    widgetDestroy w
@@ -104,7 +110,7 @@ run main = do
     _ <- timeoutAdd PRIORITY_HIGH 10 (yield >> return True)
     windowSetDefaultSize window 900 600
     windowSetPosition window WindowPositionCenter
-    scrollWin <- scrolledWindowNew (Nothing :: Maybe Adjustment) (Nothing :: Maybe Adjustment)
+    scrollWin <- scrolledWindowNew noAdjustment noAdjustment
     contentManager <- userContentManagerNew
     webView <- webViewNewWithUserContentManager contentManager
     settings <- webViewGetSettings webView
@@ -128,11 +134,11 @@ run main = do
 runInWebView :: JSM () -> WebView -> IO ()
 runInWebView f webView = do
     (processResults, syncResults, start) <- runJavaScript (\batch -> postGUIAsync $
-        webViewRunJavascript webView (decodeUtf8 . toStrict $ "runJSaddleBatch(" <> encode batch <> ");") (Nothing :: Maybe Cancellable) Nothing)
+        webViewRunJavascript webView (decodeUtf8 . toStrict $ "runJSaddleBatch(" <> encode batch <> ");") noCancellable Nothing)
         f
 
     addJSaddleHandler webView processResults syncResults
-    webViewRunJavascript webView (decodeUtf8 $ toStrict jsaddleJs) (Nothing :: Maybe Cancellable) . Just $
+    webViewRunJavascript webView (decodeUtf8 $ toStrict jsaddleJs) noCancellable . Just $
         \_obj _asyncResult ->
             void $ forkIO start
 
