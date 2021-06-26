@@ -110,7 +110,7 @@ run main = do
     _ <- timeoutAdd PRIORITY_HIGH 10 (yield >> return True)
     windowSetDefaultSize window 900 600
     windowSetPosition window WindowPositionCenter
-    scrollWin <- scrolledWindowNew noAdjustment noAdjustment
+    scrollWin <- scrolledWindowNew (Nothing :: Maybe Adjustment) (Nothing :: Maybe Adjustment)
     contentManager <- userContentManagerNew
     webView <- webViewNewWithUserContentManager contentManager
     settings <- webViewGetSettings webView
@@ -134,11 +134,11 @@ run main = do
 runInWebView :: JSM () -> WebView -> IO ()
 runInWebView f webView = do
     (processResults, syncResults, start) <- runJavaScript (\batch -> postGUIAsync $
-        webViewRunJavascript webView (decodeUtf8 . toStrict $ "runJSaddleBatch(" <> encode batch <> ");") noCancellable Nothing)
+        webViewRunJavascript webView (decodeUtf8 . toStrict $ "runJSaddleBatch(" <> encode batch <> ");") (Nothing :: Maybe Cancellable) Nothing)
         f
 
     addJSaddleHandler webView processResults syncResults
-    webViewRunJavascript webView (decodeUtf8 $ toStrict jsaddleJs) noCancellable . Just $
+    webViewRunJavascript webView (decodeUtf8 $ toStrict jsaddleJs) (Nothing :: Maybe Cancellable) . Just $
         \_obj _asyncResult ->
             void $ forkIO start
 

@@ -1,5 +1,5 @@
 name: jsaddle
-version: 0.9.7.1
+version: 0.9.8.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -10,7 +10,7 @@ description:
     This package provides an EDSL for calling JavaScript that
     can be used both from GHCJS and GHC.  When using GHC
     the application is run using Warp and WebSockets to
-    drive a small JavaScipt helper.
+    drive a small JavaScript helper.
 category: Web, Javascript
 author: Hamish Mackenzie
 
@@ -107,13 +107,13 @@ library
         Language.Javascript.JSaddle.Value
         Language.Javascript.JSaddle.Types
     build-depends:
-        aeson >=0.8.0.2 && <1.6,
+        aeson >=0.11.3.0 && <1.6,
         base >=4.9 && <5,
         base-compat >=0.9.0 && <0.12,
         base64-bytestring >=1.0.0.1 && <1.2,
         bytestring >=0.10.6.0 && <0.11,
         exceptions >=0.8 && <0.11,
-        lens >=3.8.5 && <4.20,
+        lens >=3.8.5 && <5.1,
         primitive >=0.6.1.0 && <0.8,
         text >=1.2.1.3 && <1.3,
         transformers >=0.4.2.0 && <0.6

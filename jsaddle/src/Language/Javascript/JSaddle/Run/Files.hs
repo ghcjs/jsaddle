@@ -41,7 +41,7 @@ initState = "\
     \        jsaddle_values.set(1, undefined);\n\
     \        jsaddle_values.set(2, false);\n\
     \        jsaddle_values.set(3, true);\n\
-    \        jsaddle_values.set(4, window);\n\
+    \        jsaddle_values.set(4, globalThis);\n\
     \        var jsaddle_index = 100;\n\
     \        var expectedBatch = 1;\n\
     \        var lastResults = [0, {\"tag\": \"Success\", \"contents\": [[], []]}];\n\
