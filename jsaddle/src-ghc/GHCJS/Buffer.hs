@@ -19,7 +19,7 @@ module GHCJS.Buffer
 
 import GHCJS.Buffer.Types
 
-import Control.Lens.Operators ((^.))
+import Control.Lens.Reexported
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS

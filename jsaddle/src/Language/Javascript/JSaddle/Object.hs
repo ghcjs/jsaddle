@@ -131,7 +131,7 @@ import Language.Javascript.JSaddle.Marshal.String (ToJSString(..))
 import Language.Javascript.JSaddle.Arguments (MakeArgs(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Properties
-import Control.Lens (IndexPreservingGetter, to)
+import Control.Lens.Reexported
 import Data.IORef (newIORef, readIORef)
 import System.IO.Unsafe (unsafePerformIO)
 

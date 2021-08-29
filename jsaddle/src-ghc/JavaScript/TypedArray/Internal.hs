@@ -14,7 +14,7 @@ import GHC.Word
 import GHCJS.Internal.Types
 
 import Control.Monad (void)
-import Control.Lens.Operators ((^.))
+import Control.Lens.Reexported
 
 import GHCJS.Marshal (fromJSValUnchecked)
 

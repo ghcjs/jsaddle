@@ -47,7 +47,7 @@ import Control.Monad (void)
 import Language.Javascript.JSaddle.Types
        (JSM, JSVal, SomeJSArray(..), JSArray,
         MutableJSArray, GHCJSPure(..))
-import Control.Lens.Operators ((^.))
+import Control.Lens.Reexported
 import Language.Javascript.JSaddle.Object (js2, js0, (<##), js1, js)
 import Language.Javascript.JSaddle.Value (valToNumber)
 import JavaScript.Array.Internal (create, fromList, fromListIO, toList, toListIO, index, read, push)

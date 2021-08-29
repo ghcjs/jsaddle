@@ -6,7 +6,7 @@ module JavaScript.TypedArray.ArrayBuffer
     , byteLengthIO
     ) where
 
-import Control.Lens.Operators ((^.))
+import Control.Lens.Reexported
 
 import GHCJS.Marshal (fromJSValUnchecked)
 

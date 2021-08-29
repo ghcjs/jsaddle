@@ -27,6 +27,12 @@ flag check-unchecked
   description: Fail unchecked calls when they are called (rather than when the result is evaluated)
   default: False
 
+flag lens
+  description:
+    Use the 'lens' library. You might want to disable this to reduce executable size.
+    With this disabled all 'IndexPreservingGetter's become 'Getter's.
+  default: True
+
 library
 
     if impl(ghcjs -any)
@@ -106,6 +112,8 @@ library
         Language.Javascript.JSaddle.String
         Language.Javascript.JSaddle.Value
         Language.Javascript.JSaddle.Types
+    other-modules:
+        Control.Lens.Reexported
     build-depends:
         aeson >=0.11.3.0 && <1.6,
         base >=4.9 && <5,
@@ -113,10 +121,14 @@ library
         base64-bytestring >=1.0.0.1 && <1.2,
         bytestring >=0.10.6.0 && <0.11,
         exceptions >=0.8 && <0.11,
-        lens >=3.8.5 && <5.1,
         primitive >=0.6.1.0 && <0.8,
         text >=1.2.1.3 && <1.3,
         transformers >=0.4.2.0 && <0.6
+    if flag(lens)
+        build-depends:
+            lens >=3.8.5 && <5.1
+        cpp-options:
+            -DLENS
     default-language: Haskell2010
     hs-source-dirs: src
     ghc-options: -ferror-spans -Wall
