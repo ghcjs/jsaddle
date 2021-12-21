@@ -9,3 +9,4 @@ cabal-dev
 /dist-newstyle/
 /.stack-work/
 *.project.local
+/dist-ghcjs/

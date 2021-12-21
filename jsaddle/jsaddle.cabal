@@ -100,6 +100,7 @@ library
         Language.Javascript.JSaddle.Marshal.String
         Language.Javascript.JSaddle.Monad
         Language.Javascript.JSaddle.Object
+        Language.Javascript.JSaddle.Promise
         Language.Javascript.JSaddle.Properties
         Language.Javascript.JSaddle.Run
         Language.Javascript.JSaddle.Run.Files

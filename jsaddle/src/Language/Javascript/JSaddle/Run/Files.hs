@@ -459,4 +459,9 @@ ghcjsHelpers = "\
     \  }\n\
     \  return window.btoa(bin);\n\
     \}\n\
+    \function h$jsaddle_promiseFunction0($1) { return function() { return new Promise($1); }; };\n\
+    \function h$jsaddle_promiseFunction1($1) { return function(a) { return new Promise(function(resolutionFunc, rejectionFunc) { $1(a,resolutionFunc,rejectionFunc); }); }; };\n\
+    \function h$jsaddle_promiseFunction2($1) { return function(a,b) { return new Promise(function(resolutionFunc, rejectionFunc) { $1(a,b,resolutionFunc,rejectionFunc); }); }; };\n\
+    \function h$jsaddle_promiseFunction3($1) { return function(a,b,c) { return new Promise(function(resolutionFunc, rejectionFunc) { $1(a,b,c,resolutionFunc,rejectionFunc); }); }; };\n\
+    \function h$jsaddle_promiseFunction4($1) { return function(a,b,c,d) { return new Promise(function(resolutionFunc, rejectionFunc) { $1(a,b,c,d,resolutionFunc,rejectionFunc); }); }; };\n\
     \"

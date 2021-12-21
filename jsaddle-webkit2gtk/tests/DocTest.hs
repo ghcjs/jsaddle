@@ -32,9 +32,10 @@ main = do
     hSetBuffering stderr LineBuffering
     putStrLn "Running Tests"
     done <- newEmptyMVar
-    system "ghc-pkg list"
     forkIO $ do
         liftIO $ doctest [
+            "-hide-all-packages",
+            "-package-db=/nix/store/sbf78c4z20jvmkcr7nfnzy4520a628nr-ghc-shell-for-packages-ghc-8.10.4-env/lib/ghc-8.10.4/package.conf.d",
             "-package=base-" ++ VERSION_base,
             "-package=lens-" ++ VERSION_lens,
             "-package=text-" ++ VERSION_text,

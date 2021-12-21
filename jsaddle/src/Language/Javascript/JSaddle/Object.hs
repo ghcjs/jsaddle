@@ -123,6 +123,8 @@ import Language.Javascript.JSaddle.Types
         SomeJSArray(..), JSVal(..), JSCallAsFunction, JSContextRef(..))
 import JavaScript.Object.Internal (create, listProps)
 import Language.Javascript.JSaddle.Run (sendAsyncCommand)
+import Data.IORef (newIORef, readIORef)
+import System.IO.Unsafe (unsafePerformIO)
 #endif
 import JavaScript.Array.Internal (fromListIO)
 import Language.Javascript.JSaddle.Value (valToObject)
@@ -132,8 +134,6 @@ import Language.Javascript.JSaddle.Arguments (MakeArgs(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.Properties
 import Control.Lens (IndexPreservingGetter, to)
-import Data.IORef (newIORef, readIORef)
-import System.IO.Unsafe (unsafePerformIO)
 
 -- $setup
 -- >>> import Control.Concurrent.MVar (newEmptyMVar, takeMVar, putMVar)
@@ -283,6 +283,7 @@ jsgf name = global # name
 -- >>> testJSaddle $ jsg0 "globalFunc" >>= valToText
 -- A JavaScript exception was thrown! (may not reach Haskell code)
 -- TypeError:...undefine...
+-- ...
 jsg0 :: (ToJSString name) => name -> JSM JSVal
 jsg0 name = jsgf name ()
 
