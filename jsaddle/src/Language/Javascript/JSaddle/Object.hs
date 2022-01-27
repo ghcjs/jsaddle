@@ -444,7 +444,7 @@ foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
     makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
 #endif
 
--- ^ Make a JavaScript function object that wraps a Haskell function.
+-- | Make a JavaScript function object that wraps a Haskell function.
 -- Calls made to the function will be synchronous where possible
 -- (on GHCJS it uses on `syncCallback2` with `ContinueAsync`).
 function :: JSCallAsFunction -- ^ Haskell function to call
@@ -462,8 +462,8 @@ function f = do
     return $ Function object
 #endif
 
--- ^ Make a JavaScript function object that wraps a Haskell function.
--- Calls made to the function will be Asynchronous.
+-- | Make a JavaScript function object that wraps a Haskell function.
+-- Calls made to the function will be asynchronous.
 asyncFunction :: JSCallAsFunction -- ^ Haskell function to call
               -> JSM Function     -- ^ Returns a JavaScript function object that will
                                   --   call the Haskell one when it is called
