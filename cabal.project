@@ -1,9 +1,10 @@
 packages:
- jsaddle/
- jsaddle-warp/
- jsaddle-wkwebview/
- jsaddle-webkit2gtk/
- jsaddle-clib/
+ jsaddle
+ jsaddle-warp
+ jsaddle-dom
+ -- jsaddle-wkwebview/
+ -- jsaddle-webkit2gtk/
+ -- jsaddle-clib/
 
 constraints: haskell-gi-overloading == 0.0
 
