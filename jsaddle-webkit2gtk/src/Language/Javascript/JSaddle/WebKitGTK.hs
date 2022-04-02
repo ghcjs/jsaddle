@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MonoLocalBinds #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.WebSockets
@@ -71,12 +72,11 @@ import GI.WebKit2
         userContentManagerRegisterScriptMessageHandler,
         javascriptResultGetJsValue,
         webViewGetUserContentManager,
-        mk_UserContentManagerScriptMessageReceivedCallback,
-        wrap_UserContentManagerScriptMessageReceivedCallback,
         webViewRunJavascript, LoadEvent(..),
         UserContentManagerScriptMessageReceivedCallback, webViewLoadHtml,
         onWebViewLoadChanged, setSettingsEnableDeveloperExtras,
-        webViewSetSettings, webViewGetSettings, ScriptDialogType(..))
+        webViewSetSettings, webViewGetSettings, ScriptDialogType(..), IsUserContentManager)
+import qualified GI.WebKit2
 
 import Language.Javascript.JSaddle (JSM, Results, Batch)
 import Language.Javascript.JSaddle.Run (runJavaScript)
@@ -124,9 +124,9 @@ run main = do
     _ <- onWidgetDestroy window mainQuit
     widgetShowAll window
     pwd <- getCurrentDirectory
-    void . onWebViewLoadChanged webView $ \case
-        LoadEventFinished -> runInWebView main webView
-        _ -> return ()
+    let webViewLoadChangedCallback LoadEventFinished = runInWebView main webView
+        webViewLoadChangedCallback _                 = return ()
+    void $ onWebViewLoadChanged webView webViewLoadChangedCallback
     webViewLoadHtml webView "" . Just $ "file://" <> T.pack pwd <> "/index.html"
     installQuitHandler webView
     Gtk.main
@@ -142,17 +142,21 @@ runInWebView f webView = do
         \_obj _asyncResult ->
             void $ forkIO start
 
-onUserContentManagerScriptMessageReceived :: (GObject a, MonadIO m) => a -> UserContentManagerScriptMessageReceivedCallback -> m SignalHandlerId
+onUserContentManagerScriptMessageReceived :: (IsUserContentManager a, MonadIO m) => a -> UserContentManagerScriptMessageReceivedCallback -> m SignalHandlerId
+#if MIN_VERSION_haskell_gi_base(0,26,0)
+onUserContentManagerScriptMessageReceived obj cb = GI.WebKit2.onUserContentManagerScriptMessageReceived obj Nothing cb
+#else
 onUserContentManagerScriptMessageReceived obj cb = liftIO $ connectUserContentManagerScriptMessageReceived obj cb SignalConnectBefore
 
 connectUserContentManagerScriptMessageReceived :: (GObject a, MonadIO m) =>
                                                   a -> UserContentManagerScriptMessageReceivedCallback -> SignalConnectMode -> m SignalHandlerId
 connectUserContentManagerScriptMessageReceived obj cb after = liftIO $ do
-    let cb' = wrap_UserContentManagerScriptMessageReceivedCallback cb
-    cb'' <- mk_UserContentManagerScriptMessageReceivedCallback cb'
+    let cb' = GI.WebKit2.wrap_UserContentManagerScriptMessageReceivedCallback cb
+    cb'' <- GI.WebKit2.mk_UserContentManagerScriptMessageReceivedCallback cb'
     connectSignalFunPtr obj "script-message-received::jsaddle" cb'' after
 #if MIN_VERSION_haskell_gi_base(0,23,0)
       Nothing
+#endif
 #endif
 
 addJSaddleHandler :: WebView -> (Results -> IO ()) -> (Results -> IO Batch) -> IO ()
