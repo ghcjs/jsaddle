@@ -188,7 +188,7 @@ this !! index = do
 js :: (MakeObject s, ToJSString name)
    => name          -- ^ Name of the property to find
    -> IndexPreservingGetter s (JSM JSVal)
-js name = to (!name)
+js name = to (! name)
 
 -- | Makes a setter for a particular property name.
 --
