@@ -37,7 +37,7 @@ library
     else
         frameworks: Foundation, WebKit
         build-depends:
-            aeson >=0.8.0.2 && <1.6,
+            aeson >=0.8.0.2 && <2.1,
             bytestring >=0.10.6.0 && <0.11,
             directory,
             jsaddle >= 0.9.4.0 && <0.10,
