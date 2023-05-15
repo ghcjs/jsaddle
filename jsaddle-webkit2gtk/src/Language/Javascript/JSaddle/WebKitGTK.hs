@@ -139,7 +139,7 @@ runInWebView f webView = do
 
     addJSaddleHandler webView processResults syncResults
     webViewRunJavascript webView (decodeUtf8 $ toStrict jsaddleJs) noCancellable . Just $
-        \_obj _asyncResult ->
+        \_obj _asyncResult _data ->
             void $ forkIO start
 
 onUserContentManagerScriptMessageReceived :: (IsUserContentManager a, MonadIO m) => a -> UserContentManagerScriptMessageReceivedCallback -> m SignalHandlerId
