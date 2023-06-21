@@ -11,5 +11,4 @@
   cabalProjectLocal = ''
     constraints: aeson >=2
   '';
-  configureArgs = "--disable-tests";
 }
