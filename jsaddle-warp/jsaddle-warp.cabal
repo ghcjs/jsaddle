@@ -50,8 +50,9 @@ library
     ghc-options: -ferror-spans -Wall
 
 test-suite test-tool
-    if impl(ghcjs -any) || os(ios)
-        buildable: False
+    -- Disable doctests as they dont work at the moment and the hspec tests
+    -- covers the testing
+    buildable: False
 
     build-depends:
             QuickCheck -any,
