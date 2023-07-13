@@ -53,7 +53,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install libwebkit2gtk-4.0-dev libgirepository1.0-dev phantomjs
+        sudo apt install libwebkit2gtk-4.0-dev libgirepository1.0-dev
         cabal update
         cabal build all --dependencies-only --enable-tests --disable-optimization
     - name: Build
