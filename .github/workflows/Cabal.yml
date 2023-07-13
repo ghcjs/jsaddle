@@ -61,5 +61,4 @@ jobs:
         cabal build all --enable-tests --disable-optimization 2>&1 | tee build.log
     - name: Test
       run: |
-        # cabal test all --disable-optimization
-        cabal run jsaddle-warp:test-tool -- .
+        cabal test all --disable-optimization
