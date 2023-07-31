@@ -19,7 +19,7 @@ module Language.Javascript.JSaddle.Exception (
 
 import qualified Control.Exception as E (Exception)
 #ifdef ghcjs_HOST_OS
-import GHCJS.Prim (JSVal)
+import GHC.JS.Prim (JSVal)
 #else
 import GHCJS.Prim.Internal (JSVal)
 #endif
