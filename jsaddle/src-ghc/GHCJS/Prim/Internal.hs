@@ -14,8 +14,6 @@ import           Data.Int (Int64)
 import           Data.Typeable (Typeable)
 import           Unsafe.Coerce (unsafeCoerce)
 
-import           Data.Aeson (ToJSON(..), FromJSON(..))
-
 import qualified GHC.Exception as Ex
 import Data.IORef (newIORef, IORef)
 import System.IO.Unsafe (unsafePerformIO)

@@ -28,6 +28,10 @@ module Data.JSString.Internal.Type ( JSString(..)
 
                                    ) where
 -}
+
+import Prelude ()
+import Prelude.Compat
+
 import Control.DeepSeq
 
 import Data.Coerce                    (coerce)
@@ -38,7 +42,6 @@ import Data.Aeson                     (ToJSON(..), FromJSON(..))
 import Data.Data                      (Data)
 -- import Data.Text.Internal.Unsafe.Char (ord)
 import Data.Typeable                  (Typeable)
-import Data.Semigroup                 (Semigroup)
 import GHC.Exts                       (Char(..), ord#, andI#, (/=#), isTrue#)
 
 -- | A wrapper around a JavaScript string

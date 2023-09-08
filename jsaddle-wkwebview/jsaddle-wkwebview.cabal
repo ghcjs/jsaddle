@@ -1,5 +1,5 @@
 name: jsaddle-wkwebview
-version: 0.9.8.2
+version: 0.9.8.3
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -37,7 +37,7 @@ library
     else
         frameworks: Foundation, WebKit
         build-depends:
-            aeson >=0.8.0.2 && <2.2,
+            aeson >=0.8.0.2 && <2.3,
             bytestring >=0.10.6.0 && <0.13,
             directory,
             jsaddle >= 0.9.4.0 && <0.10,
