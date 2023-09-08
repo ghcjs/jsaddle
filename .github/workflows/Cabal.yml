@@ -53,7 +53,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install libwebkit2gtk-4.0-dev libgirepository1.0-dev phantomjs
+        sudo apt install libwebkit2gtk-4.0-dev libgirepository1.0-dev
         cabal update
         cabal build all --dependencies-only --enable-tests --disable-optimization
     - name: Build
@@ -61,5 +61,4 @@ jobs:
         cabal build all --enable-tests --disable-optimization 2>&1 | tee build.log
     - name: Test
       run: |
-        # cabal test all --disable-optimization
-        cabal run jsaddle-warp:test-tool -- .
+        cabal test all --disable-optimization
