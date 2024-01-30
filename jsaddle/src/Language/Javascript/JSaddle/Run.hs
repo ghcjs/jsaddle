@@ -36,6 +36,9 @@ module Language.Javascript.JSaddle.Run (
 #endif
 ) where
 
+import Prelude ()
+import Prelude.Compat
+
 #ifdef ghcjs_HOST_OS
 import Language.Javascript.JSaddle.Types (JSM, syncPoint, syncAfter)
 import qualified JavaScript.Web.AnimationFrame as GHCJS
@@ -55,12 +58,10 @@ import Control.Concurrent.MVar
        (tryTakeMVar, MVar, putMVar, takeMVar, newMVar, newEmptyMVar, readMVar, modifyMVar)
 
 import System.IO.Unsafe (unsafeInterleaveIO)
-import System.Mem.Weak (addFinalizer)
 import System.Random
 
 import GHC.Base (IO(..), mkWeak#)
 import GHC.Conc (ThreadId(..))
-import Data.Monoid ((<>))
 import qualified Data.Text as T (unpack, pack)
 import qualified Data.Map as M (lookup, delete, insert, empty, size)
 import qualified Data.Set as S (empty, member, insert, delete)
@@ -72,22 +73,13 @@ import Language.Javascript.JSaddle.Types
        (Command(..), AsyncCommand(..), Result(..), BatchResults(..), Results(..), JSContextRef(..), JSVal(..),
         Object(..), JSValueReceived(..), JSM(..), Batch(..), JSValueForSend(..), syncPoint, syncAfter, sendCommand)
 import Language.Javascript.JSaddle.Exception (JSException(..))
-import Control.DeepSeq (force, deepseq)
+import Control.DeepSeq (deepseq)
 #if MIN_VERSION_base(4,11,0)
 import GHC.Stats (getRTSStatsEnabled, getRTSStats, RTSStats(..), gcdetails_live_bytes, gc)
 #else
 import GHC.Stats (getGCStatsEnabled, getGCStats, GCStats(..))
 #endif
 import Data.Foldable (forM_)
-#endif
-
-#ifndef ghcjs_HOST_OS
-#if MIN_VERSION_base(4,11,0)
-currentBytesUsed = gcdetails_live_bytes . gc
-#else
-getRTSStatsEnabled = getGCStatsEnabled
-getRTSStats = getGCStats
-#endif
 #endif
 
 -- | Enable (or disable) JSaddle logging
@@ -272,6 +264,15 @@ runJavaScript sendBatch entryPoint = do
             atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (Right syncCmd:cmds, resultMVar:resultMVars)
         loopAnimation (Left asyncCmd) (cmds, resultMVars) =
             atomically (readTChan chan) >>= \cmd -> loopAnimation cmd (Left asyncCmd:cmds, resultMVars)
+#ifndef ghcjs_HOST_OS
+#if MIN_VERSION_base(4,11,0)
+    currentBytesUsed = gcdetails_live_bytes . gc
+#else
+    getRTSStatsEnabled = getGCStatsEnabled
+    getRTSStats = getGCStats
+#endif
+#endif
+
 
 addThreadFinalizer :: ThreadId -> IO () -> IO ()
 addThreadFinalizer t@(ThreadId t#) (IO finalizer) =

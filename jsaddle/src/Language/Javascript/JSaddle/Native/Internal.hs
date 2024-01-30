@@ -178,32 +178,32 @@ valueToBool v@(JSVal ref) = liftIO (readIORef ref) >>= \case
     2 -> return False -- false
     3 -> return True  -- true
     _ -> withJSVal v $ \rval -> do
-        ~(ValueToBoolResult result) <- sendCommand (ValueToBool rval)
+        (ValueToBoolResult result) <- sendCommand (ValueToBool rval)
         return result
 {-# INLINE valueToBool #-}
 
 valueToNumber :: JSVal -> JSM Double
 valueToNumber value =
     withJSVal value $ \rval -> do
-        ~(ValueToNumberResult result) <- sendCommand (ValueToNumber rval)
+        (ValueToNumberResult result) <- sendCommand (ValueToNumber rval)
         return result
 {-# INLINE valueToNumber #-}
 
 valueToString :: JSVal -> JSM JSString
 valueToString value = withJSVal value $ \rval -> do
-    ~(ValueToStringResult result) <- sendCommand (ValueToString rval)
+    (ValueToStringResult result) <- sendCommand (ValueToString rval)
     wrapJSString result
 {-# INLINE valueToString #-}
 
 valueToJSON :: JSVal -> JSM JSString
 valueToJSON value = withJSVal value $ \rval -> do
-    ~(ValueToJSONResult result) <- sendCommand (ValueToJSON rval)
+    (ValueToJSONResult result) <- sendCommand (ValueToJSON rval)
     wrapJSString result
 {-# INLINE valueToJSON #-}
 
 valueToJSONValue :: JSVal -> JSM Value
 valueToJSONValue value = withJSVal value $ \rval -> do
-    ~(ValueToJSONValueResult result) <- sendCommand (ValueToJSONValue rval)
+    (ValueToJSONValueResult result) <- sendCommand (ValueToJSONValue rval)
     return result
 {-# INLINE valueToJSONValue #-}
 
@@ -214,7 +214,7 @@ isNull v@(JSVal ref) = liftIO (readIORef ref) >>= \case
     2 -> return False -- false
     3 -> return False -- true
     _ -> withJSVal v $ \rval -> do
-        ~(IsNullResult result) <- sendCommand $ IsNull rval
+        (IsNullResult result) <- sendCommand $ IsNull rval
         return result
 {-# INLINE isNull #-}
 
@@ -225,7 +225,7 @@ isUndefined v@(JSVal ref) = liftIO (readIORef ref) >>= \case
     2 -> return False -- false
     3 -> return False -- true
     _ -> withJSVal v $ \rval -> do
-        ~(IsUndefinedResult result) <- sendCommand $ IsUndefined rval
+        (IsUndefinedResult result) <- sendCommand $ IsUndefined rval
         return result
 {-# INLINE isUndefined #-}
 
@@ -233,7 +233,7 @@ strictEqual :: JSVal -> JSVal -> JSM Bool
 strictEqual a b =
     withJSVal a $ \aref ->
         withJSVal b $ \bref -> do
-            ~(StrictEqualResult result) <- sendCommand $ StrictEqual aref bref
+            (StrictEqualResult result) <- sendCommand $ StrictEqual aref bref
             return result
 {-# INLINE strictEqual #-}
 
@@ -241,13 +241,13 @@ instanceOf :: JSVal -> Object -> JSM Bool
 instanceOf value constructor =
     withJSVal value $ \rval ->
         withObject constructor $ \c' -> do
-            ~(InstanceOfResult result) <- sendCommand $ InstanceOf rval c'
+            (InstanceOfResult result) <- sendCommand $ InstanceOf rval c'
             return result
 {-# INLINE instanceOf #-}
 
 propertyNames :: Object -> JSM [JSString]
 propertyNames this =
     withObject this $ \rthis -> do
-        ~(PropertyNamesResult result) <- sendCommand $ PropertyNames rthis
+        (PropertyNamesResult result) <- sendCommand $ PropertyNames rthis
         mapM wrapJSString result
 {-# INLINE propertyNames #-}

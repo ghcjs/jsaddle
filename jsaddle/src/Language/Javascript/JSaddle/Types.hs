@@ -15,6 +15,7 @@
 {-# LANGUAGE ConstraintKinds            #-}
 {-# LANGUAGE KindSignatures             #-}
 {-# LANGUAGE AllowAmbiguousTypes        #-}
+{-# LANGUAGE TypeOperators              #-}
 -----------------------------------------------------------------------------
 --
 -- Module      :  Language.Javascript.JSaddle.Types

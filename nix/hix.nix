@@ -1,5 +1,5 @@
 {config, pkgs, ...}: {
-  compiler-nix-name = "ghc961";
+  compiler-nix-name = "ghc962";
   modules = [({pkgs, ...}: {
     packages.webkit2gtk3-javascriptcore.components.library.doHaddock = false;
   })];
@@ -11,5 +11,4 @@
   cabalProjectLocal = ''
     constraints: aeson >=2
   '';
-  configureArgs = "--disable-tests";
 }
