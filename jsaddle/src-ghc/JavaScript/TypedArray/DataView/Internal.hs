@@ -1,5 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE JavaScriptFFI #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE UnliftedFFITypes #-}
 {-# LANGUAGE GHCForeignImportPrim #-}
