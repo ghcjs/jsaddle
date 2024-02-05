@@ -102,7 +102,11 @@ import Prelude hiding ((!!))
 import Data.Coerce (coerce)
 #ifdef ghcjs_HOST_OS
 import GHCJS.Types (nullRef)
+#if __GLASGOW_HASKELL__ >= 900
+import GHC.JS.Foreign.Callback
+#else
 import GHCJS.Foreign.Callback
+#endif
        (releaseCallback, syncCallback2, asyncCallback2, OnBlocked(..), Callback)
 import GHCJS.Marshal (ToJSVal(..))
 import JavaScript.Array (MutableJSArray)
