@@ -21,7 +21,7 @@ source-repository head
 
 library
 
-    if !impl(ghcjs -any)
+    if !impl(ghcjs -any) && !arch(javascript)
         exposed-modules:
             Language.Javascript.JSaddle.WebSockets
         other-modules:
@@ -40,7 +40,7 @@ library
             wai >=3.0.3.0 && <3.3,
             wai-websockets >=3.0.0.6 && <3.1,
             warp >=3.1.2 && <3.4,
-            websockets >=0.9.5.0 && <0.13
+            websockets >=0.9.5.0 && <0.14
     exposed-modules:
         Language.Javascript.JSaddle.Warp
     build-depends:
@@ -93,6 +93,9 @@ test-suite test-tool
     ghc-options: -ferror-spans -threaded
 
 test-suite spec
+  if impl(ghcjs -any) || arch(javascript)
+    buildable: False
+
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:

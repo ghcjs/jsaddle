@@ -189,7 +189,13 @@ valToBool value = toJSVal value >>= ghcjsPure . isTruthy
 valToNumber :: ToJSVal value => value -> JSM Double
 #ifdef ghcjs_HOST_OS
 valToNumber value = jsrefToNumber <$> toJSVal value
-foreign import javascript unsafe "$r = Number($1);" jsrefToNumber :: JSVal -> Double
+foreign import javascript unsafe
+#if __GLASGOW_HASKELL__ >= 900
+  "(($1) => { return Number($1); })"
+#else
+  "$r = Number($1);"
+#endif
+     jsrefToNumber :: JSVal -> Double
 #else
 valToNumber value = toJSVal value >>= valueToNumber
 #endif
@@ -216,7 +222,13 @@ valToNumber value = toJSVal value >>= valueToNumber
 valToStr :: ToJSVal value => value -> JSM JSString
 #ifdef ghcjs_HOST_OS
 valToStr value = jsrefToString <$> toJSVal value
-foreign import javascript unsafe "$r = $1.toString();" jsrefToString :: JSVal -> JSString
+foreign import javascript unsafe
+#if __GLASGOW_HASKELL__ >= 900
+  "(($1) => { return $1.toString(); })"
+#else
+  "$r = $1.toString();"
+#endif
+    jsrefToString :: JSVal -> JSString
 #else
 valToStr value = toJSVal value >>= valueToString
 #endif
@@ -267,7 +279,13 @@ valToText jsvar = strToText <$> valToStr jsvar
 valToJSON :: ToJSVal value => value -> JSM JSString
 #ifdef ghcjs_HOST_OS
 valToJSON value = jsrefToJSON <$> toJSVal value
-foreign import javascript unsafe "$r = $1 === undefined ? \"\" : JSON.stringify($1);" jsrefToJSON :: JSVal -> JSString
+foreign import javascript unsafe
+#if __GLASGOW_HASKELL__ >= 900
+  "(($1) => { return $1 === undefined ? \"\" : JSON.stringify($1); })"
+#else
+  "$r = $1 === undefined ? \"\" : JSON.stringify($1);"
+#endif
+    jsrefToJSON :: JSVal -> JSString
 #else
 valToJSON value = toJSVal value >>= valueToJSON
 #endif
@@ -611,12 +629,23 @@ deRefVal value = do
         4 -> ValString <$> valToText valref
         5 -> ValObject <$> valToObject valref
         _ -> error "Unexpected result dereferencing JSaddle value"
-foreign import javascript unsafe "$r = ($1 === undefined)?0:\
-                                       ($1===null)?1:\
-                                       (typeof $1===\"boolean\")?2:\
-                                       (typeof $1===\"number\")?3:\
-                                       (typeof $1===\"string\")?4:\
-                                       (typeof $1===\"object\")?5:-1;" jsrefGetType :: JSVal -> Int
+foreign import javascript unsafe
+#if __GLASGOW_HASKELL__ >= 900
+  "(($1) => { return ($1 === undefined)?0:\
+                     ($1===null)?1:\
+                     (typeof $1===\"boolean\")?2:\
+                     (typeof $1===\"number\")?3:\
+                     (typeof $1===\"string\")?4:\
+                     (typeof $1===\"object\")?5:-1; })"
+#else
+  "$r = ($1 === undefined)?0:\
+        ($1===null)?1:\
+        (typeof $1===\"boolean\")?2:\
+        (typeof $1===\"number\")?3:\
+        (typeof $1===\"string\")?4:\
+        (typeof $1===\"object\")?5:-1;"
+#endif
+    jsrefGetType :: JSVal -> Int
 #else
 deRefVal value = do
     v <- toJSVal value
@@ -669,7 +698,12 @@ instance MakeArgs JSValue where
 
 #ifdef ghcjs_HOST_OS
 foreign import javascript unsafe
-  "$1===$2" jsvalueisstrictequal :: JSVal -> JSVal -> Bool
+#if __GLASGOW_HASKELL__ >= 900
+  "(($1,$2) => { return $1===$2; })"
+#else
+  "$1===$2"
+#endif
+    jsvalueisstrictequal :: JSVal -> JSVal -> Bool
 #endif
 
 -- | Determine if two values are equal (JavaScripts ===)
@@ -692,7 +726,12 @@ strictEqual a b = do
 #endif
 
 #ifdef ghcjs_HOST_OS
-foreign import javascript unsafe "$1 instanceof $2"
+foreign import javascript unsafe
+#if __GLASGOW_HASKELL__ >= 900
+  "(($1,$2) => { return $1 instanceof $2; })"
+#else
+  "$1 instanceof $2"
+#endif
   js_isInstanceOf :: JSVal -> Object -> Bool
 #endif
 

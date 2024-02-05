@@ -60,7 +60,12 @@ objGetPropertyAtIndex :: Object    -- ^ object to find the property on.
                       -> JSM JSVal -- ^ returns the property value.
 #ifdef ghcjs_HOST_OS
 objGetPropertyAtIndex this index = js_tryIndex index this
-foreign import javascript unsafe "$r=$2[$1]"
+foreign import javascript unsafe
+#if __GLASGOW_HASKELL__ >= 900
+  "(($1,$2) => { return $2[$1]; })"
+#else
+  "$r=$2[$1]"
+#endif
     js_tryIndex :: Int -> Object -> IO JSVal
 #else
 objGetPropertyAtIndex this index =
@@ -87,7 +92,12 @@ objSetPropertyAtIndex :: (ToJSVal val)
 objSetPropertyAtIndex this index val = do
     vref <- toJSVal val
     js_trySetAtIndex index this vref
-foreign import javascript unsafe "$2[$1]=$3"
+foreign import javascript unsafe
+#if __GLASGOW_HASKELL__ >= 900
+  "(($1,$2,$3) => { return $2[$1]=$3; })"
+#else
+  "$2[$1]=$3"
+#endif
     js_trySetAtIndex :: Int -> Object -> JSVal -> IO ()
 #else
 objSetPropertyAtIndex this index val =

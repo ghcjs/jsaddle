@@ -440,7 +440,13 @@ newtype Function = Function {functionObject :: Object}
 
 
 #ifdef ghcjs_HOST_OS
-foreign import javascript unsafe "$r = function () { $1(this, arguments); }"
+-- Do not replace `function ()` with `=>` as `arguments` will not work
+foreign import javascript unsafe
+#if __GLASGOW_HASKELL__ >= 900
+  "(($1) => { return function () { $1(this, arguments); }; })"
+#else
+  "$r = function () { $1(this, arguments); }"
+#endif
     makeFunctionWithCallback :: Callback (JSVal -> JSVal -> IO ()) -> IO Object
 #endif
 
@@ -527,7 +533,12 @@ array args = do
 
 -- | JavaScript's global object
 #ifdef ghcjs_HOST_OS
-foreign import javascript unsafe "$r = globalThis"
+foreign import javascript unsafe
+#if __GLASGOW_HASKELL__ >= 900
+  "(() => { return globalThis; })"
+#else
+  "$r = globalThis"
+#endif
     global :: Object
 #else
 global :: Object
@@ -556,7 +567,12 @@ objCallAsFunction :: MakeArgs args
 objCallAsFunction f this args = do
     rargs <- makeArgs args >>= liftIO . Array.fromListIO
     liftIO $ js_apply f this rargs
-foreign import javascript safe "$r = $1.apply($2, $3)"
+foreign import javascript safe
+#if __GLASGOW_HASKELL__ >= 900
+  "(($1,$2,$3) => { return $1.apply($2, $3); })"
+#else
+  "$r = $1.apply($2, $3)"
+#endif
     js_apply :: Object -> Object -> MutableJSArray -> IO JSVal
 #else
 objCallAsFunction f this args = do
@@ -576,7 +592,9 @@ objCallAsConstructor :: MakeArgs args
 objCallAsConstructor f args = do
     rargs <- makeArgs args >>= liftIO . Array.fromListIO
     liftIO $ js_new f rargs
-foreign import javascript safe "\
+foreign import javascript safe
+#if __GLASGOW_HASKELL__ >= 900
+  "(($1,$2) => {\
         switch($2.length) {\
             case 0 : $r = new $1(); break;\
             case 1 : $r = new $1($2[0]); break;\
@@ -598,7 +616,33 @@ foreign import javascript safe "\
                     i.constructor = $1;\
                     $r = i;\
                 }\
+        }\
+        return $r;\
+  })"
+#else
+       "switch($2.length) {\
+            case 0 : $r = new $1(); break;\
+            case 1 : $r = new $1($2[0]); break;\
+            case 2 : $r = new $1($2[0],$2[1]); break;\
+            case 3 : $r = new $1($2[0],$2[1],$2[2]); break;\
+            case 4 : $r = new $1($2[0],$2[1],$2[2],$2[3]); break;\
+            case 5 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4]); break;\
+            case 6 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5]); break;\
+            case 7 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5],$2[6]); break;\
+            default:\
+                var temp = function() {\
+                    ret = $1.apply(this, $2);\
+                };\
+                temp.prototype = $1.prototype;\
+                var i = new temp();\
+                if(ret instanceof Object) {\
+                    $r = ret;\
+                } else {\
+                    i.constructor = $1;\
+                    $r = i;\
+                }\
         }"
+#endif
     js_new :: Object -> MutableJSArray -> IO JSVal
 #else
 objCallAsConstructor f args = do
