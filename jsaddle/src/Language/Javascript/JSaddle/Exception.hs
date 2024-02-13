@@ -19,7 +19,11 @@ module Language.Javascript.JSaddle.Exception (
 
 import qualified Control.Exception as E (Exception)
 #ifdef ghcjs_HOST_OS
+#if __GLASGOW_HASKELL__ >= 900
+import GHC.JS.Prim (JSVal)
+#else
 import GHCJS.Prim (JSVal)
+#endif
 #else
 import GHCJS.Prim.Internal (JSVal)
 #endif
