@@ -24,7 +24,7 @@ library
         Language.Javascript.JSaddle.WebKitGTK
     build-depends:
         base <5
-    if !impl(ghcjs -any)
+    if !impl(ghcjs -any) && !arch(javascript)
       build-depends:
         aeson >=0.8.0.2 && <2.3,
         base <5,
