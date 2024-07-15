@@ -1,6 +1,6 @@
+cabal-version: 2.4
 name: jsaddle-warp
 version: 0.9.9.2
-cabal-version: >=1.10
 build-type: Simple
 license: MIT
 license-file: LICENSE
@@ -13,7 +13,42 @@ description:
     drive a small JavaScript helper.
 category: Web, Javascript
 author: Hamish Mackenzie
-
+tested-with: GHC==9.10.1, GHC==9.8.2, GHC==9.6.6, GHC==9.4.8, GHC==9.2.8, GHC==9.0.2, GHC==8.10.7, GHC==8.8.4, GHC==8.6.5, GHC==8.4.4
+data-files:
+    node-client/index.js
+    node-client/node_modules
+    node-client/node_modules/.package-lock.json
+    node-client/node_modules/ws
+    node-client/node_modules/ws/LICENSE
+    node-client/node_modules/ws/README.md
+    node-client/node_modules/ws/browser.js
+    node-client/node_modules/ws/index.js
+    node-client/node_modules/ws/lib
+    node-client/node_modules/ws/lib/buffer-util.js
+    node-client/node_modules/ws/lib/constants.js
+    node-client/node_modules/ws/lib/event-target.js
+    node-client/node_modules/ws/lib/extension.js
+    node-client/node_modules/ws/lib/limiter.js
+    node-client/node_modules/ws/lib/permessage-deflate.js
+    node-client/node_modules/ws/lib/receiver.js
+    node-client/node_modules/ws/lib/sender.js
+    node-client/node_modules/ws/lib/stream.js
+    node-client/node_modules/ws/lib/subprotocol.js
+    node-client/node_modules/ws/lib/validation.js
+    node-client/node_modules/ws/lib/websocket-server.js
+    node-client/node_modules/ws/lib/websocket.js
+    node-client/node_modules/ws/package.json
+    node-client/node_modules/ws/wrapper.mjs
+    node-client/node_modules/xmlhttprequest
+    node-client/node_modules/xmlhttprequest/.jshintrc
+    node-client/node_modules/xmlhttprequest/.npmignore
+    node-client/node_modules/xmlhttprequest/LICENSE
+    node-client/node_modules/xmlhttprequest/README.md
+    node-client/node_modules/xmlhttprequest/lib
+    node-client/node_modules/xmlhttprequest/lib/XMLHttpRequest.js
+    node-client/node_modules/xmlhttprequest/package.json
+    node-client/package-lock.json
+    node-client/package.json
 source-repository head
     type: git
     location: https://github.com/ghcjs/jsaddle

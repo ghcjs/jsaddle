@@ -1,6 +1,5 @@
 JSaddle
 =======
-[![Build status](https://github.com/ghcjs/jsaddle/actions/workflows/Cabal.yml/badge.svg)](https://github.com/ghcjs/jsaddle/actions/workflows/Cabal.yml)
 
 JSaddle is an interface for JavaScript that works with GHCJS or GHC.  It is used by [ghcjs-dom](https://github.com/ghcjs/ghcjs-dom)
 when compiled with GHC and is compatible with [ghcjs-dom](https://github.com/ghcjs/ghcjs-dom) when compiled with GHCJS.

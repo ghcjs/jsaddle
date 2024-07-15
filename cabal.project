@@ -1,10 +1,16 @@
 packages:
  jsaddle/
  jsaddle-warp/
- jsaddle-wkwebview/
- jsaddle-webkit2gtk/
  jsaddle-clib/
+
+if os(osx)
+  packages:
+    jsaddle-wkwebview/
+
+if os(linux)
+  packages:
+    jsaddle-webkit2gtk/
 
 constraints: haskell-gi-overloading == 0.0
 
-allow-newer: websockets:random, splitmix:time, *:time, *:unix, *:process, stm:base
+allow-newer: websockets:containers
