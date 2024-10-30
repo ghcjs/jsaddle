@@ -243,8 +243,9 @@ jsaddleJs' jsaddleUri refreshOnLoad = "\
     \"
 
 -- | Start or restart the server.
--- To run this as part of every :reload use
--- > :def! reload (const $ return "::reload\nLanguage.Javascript.JSaddle.Warp.debug 3708 SomeMainModule.someMainFunction")
+-- To run this as part of every GHCI @:reload@ use:
+--
+-- >>> :def! reload (const $ return "::reload\nLanguage.Javascript.JSaddle.Warp.debug 3708 SomeMainModule.someMainFunction")
 debug :: Int -> JSM () -> IO ()
 debug port f = do
     debugWrapper $ \withRefresh registerContext ->
