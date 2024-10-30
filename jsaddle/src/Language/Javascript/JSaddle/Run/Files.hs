@@ -330,10 +330,10 @@ runBatch send sendSync = "\
     \      inCallback--;\n\
     \    };\n\
     \    if(batch[1] && (initialSyncDepth || 0) === 0) {\n\
-    \        window.requestAnimationFrame(processBatch);\n\
+    \        globalThis.requestAnimationFrame(processBatch);\n\
     \    }\n\
     \    else {\n\
-    \        processBatch(window.performance ? window.performance.now() : null);\n\
+    \        processBatch(globalThis.performance ? globalThis.performance.now() : null);\n\
     \    }\n\
     \  };\n\
     \  runBatch(batch);\n\
@@ -444,7 +444,7 @@ ghcjsHelpers = "\
     \         };\n\
     \}\n\
     \function h$newByteArrayFromBase64String(base64) {\n\
-    \  var bin = window.atob(base64);\n\
+    \  var bin = globalThis.atob(base64);\n\
     \  var ba = h$newByteArray(bin.length);\n\
     \  var u8 = ba.u8;\n\
     \  for (var i = 0; i < bin.length; i++) {\n\
@@ -459,6 +459,6 @@ ghcjsHelpers = "\
     \  for (var i = off; i < end; i++) {\n\
     \    bin += String.fromCharCode(u8[i]);\n\
     \  }\n\
-    \  return window.btoa(bin);\n\
+    \  return globalThis.btoa(bin);\n\
     \}\n\
     \"
