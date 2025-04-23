@@ -1,59 +1,58 @@
-# modified from https://github.com/jgm/pandoc/blob/master/.github/workflows/ci.yml
 name: Cabal
 
 on:
   push:
     branches:
-    - '**'
-    paths-ignore: []
+    - 'master'
   pull_request:
-    paths-ignore: []
+    branches:
+    - 'master'
 
 jobs:
   linux:
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         versions:
-          - ghc: '8.10.7'
-            cabal: '3.4'
+          - ghc: '9.10'
+            cabal: latest
     steps:
-    - uses: actions/checkout@v2
-
-    # need to install older cabal/ghc versions from ppa repository
+    - uses: actions/checkout@v4
 
     - name: Install recent cabal/ghc
-      uses: haskell/actions/setup@v1
+      id: setup
+      uses: haskell-actions/setup@v2
       with:
         ghc-version: ${{ matrix.versions.ghc }}
         cabal-version: ${{ matrix.versions.cabal }}
 
-    # declare/restore cached things
-    # caching doesn't work for scheduled runs yet
-    # https://github.com/actions/cache/issues/63
-
     - name: Cache cabal global package db
       id:   cabal-global
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cabal
-        key: ${{ runner.os }}-${{ matrix.versions.ghc }}-${{ matrix.versions.cabal }}-cabal-global-${{ hashFiles('cabal.project') }}
+        key: ${{ runner.os }}-${{ steps.setup.outputs.ghc-version }}-${{ steps.setup.outputs.cabal-version }}-cabal-global-${{ github.sha }}
+        restore-keys: ${{ runner.os }}-${{ steps.setup.outputs.ghc-version }}-${{ steps.setup.outputs.cabal-version }}-cabal-global-
 
     - name: Cache cabal work
       id:   cabal-local
-      uses: actions/cache@v2
+      uses: actions/cache@v4
       with:
         path: |
           dist-newstyle
-        key: ${{ runner.os }}-${{ matrix.versions.ghc }}-${{ matrix.versions.cabal }}-cabal-local
+        key: ${{ runner.os }}-${{ steps.setup.outputs.ghc-version }}-${{ steps.setup.outputs.cabal-version }}-cabal-local-${{ github.sha }}
+        restore-keys: ${{ runner.os }}-${{ steps.setup.outputs.ghc-version }}-${{ steps.setup.outputs.cabal-version }}-cabal-local-
 
-    - name: Install dependencies
+    - name: Install dependencies (OS)
       run: |
         sudo apt update
-        sudo apt install libwebkit2gtk-4.0-dev libgirepository1.0-dev
+        sudo apt install libwebkit2gtk-4.0-dev libgirepository1.0-dev libgtksourceview-3.0-dev
+
+    - name: Install dependencies (Haskell)
+      run: |
         cabal update
         cabal build all --dependencies-only --enable-tests --disable-optimization
     - name: Build

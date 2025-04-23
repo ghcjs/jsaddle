@@ -8,18 +8,22 @@
 #
 # For more information, see https://github.com/haskell-CI/haskell-ci
 #
-# version: 0.19.20240708
+# version: 0.19.20250216
 #
-# REGENDATA ("0.19.20240708",["github","cabal.project","--apt","libwebkit2gtk-4.0-dev","--apt","libgirepository1.0-dev","--apt","nodejs","--jobs-selection","any","--error-missing-methods","none","--no-install-dependencies","--installed","-Cabal"])
+# REGENDATA ("0.19.20250216",["github","cabal.project","--apt","libwebkit2gtk-4.0-dev","--apt","libgirepository1.0-dev","--apt","nodejs","--jobs-selection","any","--error-missing-methods","none","--no-install-dependencies","--installed","-Cabal"])
 #
 name: Haskell-CI
 on:
-  - push
-  - pull_request
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
 jobs:
   linux:
     name: Haskell-CI - Linux - ${{ matrix.compiler }}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     timeout-minutes:
       60
     container:
@@ -33,9 +37,9 @@ jobs:
             compilerVersion: 9.10.1
             setup-method: ghcup
             allow-failure: false
-          - compiler: ghc-9.8.2
+          - compiler: ghc-9.8.4
             compilerKind: ghc
-            compilerVersion: 9.8.2
+            compilerVersion: 9.8.4
             setup-method: ghcup
             allow-failure: false
           - compiler: ghc-9.6.6
@@ -80,17 +84,30 @@ jobs:
             allow-failure: false
       fail-fast: false
     steps:
-      - name: apt
+      - name: apt-get install
         run: |
           apt-get update
           apt-get install -y --no-install-recommends gnupg ca-certificates dirmngr curl git software-properties-common libtinfo5 libnuma-dev
+          apt-get install -y libgirepository1.0-dev libwebkit2gtk-4.0-dev nodejs
+      - name: Install GHCup
+        run: |
           mkdir -p "$HOME/.ghcup/bin"
           curl -sL https://downloads.haskell.org/ghcup/0.1.30.0/x86_64-linux-ghcup-0.1.30.0 > "$HOME/.ghcup/bin/ghcup"
           chmod a+x "$HOME/.ghcup/bin/ghcup"
-          "$HOME/.ghcup/bin/ghcup" install ghc "$HCVER" || (cat "$HOME"/.ghcup/logs/*.* && false)
+      - name: Install cabal-install
+        run: |
           "$HOME/.ghcup/bin/ghcup" install cabal 3.12.1.0 || (cat "$HOME"/.ghcup/logs/*.* && false)
-          apt-get update
-          apt-get install -y libgirepository1.0-dev libwebkit2gtk-4.0-dev nodejs
+          echo "CABAL=$HOME/.ghcup/bin/cabal-3.12.1.0 -vnormal+nowrap" >> "$GITHUB_ENV"
+      - name: Install GHC (GHCup)
+        if: matrix.setup-method == 'ghcup'
+        run: |
+          "$HOME/.ghcup/bin/ghcup" install ghc "$HCVER" || (cat "$HOME"/.ghcup/logs/*.* && false)
+          HC=$("$HOME/.ghcup/bin/ghcup" whereis ghc "$HCVER")
+          HCPKG=$(echo "$HC" | sed 's#ghc$#ghc-pkg#')
+          HADDOCK=$(echo "$HC" | sed 's#ghc$#haddock#')
+          echo "HC=$HC" >> "$GITHUB_ENV"
+          echo "HCPKG=$HCPKG" >> "$GITHUB_ENV"
+          echo "HADDOCK=$HADDOCK" >> "$GITHUB_ENV"
         env:
           HCKIND: ${{ matrix.compilerKind }}
           HCNAME: ${{ matrix.compiler }}
@@ -101,21 +118,12 @@ jobs:
           echo "LANG=C.UTF-8" >> "$GITHUB_ENV"
           echo "CABAL_DIR=$HOME/.cabal" >> "$GITHUB_ENV"
           echo "CABAL_CONFIG=$HOME/.cabal/config" >> "$GITHUB_ENV"
-          HCDIR=/opt/$HCKIND/$HCVER
-          HC=$("$HOME/.ghcup/bin/ghcup" whereis ghc "$HCVER")
-          HCPKG=$(echo "$HC" | sed 's#ghc$#ghc-pkg#')
-          HADDOCK=$(echo "$HC" | sed 's#ghc$#haddock#')
-          echo "HC=$HC" >> "$GITHUB_ENV"
-          echo "HCPKG=$HCPKG" >> "$GITHUB_ENV"
-          echo "HADDOCK=$HADDOCK" >> "$GITHUB_ENV"
-          echo "CABAL=$HOME/.ghcup/bin/cabal-3.12.1.0 -vnormal+nowrap" >> "$GITHUB_ENV"
           HCNUMVER=$(${HC} --numeric-version|perl -ne '/^(\d+)\.(\d+)\.(\d+)(\.(\d+))?$/; print(10000 * $1 + 100 * $2 + ($3 == 0 ? $5 != 1 : $3))')
           echo "HCNUMVER=$HCNUMVER" >> "$GITHUB_ENV"
           echo "ARG_TESTS=--enable-tests" >> "$GITHUB_ENV"
           echo "ARG_BENCH=--enable-benchmarks" >> "$GITHUB_ENV"
           echo "HEADHACKAGE=false" >> "$GITHUB_ENV"
           echo "ARG_COMPILER=--$HCKIND --with-compiler=$HC" >> "$GITHUB_ENV"
-          echo "GHCJSARITH=0" >> "$GITHUB_ENV"
         env:
           HCKIND: ${{ matrix.compilerKind }}
           HCNAME: ${{ matrix.compiler }}
@@ -174,7 +182,6 @@ jobs:
           echo "packages: $GITHUB_WORKSPACE/source/jsaddle" >> cabal.project
           echo "packages: $GITHUB_WORKSPACE/source/jsaddle-warp" >> cabal.project
           echo "packages: $GITHUB_WORKSPACE/source/jsaddle-clib" >> cabal.project
-          echo "packages: $GITHUB_WORKSPACE/source/jsaddle-webkit2gtk" >> cabal.project
           cat cabal.project
       - name: sdist
         run: |
@@ -192,20 +199,17 @@ jobs:
           echo "PKGDIR_jsaddle_warp=${PKGDIR_jsaddle_warp}" >> "$GITHUB_ENV"
           PKGDIR_jsaddle_clib="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/jsaddle-clib-[0-9.]*')"
           echo "PKGDIR_jsaddle_clib=${PKGDIR_jsaddle_clib}" >> "$GITHUB_ENV"
-          PKGDIR_jsaddle_webkit2gtk="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/jsaddle-webkit2gtk-[0-9.]*')"
-          echo "PKGDIR_jsaddle_webkit2gtk=${PKGDIR_jsaddle_webkit2gtk}" >> "$GITHUB_ENV"
           rm -f cabal.project cabal.project.local
           touch cabal.project
           touch cabal.project.local
           echo "packages: ${PKGDIR_jsaddle}" >> cabal.project
           echo "packages: ${PKGDIR_jsaddle_warp}" >> cabal.project
           echo "packages: ${PKGDIR_jsaddle_clib}" >> cabal.project
-          echo "packages: ${PKGDIR_jsaddle_webkit2gtk}" >> cabal.project
           cat >> cabal.project <<EOF
           constraints: haskell-gi-overloading == 0.0
           allow-newer: websockets:containers
           EOF
-          $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: any.$_ installed\n" unless /^(Cabal|jsaddle|jsaddle-clib|jsaddle-warp|jsaddle-webkit2gtk)$/; }' >> cabal.project.local
+          $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: any.$_ installed\n" unless /^(Cabal|jsaddle|jsaddle-clib|jsaddle-warp)$/; }' >> cabal.project.local
           cat cabal.project
           cat cabal.project.local
       - name: dump install plan
@@ -235,8 +239,6 @@ jobs:
           ${CABAL} -vnormal check
           cd ${PKGDIR_jsaddle_clib} || false
           ${CABAL} -vnormal check
-          cd ${PKGDIR_jsaddle_webkit2gtk} || false
-          ${CABAL} -vnormal check
       - name: haddock
         run: |
           $CABAL v2-haddock --disable-documentation --haddock-all $ARG_COMPILER --with-haddock $HADDOCK $ARG_TESTS $ARG_BENCH all
@@ -245,8 +247,8 @@ jobs:
           rm -f cabal.project.local
           $CABAL v2-build $ARG_COMPILER --disable-tests --disable-benchmarks all
       - name: save cache
-        uses: actions/cache/save@v4
         if: always()
+        uses: actions/cache/save@v4
         with:
           key: ${{ runner.os }}-${{ matrix.compiler }}-${{ github.sha }}
           path: ~/.cabal/store
