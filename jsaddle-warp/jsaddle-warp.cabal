@@ -1,6 +1,6 @@
 cabal-version: 2.4
 name: jsaddle-warp
-version: 0.9.9.2
+version: 0.9.9.3
 build-type: Simple
 license: MIT
 license-file: LICENSE
@@ -13,7 +13,7 @@ description:
     drive a small JavaScript helper.
 category: Web, Javascript
 author: Hamish Mackenzie
-tested-with: GHC==9.10.1, GHC==9.8.4, GHC==9.6.6, GHC==9.4.8, GHC==9.2.8, GHC==9.0.2, GHC==8.10.7, GHC==8.8.4, GHC==8.6.5, GHC==8.4.4
+tested-with: GHC==9.12.2, GHC==9.10.1, GHC==9.8.4, GHC==9.6.7, GHC==9.4.8, GHC==9.2.8, GHC==9.0.2, GHC==8.10.7, GHC==8.8.4, GHC==8.6.5, GHC==8.4.4
 data-files:
     node-client/index.js
     node-client/node_modules
@@ -64,7 +64,7 @@ library
         build-depends:
             aeson >=0.8.0.2 && <2.3,
             bytestring >=0.10.6.0 && <0.13,
-            containers >=0.5.6.2 && <0.8,
+            containers >=0.5.6.2 && <0.9,
             foreign-store >=0.2 && <0.3,
             http-types >=0.8.6 && <0.13,
             jsaddle >=0.9.9.0 && <0.10,

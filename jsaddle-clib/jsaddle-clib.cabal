@@ -1,5 +1,5 @@
 name: jsaddle-clib
-version: 0.9.9.2
+version: 0.9.9.3
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -11,7 +11,7 @@ description:
     can be used both from GHCJS and GHC.
 category: Web, Javascript
 author: Hamish Mackenzie
-tested-with: GHC==9.10.1, GHC==9.8.4, GHC==9.6.6, GHC==9.4.8, GHC==9.2.8, GHC==9.0.2, GHC==8.10.7, GHC==8.8.4, GHC==8.6.5, GHC==8.4.4
+tested-with: GHC==9.12.2, GHC==9.10.1, GHC==9.8.4, GHC==9.6.7, GHC==9.4.8, GHC==9.2.8, GHC==9.0.2, GHC==8.10.7, GHC==8.8.4, GHC==8.6.5, GHC==8.4.4
 
 source-repository head
     type: git
