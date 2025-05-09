@@ -40,7 +40,6 @@ data-files:
     node-client/node_modules/xmlhttprequest/.npmignore
     node-client/node_modules/xmlhttprequest/LICENSE
     node-client/node_modules/xmlhttprequest/README.md
-    node-client/node_modules/xmlhttprequest/lib
     node-client/node_modules/xmlhttprequest/lib/XMLHttpRequest.js
     node-client/node_modules/xmlhttprequest/package.json
     node-client/package-lock.json
