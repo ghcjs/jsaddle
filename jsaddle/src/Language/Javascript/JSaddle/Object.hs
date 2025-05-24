@@ -96,6 +96,14 @@ module Language.Javascript.JSaddle.Object (
   , objCallAsFunction
   , objCallAsConstructor
   , nullObject
+
+#ifdef ghcjs_HOST_OS
+#if __GLASGOW_HASKELL__ >= 900
+  , syncCallback1'
+  , syncCallback2'
+  , syncCallback3'
+#endif
+#endif
 ) where
 
 import Prelude hiding ((!!))
@@ -104,10 +112,11 @@ import Data.Coerce (coerce)
 import GHCJS.Types (nullRef)
 #if __GLASGOW_HASKELL__ >= 900
 import GHC.JS.Foreign.Callback
+       (syncCallback1', syncCallback2', syncCallback3', releaseCallback, syncCallback2, asyncCallback2, OnBlocked(..), Callback)
 #else
 import GHCJS.Foreign.Callback
-#endif
        (releaseCallback, syncCallback2, asyncCallback2, OnBlocked(..), Callback)
+#endif
 import GHCJS.Marshal (ToJSVal(..))
 import JavaScript.Array (MutableJSArray)
 import qualified JavaScript.Array as Array (toListIO, fromListIO)
