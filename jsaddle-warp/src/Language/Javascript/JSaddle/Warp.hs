@@ -21,6 +21,8 @@ module Language.Javascript.JSaddle.Warp (
 #endif
 ) where
 
+import Data.ByteString.Lazy (ByteString)
+
 #ifndef ghcjs_HOST_OS
 import Network.Wai.Handler.Warp
        (defaultSettings, setTimeout, setPort, runSettings)
@@ -34,11 +36,11 @@ import Language.Javascript.JSaddle.WebSockets
 -- | Run the given 'JSM' action as the main entry point.  Either directly
 --   in GHCJS or as a Warp server on the given port on GHC.
 #ifdef ghcjs_HOST_OS
-run :: Int -> IO () -> IO ()
-run _port = id
+run :: Maybe ByteString -> Int -> IO () -> IO ()
+run _head _port = id
 #else
-run :: Int -> JSM () -> IO ()
-run port f =
+run :: Maybe ByteString -> Int -> JSM () -> IO ()
+run head_ port f =
     runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
-        jsaddleOr defaultConnectionOptions (f >> syncPoint) jsaddleApp
+        jsaddleOr head_ defaultConnectionOptions (f >> syncPoint) (jsaddleApp head_)
 #endif

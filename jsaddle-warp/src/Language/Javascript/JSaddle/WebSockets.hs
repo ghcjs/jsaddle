@@ -74,8 +74,8 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Language.Javascript.JSaddle.WebSockets.Compat (getTextMessageByteString)
 import qualified Data.Text.Encoding as T (decodeUtf8)
 
-jsaddleOr :: ConnectionOptions -> JSM () -> Application -> IO Application
-jsaddleOr opts entryPoint otherApp = do
+jsaddleOr :: Maybe ByteString -> ConnectionOptions -> JSM () -> Application -> IO Application
+jsaddleOr head_ opts entryPoint otherApp = do
     syncHandlers <- newIORef M.empty
     asyncHandlers <- newIORef M.empty
     let wsApp :: ServerApp
@@ -133,39 +133,39 @@ jsaddleOr opts entryPoint otherApp = do
             (method, _) -> (catch404 otherApp) req sendResponse
               where catch404 = W.modifyResponse $ \resp ->
                       case (method, W.responseStatus resp) of
-                        ("GET", Status 404 _) -> indexResponse
+                        ("GET", Status 404 _) -> indexResponse head_
                         _ -> resp
     return $ websocketsOr opts wsApp syncHandler
 
 
-jsaddleApp :: Application
-jsaddleApp = jsaddleAppWithJs $ jsaddleJs False
+jsaddleApp :: Maybe ByteString -> Application
+jsaddleApp head_ = jsaddleAppWithJs head_ $ jsaddleJs False
 
-jsaddleAppWithJs :: ByteString -> Application
-jsaddleAppWithJs js req sendResponse =
-  jsaddleAppWithJsOr js
+jsaddleAppWithJs :: Maybe ByteString -> ByteString -> Application
+jsaddleAppWithJs head_ js req sendResponse =
+  jsaddleAppWithJsOr head_ js
     (\_ _ -> sendResponse $ W.responseLBS H.status403 [("Content-Type", "text/plain")] "Forbidden")
     req sendResponse
 
-jsaddleAppWithJsOr :: ByteString -> Application -> Application
-jsaddleAppWithJsOr js otherApp req sendResponse =
+jsaddleAppWithJsOr :: Maybe ByteString -> ByteString -> Application -> Application
+jsaddleAppWithJsOr head_ js otherApp req sendResponse =
   fromMaybe (otherApp req sendResponse)
-    (jsaddleAppPartialWithJs js req sendResponse)
+    (jsaddleAppPartialWithJs head_ js req sendResponse)
 
-jsaddleWithAppOr :: ConnectionOptions -> JSM () -> Application -> IO Application
-jsaddleWithAppOr opts entryPoint otherApp = jsaddleOr opts entryPoint $ \req sendResponse ->
+jsaddleWithAppOr :: Maybe ByteString -> ConnectionOptions -> JSM () -> Application -> IO Application
+jsaddleWithAppOr head_ opts entryPoint otherApp = jsaddleOr head_ opts entryPoint $ \req sendResponse ->
   (fromMaybe (otherApp req sendResponse)
-     (jsaddleAppPartial req sendResponse))
+     (jsaddleAppPartial head_ req sendResponse))
 
-jsaddleAppPartial :: Request -> (Response -> IO ResponseReceived) -> Maybe (IO ResponseReceived)
-jsaddleAppPartial = jsaddleAppPartialWithJs $ jsaddleJs False
+jsaddleAppPartial :: Maybe ByteString -> Request -> (Response -> IO ResponseReceived) -> Maybe (IO ResponseReceived)
+jsaddleAppPartial head_ = jsaddleAppPartialWithJs head_ $ jsaddleJs False
 
-indexResponse :: Response
-indexResponse = W.responseLBS H.status200 [("Content-Type", "text/html")] indexHtml
+indexResponse :: Maybe ByteString -> Response
+indexResponse = W.responseLBS H.status200 [("Content-Type", "text/html")] . indexHtml
 
-jsaddleAppPartialWithJs :: ByteString -> Request -> (Response -> IO ResponseReceived) -> Maybe (IO ResponseReceived)
-jsaddleAppPartialWithJs js req sendResponse = case (W.requestMethod req, W.pathInfo req) of
-    ("GET", []) -> Just $ sendResponse indexResponse
+jsaddleAppPartialWithJs :: Maybe ByteString -> ByteString -> Request -> (Response -> IO ResponseReceived) -> Maybe (IO ResponseReceived)
+jsaddleAppPartialWithJs head_ js req sendResponse = case (W.requestMethod req, W.pathInfo req) of
+    ("GET", []) -> Just $ sendResponse $ indexResponse head_
     ("GET", ["jsaddle.js"]) -> Just $ sendResponse $ W.responseLBS H.status200 [("Content-Type", "application/javascript")] js
     _ -> Nothing
 
@@ -246,18 +246,18 @@ jsaddleJs' jsaddleUri refreshOnLoad = "\
 -- To run this as part of every GHCI @:reload@ use:
 --
 -- >>> :def! reload (const $ return "::reload\nLanguage.Javascript.JSaddle.Warp.debug 3708 SomeMainModule.someMainFunction")
-debug :: Int -> JSM () -> IO ()
-debug port f = do
+debug :: Maybe ByteString -> Int -> JSM () -> IO ()
+debug head_ port f = do
     debugWrapper $ \withRefresh registerContext ->
         runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
-            jsaddleOr defaultConnectionOptions (registerContext >> f >> syncPoint) (withRefresh $ jsaddleAppWithJs $ jsaddleJs True)
+            jsaddleOr head_ defaultConnectionOptions (registerContext >> f >> syncPoint) (withRefresh $ jsaddleAppWithJs head_ $ jsaddleJs True)
     putStrLn $ "<a href=\"http://localhost:" <> show port <> "\">run</a>"
 
-debugOr :: Int -> JSM () -> Application -> IO ()
-debugOr port f b = do
+debugOr :: Maybe ByteString -> Int -> JSM () -> Application -> IO ()
+debugOr head_ port f b = do
     debugWrapper $ \withRefresh registerContext ->
         runSettings (setPort port (setTimeout 3600 defaultSettings)) =<<
-            jsaddleOr defaultConnectionOptions (registerContext >> f >> syncPoint) (withRefresh $ jsaddleAppWithJsOr (jsaddleJs True) b)
+            jsaddleOr head_ defaultConnectionOptions (registerContext >> f >> syncPoint) (withRefresh $ jsaddleAppWithJsOr head_ (jsaddleJs True) b)
     putStrLn $ "<a href=\"http://localhost:" <> show port <> "\">run</a>"
 
 refreshMiddleware :: ((Response -> IO ResponseReceived) -> IO ResponseReceived) -> Middleware
