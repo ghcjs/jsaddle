@@ -61,12 +61,21 @@ class ToJSVal a where
   default toJSVal :: (Generic a, GToJSVal (Rep a ())) => a -> JSM JSVal
   toJSVal = toJSVal_generic id
 
+instance ToJSVal (SomeJSArray Immutable) where
+  toJSVal (SomeJSArray x) = pure x
+
 fromJustWithStack :: JSadddleHasCallStack => Maybe a -> a
 fromJustWithStack Nothing = error "fromJSValUnchecked: fromJSVal result was Nothing"
 fromJustWithStack (Just x) = x
 
 class FromJSVal a where
   fromJSVal :: JSVal -> JSM (Maybe a)
+
+instance FromJSVal Function where
+  fromJSVal = pure . pure . Function . Object
+
+instance FromJSVal Object where
+  fromJSVal = pure . pure . Object
 
 #if MIN_VERSION_base(4,9,0) && defined(JSADDLE_HAS_CALL_STACK)
   fromJSValUnchecked :: JSadddleHasCallStack => JSVal -> JSM a

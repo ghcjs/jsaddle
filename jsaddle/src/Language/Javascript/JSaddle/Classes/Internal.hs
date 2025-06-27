@@ -21,7 +21,7 @@ module Language.Javascript.JSaddle.Classes.Internal (
 ) where
 
 import Language.Javascript.JSaddle.Types
-       (JSM, Object(..), JSVal)
+       (JSM, Object(..), JSVal, JSString(..), Function(..), Object(..))
 
 -- | Anything that can be used to make a JavaScript object reference
 class MakeObject this where
@@ -39,3 +39,14 @@ class MakeArgs this where
 instance MakeArgs arg => MakeArgs (JSM arg) where
     makeArgs arg = arg >>= makeArgs
 
+instance MakeArgs Int where
+  makeArgs arg = (:[]) <$> toJSVal arg
+
+instance MakeArgs Object where
+  makeArgs (Object arg) = pure [arg]
+
+instance MakeArgs JSString where
+  makeArgs (JSString arg) = makeArgs arg
+
+instance MakeArgs Function where
+  makeArgs (Function (Object arg)) = pure [arg]
