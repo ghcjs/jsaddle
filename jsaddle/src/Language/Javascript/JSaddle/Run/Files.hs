@@ -53,7 +53,7 @@ initState = "\
 
 runBatch :: (ByteString -> ByteString) -> Maybe (ByteString -> ByteString) -> ByteString
 runBatch send sendSync = "\
-    \  var runBatch = function(firstBatch, initialSyncDepth) {\n\
+    \  var runBatch = function(firstBatch) {\n\
     \    var processBatch = function(timestamp) {\n\
     \      var batch = firstBatch;\n\
     \      var callbacksToFree = [];\n\
@@ -153,7 +153,8 @@ runBatch send sendSync = "\
         "                                        if(inCallback > 0) {\n\
         \                                          " <> send "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nFunctionInFunc, nThis, args]}" <> "\n\
         \                                        } else {\n\
-        \                                          runBatch(" <> s "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nFunctionInFunc, nThis, args]}" <> ", 1);\n\
+        \                                          initialSyncDepth = 1;\n\
+        \                                          runBatch(" <> s "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nFunctionInFunc, nThis, args]}" <> ");\n\
         \                                        }\n"
       Nothing ->
         "                                        " <> send "{\"tag\": \"Callback\", \"contents\": [lastResults[0], lastResults[1], nFunction, nFunctionInFunc, nThis, args]}" <> "\n"
@@ -336,6 +337,7 @@ runBatch send sendSync = "\
     \        processBatch(globalThis.performance ? globalThis.performance.now() : null);\n\
     \    }\n\
     \  };\n\
+    \  initialSyncDepth = 0;\n\
     \  runBatch(batch);\n\
     \"
 
