@@ -224,6 +224,7 @@ jsaddleJs' jsaddleUri refreshOnLoad = "\
     "                return;\n\
     \            }\n\
     \\n\
+    \var initialSyncDepth = 0;\n\
     \ " <> runBatch (\a -> "ws.send(JSON.stringify(" <> a <> "));")
               (Just (\a -> "(function(){\n\
                   \                       var xhr = new XMLHttpRequest();\n\
