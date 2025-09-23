@@ -97,6 +97,7 @@ import GHCJS.Prim.Internal (JSVal(..), JSValueRef)
 import Data.JSString.Internal.Type (JSString(..))
 import Control.DeepSeq (NFData(..))
 import Control.Monad.Catch (MonadThrow, MonadCatch(..), MonadMask(..))
+import Control.Monad.Codensity (Codensity(..))
 import Control.Monad.Trans.Cont (ContT(..))
 import Control.Monad.Trans.Except (ExceptT(..))
 import Control.Monad.Trans.Identity (IdentityT(..))
@@ -117,10 +118,12 @@ import Data.Int (Int64)
 import Data.Set (Set)
 import Data.Text (Text)
 import Data.Time.Clock (UTCTime(..))
+import Data.Type.Equality (type (~~))
 import Data.Typeable (Typeable)
 import Data.Coerce (coerce, Coercible)
 import Data.Aeson
        (defaultOptions, genericToEncoding, ToJSON(..), FromJSON(..), Value)
+import GHC.Exts (TYPE)
 import GHC.Generics (Generic)
 import Control.Monad.IO.Unlift (MonadUnliftIO)
 import qualified Control.Monad.Fail as Fail
@@ -315,6 +318,9 @@ instance (Monoid w, MonadJSM m) => MonadJSM (Lazy.WriterT w m) where
 instance (Monoid w, MonadJSM m) => MonadJSM (Strict.WriterT w m) where
     liftJSM' = lift . liftJSM'
     {-# INLINE liftJSM' #-}
+
+instance (m ~~ m', MonadJSM m') => MonadJSM (Codensity (m :: k -> TYPE rep)) where
+    liftJSM' = lift . liftJSM'
 
 instance MonadRef JSM where
     type Ref JSM = Ref IO
