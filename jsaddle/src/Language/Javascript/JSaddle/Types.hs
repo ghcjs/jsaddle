@@ -57,7 +57,7 @@ module Language.Javascript.JSaddle.Types (
   , JSCallAsFunction
 
   -- * Debugging
-  , JSadddleHasCallStack
+  , JSaddleHasCallStack
 
   -- * Sync JSM
   , syncPoint
@@ -517,9 +517,9 @@ instance FromJSON Results
 
 -- | Like HasCallStack, but only when jsaddle cabal flag check-unchecked is set
 #if MIN_VERSION_base(4,9,0) && defined(CHECK_UNCHECKED)
-type JSadddleHasCallStack = HasCallStack
+type JSaddleHasCallStack = HasCallStack
 #else
-type JSadddleHasCallStack = (() :: Constraint)
+type JSaddleHasCallStack = (() :: Constraint)
 #endif
 
 
