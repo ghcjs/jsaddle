@@ -600,14 +600,14 @@ foreign import javascript safe
 #if __GLASGOW_HASKELL__ >= 900
   "(($1,$2) => {\
         switch($2.length) {\
-            case 0 : $r = new $1(); break;\
-            case 1 : $r = new $1($2[0]); break;\
-            case 2 : $r = new $1($2[0],$2[1]); break;\
-            case 3 : $r = new $1($2[0],$2[1],$2[2]); break;\
-            case 4 : $r = new $1($2[0],$2[1],$2[2],$2[3]); break;\
-            case 5 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4]); break;\
-            case 6 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5]); break;\
-            case 7 : $r = new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5],$2[6]); break;\
+            case 0 : return new $1();\
+            case 1 : return new $1($2[0]);\
+            case 2 : return new $1($2[0],$2[1]);\
+            case 3 : return new $1($2[0],$2[1],$2[2]);\
+            case 4 : return new $1($2[0],$2[1],$2[2],$2[3]);\
+            case 5 : return new $1($2[0],$2[1],$2[2],$2[3],$2[4]);\
+            case 6 : return new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5]);\
+            case 7 : return new $1($2[0],$2[1],$2[2],$2[3],$2[4],$2[5],$2[6]);\
             default:\
                 var temp = function() {\
                     ret = $1.apply(this, $2);\
@@ -615,13 +615,12 @@ foreign import javascript safe
                 temp.prototype = $1.prototype;\
                 var i = new temp();\
                 if(ret instanceof Object) {\
-                    $r = ret;\
+                    return ret;\
                 } else {\
                     i.constructor = $1;\
-                    $r = i;\
+                    return i;\
                 }\
         }\
-        return $r;\
   })"
 #else
        "switch($2.length) {\
