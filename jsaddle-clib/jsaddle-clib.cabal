@@ -1,5 +1,5 @@
 name: jsaddle-clib
-version: 0.9.9.3
+version: 0.9.9.4
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
@@ -24,7 +24,7 @@ library
     build-depends:
         aeson >=0.8.0.2 && <2.3,
         base <5,
-        base-compat >=0.9.0 && <0.15,
+        base-compat >=0.9.0 && <0.16,
         bytestring >=0.10.6.0 && <0.13,
         jsaddle >= 0.9.9.0 && <0.10,
         data-default,
