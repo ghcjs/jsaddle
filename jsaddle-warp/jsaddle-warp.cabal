@@ -134,7 +134,7 @@ test-suite spec
       Language.Javascript.JSaddleSpec
   hs-source-dirs:
       tests
-  ghc-options: -Wall
+  ghc-options: -Wall -threaded
   build-depends:
       base
     , bytestring
