@@ -495,5 +495,13 @@ int runJsaddleWebView2(HsStablePtr mainCallback, const char *title,
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
+
+    if (app->webview) ICoreWebView2_Release(app->webview);
+    if (app->controller) ICoreWebView2Controller_Release(app->controller);
+    free(app->syncResult);
+    free(app);
+    CoUninitialize();
+    FreeLibrary(loader);
+
     return (int)msg.wParam;
 }
