@@ -2,6 +2,7 @@ packages:
  jsaddle/
  jsaddle-warp/
  jsaddle-clib/
+ jsaddle-terminal/
 
 if os(osx)
   packages:
