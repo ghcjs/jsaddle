@@ -9,7 +9,7 @@ synopsis: Interface for JavaScript that works with GHCJS and GHC
 description:
     jsaddle backend for Windows: hosts the app in a native Win32 window
     containing a Microsoft Edge WebView2 control.  The Windows sibling of
-    jsaddle-wkwebview (macOS/iOS) and jsaddle-webkit2gtk (Linux).
+    jsaddle-wkwebview (macOS/iOS) and jsaddle-webkitgtk (Linux).
     .
     Building needs WebView2.h from the Microsoft.Web.WebView2 NuGet package
     on the include path (see the README); nothing from the SDK is needed at
