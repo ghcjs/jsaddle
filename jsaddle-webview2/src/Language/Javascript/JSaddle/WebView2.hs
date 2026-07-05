@@ -20,6 +20,7 @@ module Language.Javascript.JSaddle.WebView2
     , run'
     , WebView2Config(..)
     , WebView2(..)
+    , webView2Hwnd
     ) where
 
 import Control.Monad (unless)
@@ -31,12 +32,21 @@ import Data.Text.Encoding (encodeUtf8)
 
 import Foreign.C.String (CString)
 import Foreign.C.Types (CInt(..))
+import Foreign.Ptr (Ptr)
 import Foreign.StablePtr (StablePtr, newStablePtr)
 
 import Language.Javascript.JSaddle (JSM)
 import Language.Javascript.JSaddle.WebView2.Internal
        (jsaddleMain, jsaddleMainHTML, jsaddleMainURL, WebView2(..))
 import System.Environment (getProgName)
+
+foreign import ccall wv2GetHwnd :: WebView2 -> IO (Ptr ())
+
+-- | The Win32 @HWND@ of the window hosting the WebView2, for native window
+--   integration (menu bar, dialogs) by the embedding application.  Only
+--   meaningful once the 'run'' callback has been entered.
+webView2Hwnd :: WebView2 -> IO (Ptr ())
+webView2Hwnd = wv2GetHwnd
 
 foreign import ccall runJsaddleWebView2
     :: StablePtr (WebView2 -> IO ())

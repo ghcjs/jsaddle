@@ -371,6 +371,13 @@ static LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 /* ------------------------------------------- API called from Haskell */
 
+/* The Win32 HWND of the window hosting the WebView2, so the embedding
+   application can do native window integration (menu bar, dialogs). */
+void *wv2GetHwnd(JSaddleWV2 *app)
+{
+    return (void *)app->hwnd;
+}
+
 void wv2SetHandlers(JSaddleWV2 *app, HsStablePtr start, HsStablePtr result, HsStablePtr sync)
 {
     app->startHandler = start;
