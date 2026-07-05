@@ -18,6 +18,14 @@ description:
   clickable URL.
 build-type:         Simple
 
+flag demo
+  description:
+    Build the jsaddle-terminal-demo executable.  Off by default: it needs
+    reflex-dom-core, whose released versions lag new GHCs (base upper
+    bounds), which would break solving the whole project on those GHCs.
+  default: False
+  manual: True
+
 library
   hs-source-dirs:     src
   exposed-modules:    Language.Javascript.JSaddle.Terminal
@@ -36,6 +44,9 @@ library
                     , websockets
   ghc-options:        -Wall
   default-language:   Haskell2010
+  -- Raw-mode stdin/termios: POSIX only.
+  if os(windows)
+    buildable: False
 
 executable jsaddle-terminal-demo
   main-is:            Main.hs
@@ -50,6 +61,8 @@ executable jsaddle-terminal-demo
                     , text
   ghc-options:        -threaded -Wall
   default-language:   Haskell2010
+  if os(windows) || !flag(demo)
+    buildable: False
 
 test-suite jsaddle-terminal-test
   type:               exitcode-stdio-1.0
@@ -60,3 +73,5 @@ test-suite jsaddle-terminal-test
                     , jsaddle-terminal
   ghc-options:        -Wall
   default-language:   Haskell2010
+  if os(windows)
+    buildable: False

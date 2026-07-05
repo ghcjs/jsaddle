@@ -29,8 +29,19 @@
         ];
         pkgs = import nixpkgs { inherit system overlays; inherit (haskellNix) config; };
         flake = pkgs.hixProject.flake {};
+        # Runtime smoke test for the WebKitGTK backend (linux-only, headless).
+        extraChecks = pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
+          webkitgtk-smoke = pkgs.callPackage ./nix/webkitgtk-smoke.nix {
+            jsaddle-webkitgtk-demo =
+              flake.packages."jsaddle-webkitgtk:exe:jsaddle-webkitgtk-demo";
+          };
+        };
       in flake // {
         legacyPackages = pkgs;
+        checks = flake.checks // extraChecks;
+        hydraJobs = flake.hydraJobs // {
+          checks = (flake.hydraJobs.checks or {}) // extraChecks;
+        };
       });
 
   # --- Flake Local Nix Configuration ----------------------------

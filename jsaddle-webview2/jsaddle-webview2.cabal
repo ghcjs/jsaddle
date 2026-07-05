@@ -1,0 +1,55 @@
+cabal-version: 3.0
+name: jsaddle-webview2
+version: 0.1.0.0
+build-type: Simple
+license: MIT
+license-file: LICENSE
+maintainer: Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
+synopsis: Interface for JavaScript that works with GHCJS and GHC
+description:
+    jsaddle backend for Windows: hosts the app in a native Win32 window
+    containing a Microsoft Edge WebView2 control.  The Windows sibling of
+    jsaddle-wkwebview (macOS/iOS) and jsaddle-webkitgtk (Linux).
+    .
+    Building needs WebView2.h from the Microsoft.Web.WebView2 NuGet package
+    on the include path (see the README); nothing from the SDK is needed at
+    link time.  Running needs the WebView2 runtime (preinstalled on Windows
+    11) and WebView2Loader.dll next to the executable.
+category: Web, Javascript
+author: Hamish Mackenzie
+
+source-repository head
+    type: git
+    location: https://github.com/ghcjs/jsaddle
+
+library
+    exposed-modules:
+        Language.Javascript.JSaddle.WebView2
+        Language.Javascript.JSaddle.WebView2.Internal
+    hs-source-dirs: src
+    default-language: Haskell2010
+    ghc-options: -ferror-spans -Wall
+    build-depends:
+        base <5,
+        aeson >=0.8.0.2 && <2.3,
+        bytestring >=0.10.6.0 && <0.13,
+        data-default,
+        jsaddle >=0.9.9.0 && <0.10,
+        text
+    c-sources: cbits/WebView2Shim.c
+    extra-libraries: ole32, user32
+    if !os(windows)
+        buildable: False
+
+executable jsaddle-webview2-demo
+    main-is: Main.hs
+    hs-source-dirs: demo
+    default-language: Haskell2010
+    ghc-options: -threaded -Wall
+    build-depends:
+        base,
+        jsaddle,
+        jsaddle-webview2,
+        text
+    if !os(windows)
+        buildable: False

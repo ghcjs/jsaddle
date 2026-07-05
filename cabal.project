@@ -1,16 +1,21 @@
+-- All packages are listed unconditionally: cabal.project `if os(...)`
+-- conditionals do NOT apply to `packages:` fields (they are silently
+-- ignored), so platform gating lives in each package's .cabal file as
+-- `buildable: False` guards instead.  The solver ignores dependencies of
+-- non-buildable components, so this solves on every platform.
 packages:
  jsaddle/
  jsaddle-warp/
  jsaddle-clib/
  jsaddle-terminal/
+ jsaddle-wkwebview/
+ jsaddle-webkitgtk/
+ jsaddle-webview2/
 
-if os(osx)
-  packages:
-    jsaddle-wkwebview/
-
-if os(linux)
-  packages:
-    jsaddle-webkit2gtk/
+-- jsaddle-webkit2gtk/ is not in the project: it needs webkit2gtk-4.0, which
+-- has been removed from nixpkgs (only 4.1 and 6.0 remain), and the solver
+-- rejects it whenever the pkg-config package is absent (a buildable: guard
+-- cannot express that).  jsaddle-webkitgtk (GTK4 + WebKitGTK 6.0) replaces it.
 
 constraints: haskell-gi-overloading == 0.0
 
