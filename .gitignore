@@ -10,3 +10,4 @@ cabal-dev
 /.stack-work/
 *.project.local
 .idea/
+/result*
