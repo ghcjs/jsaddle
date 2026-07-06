@@ -1,17 +1,21 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
--- | Run a jsaddle app from inside a tmux pane.
+-- | Run a jsaddle app from inside a terminal (e.g. a leksah / tmux pane).
 --
 -- 'run' handshakes with a watching IDE (leksah) over the process's OWN
 -- stdin/stdout — see "Language.Javascript.JSaddle.Terminal.Protocol" — and,
 -- when the IDE answers, tunnels jsaddle 'Batch'/'Results' JSON over that
 -- channel; the UI renders in an IDE-hosted iframe.  No sockets are opened
 -- here, so this works when the pane's machine is only reachable through
--- the IDE's existing ssh+tmux connection.
+-- the IDE's existing ssh+tmux connection, and it works on every platform the
+-- IDE runs on (POSIX termios / Windows console raw mode).
 --
--- When nothing answers (plain tmux / plain terminal / not a tty), it falls
--- back to jsaddle-warp on a free port and prints a clickable URL.
+-- When nothing answers (not a tty, or the handshake times out) there is
+-- nothing to tunnel to, so it just reports that and stops.  (An earlier
+-- version fell back to serving the app over jsaddle-warp; that has been
+-- removed.)
 module Language.Javascript.JSaddle.Terminal
   ( run
   , runWith
@@ -23,8 +27,8 @@ import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.MVar (newMVar, withMVar)
 import Control.Concurrent.STM
        (atomically, newTChanIO, readTChan, writeTChan, TChan)
-import Control.Exception (bracket_, catch, SomeException, try)
-import Control.Monad (forever, void, when)
+import Control.Exception (bracket_, catch, SomeException)
+import Control.Monad (forever, when)
 import Data.Aeson (encode, decodeStrict')
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
@@ -34,21 +38,27 @@ import System.Environment (lookupEnv)
 import System.IO
        (stdin, stdout, stderr, hSetBinaryMode, hSetBuffering, hPutStrLn,
         BufferMode(..), hIsTerminalDevice, hFlush)
+import System.Timeout (timeout)
+#ifdef mingw32_HOST_OS
+import Data.Bits ((.&.), (.|.), complement)
+import Graphics.Win32.Misc (getStdHandle, sTD_INPUT_HANDLE, sTD_OUTPUT_HANDLE)
+import System.Win32.Console
+       (getConsoleMode, setConsoleMode, eNABLE_ECHO_INPUT, eNABLE_LINE_INPUT,
+        eNABLE_PROCESSED_INPUT, eNABLE_VIRTUAL_TERMINAL_INPUT,
+        eNABLE_VIRTUAL_TERMINAL_PROCESSING)
+import System.Win32.Process (getCurrentProcessId)
+#else
 import System.Posix.IO (stdInput)
 import System.Posix.Process (getProcessID)
 import System.Posix.Terminal
        (getTerminalAttributes, setTerminalAttributes, withoutMode,
         withMinInput, withTime, TerminalAttributes, TerminalMode(..),
         TerminalState(Immediately))
-import System.Timeout (timeout)
+#endif
 
 import Language.Javascript.JSaddle (JSM)
-import Language.Javascript.JSaddle.Run (runJavaScript, syncPoint)
+import Language.Javascript.JSaddle.Run (runJavaScript)
 import qualified Language.Javascript.JSaddle.Types as JS (Results)
-import Language.Javascript.JSaddle.WebSockets (jsaddleOr, jsaddleApp)
-import Network.Wai.Handler.Warp
-       (openFreePort, runSettingsSocket, defaultSettings)
-import Network.WebSockets (defaultConnectionOptions)
 
 import Language.Javascript.JSaddle.Terminal.Protocol
 
@@ -68,7 +78,7 @@ run :: JSM () -> IO ()
 run = runWith defaultConfig
 
 -- | Why the tunnel session ended.
-data Outcome = NeedFallback | Finished
+data Outcome = NoIde | Finished
 
 -- | Debug tracing to a file, enabled by @JSADDLE_TERMINAL_DEBUG=<path>@
 -- (stderr would be swallowed by the tunnel's raw tty).
@@ -84,25 +94,60 @@ runWith cfg jsm = do
   ttyIn  <- hIsTerminalDevice stdin
   ttyOut <- hIsTerminalDevice stdout
   if not (ttyIn && ttyOut)
-    then fallback jsm
+    then noIde "stdin/stdout is not a terminal"
     else do
       hSetBinaryMode stdin True
       hSetBuffering stdin NoBuffering
       hSetBinaryMode stdout True
       hSetBuffering stdout NoBuffering
-      saved <- getTerminalAttributes stdInput
-      outcome <- bracket_
-        (setTerminalAttributes stdInput (rawMode saved) Immediately)
-        (setTerminalAttributes stdInput saved Immediately)
-        (tunnel cfg jsm)
+      outcome <- withRawMode (tunnel cfg jsm)
       case outcome of
-        NeedFallback -> fallback jsm
-        Finished     -> pure ()
+        NoIde    -> noIde "no IDE answered the handshake"
+        Finished -> pure ()
 
--- | Raw tty: no echo, no canonical mode, no signals, no flow control, and —
--- crucially — no IEXTEN (macOS @stty raw@ leaves it on, and its VDISCARD /
--- VLNEXT would eat 0x0f/0x16 from injected input), no CR mapping, no output
--- processing.
+-- | Nothing is driving the tunnel and there is no fallback server, so report
+-- why and stop (the app is meant to be launched from inside leksah).
+noIde :: String -> IO ()
+noIde why = hPutStrLn stderr $
+  "jsaddle-terminal: " <> why <> "; nothing to do (run this app from inside leksah)"
+
+#ifdef mingw32_HOST_OS
+-- | Windows console raw mode — the direct analog of the POSIX termios bracket.
+-- Input: drop line editing, echo and processed-input (so Ctrl-C arrives as a
+-- raw 0x03 rather than a signal, matching the reader), and enable VT input so
+-- keys arrive as escape sequences.  Output: enable VT processing so the app's
+-- ANSI escapes are interpreted.  Both modes are restored on exit.
+withRawMode :: IO a -> IO a
+withRawMode act = do
+  hIn  <- getStdHandle sTD_INPUT_HANDLE
+  hOut <- getStdHandle sTD_OUTPUT_HANDLE
+  inSaved  <- getConsoleMode hIn
+  outSaved <- getConsoleMode hOut
+  let rawIn  = (inSaved .&. complement
+                  (eNABLE_LINE_INPUT .|. eNABLE_ECHO_INPUT .|. eNABLE_PROCESSED_INPUT))
+                 .|. eNABLE_VIRTUAL_TERMINAL_INPUT
+      rawOut = outSaved .|. eNABLE_VIRTUAL_TERMINAL_PROCESSING
+  bracket_
+    (setConsoleMode hIn rawIn >> setConsoleMode hOut rawOut)
+    (setConsoleMode hIn inSaved >> setConsoleMode hOut outSaved)
+    act
+
+-- | A per-run identifier for the HELLO payload (see 'handshake').
+getRunPid :: IO Integer
+getRunPid = toInteger <$> getCurrentProcessId
+#else
+-- | POSIX raw tty: no echo, no canonical mode, no signals, no flow control,
+-- and — crucially — no IEXTEN (macOS @stty raw@ leaves it on, and its
+-- VDISCARD / VLNEXT would eat 0x0f/0x16 from injected input), no CR mapping,
+-- no output processing.  Restored on exit.
+withRawMode :: IO a -> IO a
+withRawMode act = do
+  saved <- getTerminalAttributes stdInput
+  bracket_
+    (setTerminalAttributes stdInput (rawMode saved) Immediately)
+    (setTerminalAttributes stdInput saved Immediately)
+    act
+
 rawMode :: TerminalAttributes -> TerminalAttributes
 rawMode attrs =
   withTime (withMinInput cleared 1) 0
@@ -118,6 +163,11 @@ rawMode attrs =
       , InterruptOnBreak, CheckParity, StripHighBit
       ]
 
+-- | A per-run identifier for the HELLO payload (see 'handshake').
+getRunPid :: IO Integer
+getRunPid = toInteger <$> getProcessID
+#endif
+
 -- | The tunnel session, inside the raw-termios bracket.
 tunnel :: Config -> JSM () -> IO Outcome
 tunnel cfg jsm = do
@@ -132,7 +182,7 @@ tunnel cfg jsm = do
   ok <- handshake cfg writeFrame frames
   debugLog ("handshake: " <> (if ok then "ACKed" else "timed out"))
   if not ok
-    then pure NeedFallback
+    then pure NoIde
     else do
       (processResults, processSyncResults, start)
         <- runJavaScript
@@ -191,9 +241,9 @@ readerLoop frames = do
 -- rebuild mid-handshake and drop the first batch.
 handshake :: Config -> (Frame -> IO ()) -> TChan Frame -> IO Bool
 handshake cfg writeFrame frames = do
-    pid <- getProcessID
+    pid <- getRunPid
     let hello = Frame Hello $
-          "{\"proto\":1,\"caps\":[\"sync\"],\"run\":" <> BSC.pack (show (toInteger pid)) <> "}"
+          "{\"proto\":1,\"caps\":[\"sync\"],\"run\":" <> BSC.pack (show pid) <> "}"
         go 0 = pure False
         go n = do
           writeFrame hello
@@ -206,16 +256,3 @@ handshake cfg writeFrame frames = do
           Frame Close _ -> pure False
           _             -> waitAck
     go (helloAttempts cfg)
-
--- | No IDE: serve the app over jsaddle-warp on a free port and print a
--- clickable URL (OSC-8 hyperlink plus plain text).
-fallback :: JSM () -> IO ()
-fallback jsm = do
-  (port, sock) <- openFreePort
-  app <- jsaddleOr defaultConnectionOptions (jsm >> syncPoint) jsaddleApp
-  let url = "http://127.0.0.1:" <> show port <> "/"
-  putStrLn "jsaddle-terminal: no IDE answered; serving via jsaddle-warp:"
-  putStrLn $ "  \ESC]8;;" <> url <> "\BEL" <> url <> "\ESC]8;;\BEL"
-  hFlush stdout
-  void (try (runSettingsSocket defaultSettings sock app)
-          :: IO (Either SomeException ()))
