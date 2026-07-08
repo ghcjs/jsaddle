@@ -26,6 +26,7 @@ module Language.Javascript.JSaddle.Run (
 #ifndef ghcjs_HOST_OS
   -- * Functions used to implement JSaddle using JSON messaging
   , runJavaScript
+  , runJavaScriptWithSerializer
   , AsyncCommand(..)
   , Command(..)
   , Result(..)
@@ -55,7 +56,7 @@ import Control.Concurrent.STM.TChan
 import Control.Concurrent.STM.TVar
        (writeTVar, readTVar, readTVarIO, modifyTVar', newTVarIO)
 import Control.Concurrent.MVar
-       (tryTakeMVar, MVar, putMVar, takeMVar, newMVar, newEmptyMVar, readMVar, modifyMVar)
+       (tryTakeMVar, MVar, putMVar, takeMVar, newMVar, newEmptyMVar, readMVar, modifyMVar, withMVar)
 
 import System.IO.Unsafe (unsafeInterleaveIO)
 import System.Random
@@ -134,7 +135,29 @@ sendAsyncCommand cmd = do
     liftIO $ s cmd
 
 runJavaScript :: (Batch -> IO ()) -> JSM () -> IO (Results -> IO (), Results -> IO Batch, IO ())
-runJavaScript sendBatch entryPoint = do
+runJavaScript = runJavaScriptWithSerializer Nothing
+
+-- | Like 'runJavaScript', but with an optional serialiser that brackets each
+-- batch round-trip (@sendBatch@..@takeResult@).
+--
+-- Pass @Nothing@ (as plain 'runJavaScript' does) for the default: contexts run
+-- fully independently, which is what transports with per-context transports want
+-- — e.g. jsaddle-warp, where each browser client is its own context on its own
+-- WebSocket and serialising across them would let one slow client stall the
+-- rest.
+--
+-- Pass @Just lock@ — one 'MVar' shared across all the contexts that share a
+-- single transport thread — when concurrent contexts on that thread can wedge
+-- each other.  This is the case for the native GUI runners (several WKWebView /
+-- WebKitGTK / WebView2 windows dispatching onto the one Cocoa\/GTK\/UI main
+-- thread, where a synchronous @window.prompt@ round-trip blocks that thread):
+-- holding the lock means at most one context occupies the transport at a time.
+-- It is safe against jsaddle's sync-callback protocol — a prompt's handler
+-- returns the pre-set 'lastAsyncBatch' without needing the batch thread, so
+-- blocking the batch thread here never stalls an in-flight synchronous
+-- round-trip.
+runJavaScriptWithSerializer :: Maybe (MVar ()) -> (Batch -> IO ()) -> JSM () -> IO (Results -> IO (), Results -> IO Batch, IO ())
+runJavaScriptWithSerializer mSerializer sendBatch entryPoint = do
     contextId' <- randomIO
     startTime' <- getCurrentTime
     recvMVar <- newEmptyMVar
@@ -146,6 +169,8 @@ runJavaScript sendBatch entryPoint = do
     animationFrameHandlers' <- newMVar []
     loggingEnabled <- newIORef False
     liveRefs' <- newMVar S.empty
+    let withSerializer :: IO a -> IO a
+        withSerializer act = maybe act (\lock -> withMVar lock (const act)) mSerializer
     let ctx = JSContextRef {
             contextId = contextId'
           , startTime = startTime'
@@ -210,8 +235,7 @@ runJavaScript sendBatch entryPoint = do
                 logInfo (\x -> "Sync " <> x <> show (length cmds, last cmds))
                 _ <- tryTakeMVar lastAsyncBatch
                 putMVar lastAsyncBatch batch
-                sendBatch batch
-                takeResult recvMVar nBatch >>= \case
+                withSerializer (sendBatch batch >> takeResult recvMVar nBatch) >>= \case
                     (n, _) | n /= nBatch -> error $ "Unexpected jsaddle results (expected batch " <> show nBatch <> ", got batch " <> show n <> ")"
                     (_, Success callbacksToFree results)
                            | length results /= length resultMVars -> error "Unexpected number of jsaddle results"

@@ -9,7 +9,9 @@ module Language.Javascript.JSaddle.WKWebView.Internal
 
 import Control.Monad (void, join)
 import Control.Concurrent (forkIO, forkOS)
-import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, takeMVar)
+
+import System.IO.Unsafe (unsafePerformIO)
 
 import Data.Monoid ((<>))
 import Data.ByteString (useAsCString, packCString)
@@ -25,13 +27,23 @@ import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
 import Language.Javascript.JSaddle (Results, Batch, JSM)
-import Language.Javascript.JSaddle.Run (runJavaScript)
+import Language.Javascript.JSaddle.Run (runJavaScriptWithSerializer)
 import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
 
 import System.Directory (getCurrentDirectory)
 
 newtype WKWebView = WKWebView (Ptr WKWebView)
 newtype JSaddleHandler = JSaddleHandler (Ptr JSaddleHandler)
+
+-- | Serialises the jsaddle batch round-trip across every WKWebView in the
+-- process.  All windows dispatch their JS onto the one Cocoa main queue, and a
+-- synchronous @window.prompt@ round-trip blocks that queue; without this lock
+-- two windows driving JS concurrently can wedge each other.  Shared (not
+-- per-webview) precisely because the contended resource — the main queue — is
+-- shared.  See 'runJavaScriptWithSerializer'.
+{-# NOINLINE wkWebViewBatchLock #-}
+wkWebViewBatchLock :: MVar ()
+wkWebViewBatchLock = unsafePerformIO (newMVar ())
 
 foreign export ccall jsaddleStart :: StablePtr (IO ()) -> IO ()
 foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString -> IO ()
@@ -83,7 +95,7 @@ jsaddleMain' :: JSM () -> WKWebView -> IO () -> IO ()
 jsaddleMain' f webView loadHtml = do
     ready <- newEmptyMVar
 
-    (processResult, syncResult, start) <- runJavaScript (\batch ->
+    (processResult, syncResult, start) <- runJavaScriptWithSerializer (Just wkWebViewBatchLock) (\batch ->
         useAsCString (toStrict $ "runJSaddleBatch(" <> encode batch <> ");") $
             evaluateJavaScript webView)
         f
