@@ -26,7 +26,7 @@ library
         base <5
     if !impl(ghcjs -any) && !arch(javascript)
       build-depends:
-        aeson >=0.8.0.2 && <2.3,
+        aeson >=0.8.0.2 && <2.4,
         bytestring >=0.10.6.0 && <0.13,
         directory >=1.0.0.2 && <1.4,
         gi-glib >=2.0.14 && <2.1,
