@@ -50,25 +50,36 @@ library
         exposed-modules:
             Language.Javascript.JSaddle.WKWebView.Internal
         hs-source-dirs: src-ghc
-        -- Named -cbits so its object's archive-member basename can't
-        -- collide with the Language.Javascript.JSaddle.WKWebView module
-        -- object (Cabal 3.12+ places Haskell and foreign objects in one
-        -- object tree; ar stores members by basename, and GHC 9.14's
-        -- in-process TH loader mis-resolves duplicate member names —
-        -- "duplicate definition for symbol _openApp").
-        cxx-sources:
-            cbits/WKWebView-cbits.m
+        -- The cbits file is named -cbits so its object's archive-member
+        -- basename can't collide with the
+        -- Language.Javascript.JSaddle.WKWebView module object (Cabal
+        -- 3.12+ places Haskell and foreign objects in one object tree;
+        -- ar stores members by basename, and GHC 9.14's in-process TH
+        -- loader mis-resolves duplicate member names).
         cc-options: -Wno-everything
         if os(ios)
             frameworks: UIKit, UserNotifications
             if flag(include-app-delegate)
               cxx-sources:
+                  cbits/WKWebView-cbits.m
                   cbits-uikit/AppDelegate.m
                   cbits-uikit/ViewController.m
               cpp-options: -DUSE_UIKIT
+            else
+              cxx-sources:
+                  cbits/WKWebView-cbits.m
         else
             frameworks: Cocoa
             if flag(include-app-delegate)
+              -- A SINGLE Objective-C translation unit (it #includes
+              -- WKWebView-cbits.m and AppDelegate.m): GHC's runtime
+              -- linker — used for TH under a statically linked GHC —
+              -- rejects the duplicate ObjC protocol metadata every ObjC
+              -- object emits, so the package's ObjC code must form one
+              -- archive member for dependents' TH splices to load it.
               cxx-sources:
-                  cbits-cocoa/AppDelegate.m
+                  cbits-cocoa/WKWebView-AppDelegate.m
               cpp-options: -DUSE_COCOA
+            else
+              cxx-sources:
+                  cbits/WKWebView-cbits.m
