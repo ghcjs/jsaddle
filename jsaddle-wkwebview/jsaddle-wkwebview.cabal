@@ -50,8 +50,14 @@ library
         exposed-modules:
             Language.Javascript.JSaddle.WKWebView.Internal
         hs-source-dirs: src-ghc
+        -- Named -cbits so its object's archive-member basename can't
+        -- collide with the Language.Javascript.JSaddle.WKWebView module
+        -- object (Cabal 3.12+ places Haskell and foreign objects in one
+        -- object tree; ar stores members by basename, and GHC 9.14's
+        -- in-process TH loader mis-resolves duplicate member names —
+        -- "duplicate definition for symbol _openApp").
         cxx-sources:
-            cbits/WKWebView.m
+            cbits/WKWebView-cbits.m
         cc-options: -Wno-everything
         if os(ios)
             frameworks: UIKit, UserNotifications
