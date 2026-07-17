@@ -15,6 +15,13 @@ category: Web, Javascript
 author: Hamish Mackenzie
 tested-with: GHC==9.12.2, GHC==9.10.1, GHC==9.8.4, GHC==9.6.7, GHC==9.4.8, GHC==9.2.8, GHC==9.0.2, GHC==8.10.7, GHC==8.8.4, GHC==8.6.5, GHC==8.4.4
 
+-- #included by cbits-cocoa/WKWebView-AppDelegate.m (the single Cocoa
+-- translation unit) rather than compiled directly, so they must be
+-- shipped explicitly.
+extra-source-files:
+    cbits/WKWebView-cbits.m
+    cbits-cocoa/AppDelegate.m
+
 flag include-app-delegate
     description: Include default AppDelegate C sources.
     default: True
