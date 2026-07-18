@@ -1,6 +1,7 @@
 #import "ViewController.h"
 
-extern void callWithWebView(WKWebView *, HsStablePtr);
+// See cbits/WKWebView-callbacks.h: Haskell callbacks are registered, not extern.
+#include "../cbits/WKWebView-callbacks.h"
 
 @interface ViewController ()
 
@@ -27,7 +28,7 @@ extern void callWithWebView(WKWebView *, HsStablePtr);
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    callWithWebView(_webView, _handler);
+    if (jsaddleCallbacks.callWithWebView) jsaddleCallbacks.callWithWebView((void *)_webView, _handler);
 }
 
 

@@ -2,10 +2,9 @@
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 
-extern void callIO(HsStablePtr);
-extern bool callWithCStringReturningBool(const char * _Nonnull, HsStablePtr);
-extern void callWithCString(const char * _Nonnull, HsStablePtr);
-extern void callWithWebView(WKWebView *, HsStablePtr);
+// The Haskell callbacks come through the registered jsaddleCallbacks table
+// (see cbits/WKWebView-callbacks.h; the table is defined in
+// WKWebView-cbits.m, #included into this translation unit before this file).
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @property (nonatomic, assign) IBOutlet NSWindow *window;
@@ -41,7 +40,9 @@ uint64_t global_developerExtrasEnabled = 1;
 }
 
 -(BOOL)application:(NSApplication *)sender openFile:(NSString *)filename {
-    bool b = callWithCStringReturningBool([filename UTF8String], global_applicationOpenFile);
+    bool b = jsaddleCallbacks.callWithCStringReturningBool
+        ? jsaddleCallbacks.callWithCStringReturningBool([filename UTF8String], global_applicationOpenFile)
+        : false;
     return b ? YES : NO;
 }
 
@@ -52,8 +53,10 @@ uint64_t global_developerExtrasEnabled = 1;
     }
     WKWebView *webView = [[WKWebView alloc] initWithFrame: [_window.contentView frame] configuration:theConfiguration];
     [_window setContentView:webView];
-    callWithWebView(webView, _handler);
-    callIO(global_willFinishLaunchingWithOptions);
+    if (jsaddleCallbacks.callWithWebView)
+        jsaddleCallbacks.callWithWebView((void *)webView, _handler);
+    if (jsaddleCallbacks.callIO)
+        jsaddleCallbacks.callIO(global_willFinishLaunchingWithOptions);
     // Listen to URL events
     NSAppleEventManager *manager = [NSAppleEventManager sharedAppleEventManager];
     [manager
@@ -65,14 +68,16 @@ uint64_t global_developerExtrasEnabled = 1;
 
 - (void)applicationUniversalLink:(NSAppleEventDescriptor *)event {
   NSString *url = [[event paramDescriptorForKeyword:keyDirectObject] stringValue];
-  callWithCString([url UTF8String], global_applicationUniversalLink);
+  if (jsaddleCallbacks.callWithCString)
+      jsaddleCallbacks.callWithCString([url UTF8String], global_applicationUniversalLink);
 }
 
 -(void)applicationDidFinishLaunching:(NSNotification *)notification {
     [_window orderFrontRegardless];
     [_window center];
     [NSApp activateIgnoringOtherApps:YES];
-    callIO(global_didFinishLaunchingWithOptions);
+    if (jsaddleCallbacks.callIO)
+        jsaddleCallbacks.callIO(global_didFinishLaunchingWithOptions);
 }
 
 -(BOOL) applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)app {
