@@ -3,9 +3,9 @@
 #import <UserNotifications/UserNotifications.h>
 #import <stdint.h>
 
-extern void callIO(HsStablePtr);
-extern void callWithCString(const char * _Nonnull, HsStablePtr);
-extern void callWithCIntCString(int n, const char * _Nonnull, HsStablePtr);
+// The Haskell callbacks come through the registered jsaddleCallbacks table
+// (see cbits/WKWebView-callbacks.h for why they are not extern symbols).
+#include "../cbits/WKWebView-callbacks.h"
 
 @interface AppDelegate ()
 
@@ -35,7 +35,7 @@ HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
 
 - (BOOL)application:(UIApplication *)application willFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // Tells the delegate that the launch process has begun but that state restoration has not yet occurred.
-    callIO(global_willFinishLaunchingWithOptions);
+    if (jsaddleCallbacks.callIO) jsaddleCallbacks.callIO(global_willFinishLaunchingWithOptions);
     return YES;
 }
 
@@ -70,45 +70,45 @@ HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
         [application registerForRemoteNotifications];
       }
     }
-    callIO(global_didFinishLaunchingWithOptions);
+    if (jsaddleCallbacks.callIO) jsaddleCallbacks.callIO(global_didFinishLaunchingWithOptions);
     return YES;
 }
 
 - (void)applicationWillResignActive:(UIApplication *)application {
     // Sent when the application is about to move from active to inactive state. This can occur for certain types of temporary interruptions (such as an incoming phone call or SMS message) or when the user quits the application and it begins the transition to the background state.
     // Use this method to pause ongoing tasks, disable timers, and invalidate graphics rendering callbacks. Games should use this method to pause the game.
-    callIO(global_applicationWillResignActive);
+    if (jsaddleCallbacks.callIO) jsaddleCallbacks.callIO(global_applicationWillResignActive);
 }
 
 
 - (void)applicationDidEnterBackground:(UIApplication *)application {
     // Use this method to release shared resources, save user data, invalidate timers, and store enough application state information to restore your application to its current state in case it is terminated later.
     // If your application supports background execution, this method is called instead of applicationWillTerminate: when the user quits.
-    callIO(global_applicationDidEnterBackground);
+    if (jsaddleCallbacks.callIO) jsaddleCallbacks.callIO(global_applicationDidEnterBackground);
 }
 
 
 - (void)applicationWillEnterForeground:(UIApplication *)application {
     // Called as part of the transition from the background to the active state; here you can undo many of the changes made on entering the background.
-    callIO(global_applicationWillEnterForeground);
+    if (jsaddleCallbacks.callIO) jsaddleCallbacks.callIO(global_applicationWillEnterForeground);
 }
 
 
 - (void)applicationDidBecomeActive:(UIApplication *)application {
     // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
-    callIO(global_applicationDidBecomeActive);
+    if (jsaddleCallbacks.callIO) jsaddleCallbacks.callIO(global_applicationDidBecomeActive);
 }
 
 
 - (void)applicationWillTerminate:(UIApplication *)application {
     // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
-    callIO(global_applicationWillTerminate);
+    if (jsaddleCallbacks.callIO) jsaddleCallbacks.callIO(global_applicationWillTerminate);
 }
 
 - (void)application:(UIApplication *)application didRegisterForRemoteNotificationsWithDeviceToken:(NSData *)deviceToken {
     // Tells the delegate that the app successfully registered with Apple Push Notification service (APNs).
     NSString *deviceTokenString = [deviceToken base64EncodedStringWithOptions: 0];
-    callWithCString([deviceTokenString UTF8String], global_didRegisterForRemoteNotificationsWithDeviceToken);
+    if (jsaddleCallbacks.callWithCString) jsaddleCallbacks.callWithCString([deviceTokenString UTF8String], global_didRegisterForRemoteNotificationsWithDeviceToken);
 }
 
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult result))completionHandler {
@@ -121,7 +121,7 @@ HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
     NSData *jsonData = [NSJSONSerialization dataWithJSONObject:userInfo options:0 error:&error];
     if (jsonData) {
         NSString *jsonString = [[NSString alloc] initWithData:jsonData encoding:NSUTF8StringEncoding];
-        callWithCIntCString((int) application.applicationState, [jsonString UTF8String], global_applicationDidReceiveRemoteNotification);
+        if (jsaddleCallbacks.callWithCIntCString) jsaddleCallbacks.callWithCIntCString((int) application.applicationState, [jsonString UTF8String], global_applicationDidReceiveRemoteNotification);
     } else {
         NSLog(@"jsaddle-wkwebview didReceiveRemoteNotification handler: error while serialising push notification as JSON");
     }
@@ -131,19 +131,19 @@ HsStablePtr global_didFailToRegisterForRemoteNotificationsWithError = 0;
 - (void)application:(UIApplication *)application didFailToRegisterForRemoteNotificationsWithError:(NSError *)error {
     // Sent to the delegate when Apple Push Notification service cannot successfully complete the registration process.
     NSString *errorString = [error localizedDescription];
-    callWithCString([errorString UTF8String], global_didFailToRegisterForRemoteNotificationsWithError);
+    if (jsaddleCallbacks.callWithCString) jsaddleCallbacks.callWithCString([errorString UTF8String], global_didFailToRegisterForRemoteNotificationsWithError);
 }
 
 - (void)applicationSignificantTimeChange:(UIApplication *)application {
     // Tells the delegate when there is a significant change in the time.
-    callIO(global_applicationSignificantTimeChange);
+    if (jsaddleCallbacks.callIO) jsaddleCallbacks.callIO(global_applicationSignificantTimeChange);
 }
 
 - (BOOL)application:(UIApplication *)application continueUserActivity:(NSUserActivity *)userActivity restorationHandler:(void (^)(NSArray *restorableObjects))restorationHandler {
     // TODO: Reroute universal links when they're clicked in-app.
     // https://developer.apple.com/reference/webkit/wknavigationdelegate/1455643-webview?language=objc
     if ([userActivity.activityType isEqualToString:NSUserActivityTypeBrowsingWeb] && userActivity.webpageURL) {
-        callWithCString([userActivity.webpageURL.absoluteString UTF8String], global_applicationUniversalLink);
+        if (jsaddleCallbacks.callWithCString) jsaddleCallbacks.callWithCString([userActivity.webpageURL.absoluteString UTF8String], global_applicationUniversalLink);
         return YES;
     }
     return NO;

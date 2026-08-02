@@ -5,11 +5,13 @@ module Language.Javascript.JSaddle.WKWebView.Internal
     , jsaddleMainFile
     , WKWebView(..)
     , mainBundleResourcePath
+    , registerJSaddleCallbacks
     ) where
 
-import Control.Monad (void, join)
+import Control.Monad (void, join, unless)
 import Control.Concurrent (forkIO, forkOS)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, takeMVar)
+import Control.Concurrent.MVar
+       (MVar, modifyMVar_, newEmptyMVar, newMVar, putMVar, takeMVar)
 
 import System.IO.Unsafe (unsafePerformIO)
 
@@ -23,7 +25,7 @@ import Data.Text.Encoding (encodeUtf8)
 
 import Foreign.C.String (CString)
 import Foreign.C.Types (CBool(..), CInt(..))
-import Foreign.Ptr (Ptr, nullPtr)
+import Foreign.Ptr (Ptr, FunPtr, nullPtr)
 import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
 
 import Language.Javascript.JSaddle (Results, Batch, JSM)
@@ -53,6 +55,67 @@ foreign export ccall callWithCIntCString :: CInt -> CString -> StablePtr (CInt -
 foreign export ccall callWithCString :: CString -> StablePtr (CString -> IO ()) -> IO ()
 foreign export ccall callWithCStringReturningBool :: CString -> StablePtr (CString -> IO CBool) -> IO CBool
 foreign export ccall callIO :: StablePtr (IO ()) -> IO ()
+
+-- The Objective-C side calls back into Haskell through function pointers
+-- registered with 'registerJSaddleCallbacks' rather than through the foreign
+-- exports above (kept for compatibility): on toolchains where GHCi's RTS
+-- linker loads this package's archive, the exports are not dyld-visible, so
+-- ObjC compiled into a dylib (necessary there for its classes to be
+-- registered with the ObjC runtime; see the objc-in-library cabal flag)
+-- could not reference them.  See cbits/WKWebView-callbacks.h.
+foreign import ccall "wrapper" mkStablePtrIOCb
+  :: (StablePtr (IO ()) -> IO ())
+  -> IO (FunPtr (StablePtr (IO ()) -> IO ()))
+foreign import ccall "wrapper" mkResultCb
+  :: (StablePtr (Results -> IO ()) -> CString -> IO ())
+  -> IO (FunPtr (StablePtr (Results -> IO ()) -> CString -> IO ()))
+foreign import ccall "wrapper" mkSyncResultCb
+  :: (StablePtr (Results -> IO Batch) -> JSaddleHandler -> CString -> IO ())
+  -> IO (FunPtr (StablePtr (Results -> IO Batch) -> JSaddleHandler -> CString -> IO ()))
+foreign import ccall "wrapper" mkCStringCb
+  :: (CString -> StablePtr (CString -> IO ()) -> IO ())
+  -> IO (FunPtr (CString -> StablePtr (CString -> IO ()) -> IO ()))
+foreign import ccall "wrapper" mkCStringBoolCb
+  :: (CString -> StablePtr (CString -> IO CBool) -> IO CBool)
+  -> IO (FunPtr (CString -> StablePtr (CString -> IO CBool) -> IO CBool))
+foreign import ccall "wrapper" mkWebViewCb
+  :: (WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ())
+  -> IO (FunPtr (WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ()))
+foreign import ccall "wrapper" mkCIntCStringCb
+  :: (CInt -> CString -> StablePtr (CInt -> CString -> IO ()) -> IO ())
+  -> IO (FunPtr (CInt -> CString -> StablePtr (CInt -> CString -> IO ()) -> IO ()))
+foreign import ccall "jsaddle_wk_set_callbacks" c_jsaddleWkSetCallbacks
+  :: FunPtr (StablePtr (IO ()) -> IO ())
+  -> FunPtr (StablePtr (Results -> IO ()) -> CString -> IO ())
+  -> FunPtr (StablePtr (Results -> IO Batch) -> JSaddleHandler -> CString -> IO ())
+  -> FunPtr (StablePtr (IO ()) -> IO ())
+  -> FunPtr (CString -> StablePtr (CString -> IO ()) -> IO ())
+  -> FunPtr (CString -> StablePtr (CString -> IO CBool) -> IO CBool)
+  -> FunPtr (WKWebView -> StablePtr (WKWebView -> IO ()) -> IO ())
+  -> FunPtr (CInt -> CString -> StablePtr (CInt -> CString -> IO ()) -> IO ())
+  -> IO ()
+
+{-# NOINLINE callbacksRegistered #-}
+callbacksRegistered :: MVar Bool
+callbacksRegistered = unsafePerformIO (newMVar False)
+
+-- | Register the Haskell callbacks with the Objective-C side.  Idempotent;
+-- run before anything can trigger a callback (jsaddleMain' and run' call it).
+-- The FunPtrs live for the life of the process.
+registerJSaddleCallbacks :: IO ()
+registerJSaddleCallbacks = modifyMVar_ callbacksRegistered $ \done -> do
+    unless done $ do
+        start  <- mkStablePtrIOCb jsaddleStart
+        result <- mkResultCb jsaddleResult
+        sync   <- mkSyncResultCb jsaddleSyncResult
+        io     <- mkStablePtrIOCb callIO
+        cstr   <- mkCStringCb callWithCString
+        cstrb  <- mkCStringBoolCb callWithCStringReturningBool
+        webv   <- mkWebViewCb callWithWebView
+        cint   <- mkCIntCStringCb callWithCIntCString
+        c_jsaddleWkSetCallbacks start result sync io cstr cstrb webv cint
+    return True
+
 foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> StablePtr (Results -> IO Batch) -> IO ()
 foreign import ccall loadHTMLStringWithBaseURL :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
@@ -93,6 +156,7 @@ jsaddleMainFile url allowing f webView =
 
 jsaddleMain' :: JSM () -> WKWebView -> IO () -> IO ()
 jsaddleMain' f webView loadHtml = do
+    registerJSaddleCallbacks
     ready <- newEmptyMVar
 
     (processResult, syncResult, start) <- runJavaScriptWithSerializer (Just wkWebViewBatchLock) (\batch ->

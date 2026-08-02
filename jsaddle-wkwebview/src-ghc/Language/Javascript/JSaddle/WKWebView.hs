@@ -22,7 +22,8 @@ import qualified Data.Set as Set
 import Data.Word
 import Foreign.Marshal.Utils (fromBool)
 import Language.Javascript.JSaddle.WKWebView.Internal
-       (jsaddleMain, jsaddleMainHTMLWithBaseURL, jsaddleMainFile, WKWebView(..), mainBundleResourcePath)
+       (jsaddleMain, jsaddleMainHTMLWithBaseURL, jsaddleMainFile, WKWebView(..),
+        mainBundleResourcePath, registerJSaddleCallbacks)
 import System.Environment (getProgName)
 import Foreign.C.String (CString, withCString)
 import Foreign.C.Types (CBool, CInt)
@@ -163,6 +164,9 @@ run' :: AppDelegateConfig
      -> (WKWebView -> IO ())
      -> IO ()
 run' cfg main = do
+    -- The ObjC side calls Haskell through registered FunPtrs (see Internal);
+    -- register before runInWKWebView can fire any of them.
+    registerJSaddleCallbacks
     handler <- newStablePtr main
     progName <- getProgName
 

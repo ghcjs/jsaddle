@@ -17,14 +17,29 @@ tested-with: GHC==9.12.2, GHC==9.10.1, GHC==9.8.4, GHC==9.6.7, GHC==9.4.8, GHC==
 
 -- #included by cbits-cocoa/WKWebView-AppDelegate.m (the single Cocoa
 -- translation unit) rather than compiled directly, so they must be
--- shipped explicitly.
+-- shipped explicitly.  (WKWebView-callbacks.h is #included everywhere.)
 extra-source-files:
     cbits/WKWebView-cbits.m
+    cbits/WKWebView-callbacks.h
     cbits-cocoa/AppDelegate.m
 
 flag include-app-delegate
     description: Include default AppDelegate C sources.
     default: True
+
+flag objc-in-library
+    description:
+        Compile the Objective-C into the Haskell library (the default).
+        Disable for GHCi sessions on toolchains where the RTS linker loads
+        this library's archive: Objective-C classes are only registered with
+        the runtime when their image is loaded by dyld, so such a session
+        must instead preload the ObjC compiled as a dylib (e.g.
+        cc -dynamiclib cbits-cocoa/WKWebView-AppDelegate.m -DUSE_COCOA
+        -Icbits ... and ghci -L<dir> -l<name>); the Haskell side then
+        reaches it through dyld, and it calls back in through the FunPtrs
+        registered by registerJSaddleCallbacks.
+    default: True
+    manual: True
 
 source-repository head
     type: git
@@ -67,14 +82,16 @@ library
         if os(ios)
             frameworks: UIKit, UserNotifications
             if flag(include-app-delegate)
-              cxx-sources:
-                  cbits/WKWebView-cbits.m
-                  cbits-uikit/AppDelegate.m
-                  cbits-uikit/ViewController.m
+              if flag(objc-in-library)
+                cxx-sources:
+                    cbits/WKWebView-cbits.m
+                    cbits-uikit/AppDelegate.m
+                    cbits-uikit/ViewController.m
               cpp-options: -DUSE_UIKIT
             else
-              cxx-sources:
-                  cbits/WKWebView-cbits.m
+              if flag(objc-in-library)
+                cxx-sources:
+                    cbits/WKWebView-cbits.m
         else
             frameworks: Cocoa
             if flag(include-app-delegate)
@@ -84,9 +101,11 @@ library
               -- rejects the duplicate ObjC protocol metadata every ObjC
               -- object emits, so the package's ObjC code must form one
               -- archive member for dependents' TH splices to load it.
-              cxx-sources:
-                  cbits-cocoa/WKWebView-AppDelegate.m
+              if flag(objc-in-library)
+                cxx-sources:
+                    cbits-cocoa/WKWebView-AppDelegate.m
               cpp-options: -DUSE_COCOA
             else
-              cxx-sources:
-                  cbits/WKWebView-cbits.m
+              if flag(objc-in-library)
+                cxx-sources:
+                    cbits/WKWebView-cbits.m

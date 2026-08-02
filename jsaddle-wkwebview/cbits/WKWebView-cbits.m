@@ -15,9 +15,31 @@ BOOL openApp(NSURL * url);
 
 @end
 
-extern void jsaddleStart(HsStablePtr);
-extern void jsaddleResult(HsStablePtr, const char *  _Nonnull result);
-extern void jsaddleSyncResult(HsStablePtr, JSaddleHandler *, const char * _Nonnull result);
+// The Haskell callbacks come through the registered jsaddleCallbacks table —
+// see WKWebView-callbacks.h for why they are not extern symbol references.
+#include "WKWebView-callbacks.h"
+
+jsaddle_wk_callbacks jsaddleCallbacks;   // zero-initialised
+
+void jsaddle_wk_set_callbacks(
+    void (*jsaddleStart_)(HsStablePtr),
+    void (*jsaddleResult_)(HsStablePtr, const char * _Nonnull),
+    void (*jsaddleSyncResult_)(HsStablePtr, void * _Nonnull, const char * _Nonnull),
+    void (*callIO_)(HsStablePtr),
+    void (*callWithCString_)(const char * _Nonnull, HsStablePtr),
+    bool (*callWithCStringReturningBool_)(const char * _Nonnull, HsStablePtr),
+    void (*callWithWebView_)(void * _Nonnull, HsStablePtr),
+    void (*callWithCIntCString_)(int, const char * _Nonnull, HsStablePtr))
+{
+    jsaddleCallbacks.jsaddleStart = jsaddleStart_;
+    jsaddleCallbacks.jsaddleResult = jsaddleResult_;
+    jsaddleCallbacks.jsaddleSyncResult = jsaddleSyncResult_;
+    jsaddleCallbacks.callIO = callIO_;
+    jsaddleCallbacks.callWithCString = callWithCString_;
+    jsaddleCallbacks.callWithCStringReturningBool = callWithCStringReturningBool_;
+    jsaddleCallbacks.callWithWebView = callWithWebView_;
+    jsaddleCallbacks.callWithCIntCString = callWithCIntCString_;
+}
 
 @implementation JSaddleHandler
 
@@ -34,13 +56,15 @@ extern void jsaddleSyncResult(HsStablePtr, JSaddleHandler *, const char * _Nonnu
 
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation
 {
-    jsaddleStart(self.startHandler);
+    if (jsaddleCallbacks.jsaddleStart)
+        jsaddleCallbacks.jsaddleStart(self.startHandler);
 }
 
 - (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message
 {
     NSString * s = (NSString *) message.body;
-    jsaddleResult(self.resultHandler, [s UTF8String]);
+    if (jsaddleCallbacks.jsaddleResult)
+        jsaddleCallbacks.jsaddleResult(self.resultHandler, [s UTF8String]);
 }
 
 - (void)webView:(WKWebView *)webView runJavaScriptTextInputPanelWithPrompt:(NSString *)prompt
@@ -48,7 +72,8 @@ extern void jsaddleSyncResult(HsStablePtr, JSaddleHandler *, const char * _Nonnu
 {
     if([prompt isEqualToString:@"JSaddleSync"]) {
         _completionHandler = completionHandler;
-        jsaddleSyncResult(self.syncHandler, self, [defaultText UTF8String]);
+        if (jsaddleCallbacks.jsaddleSyncResult)
+            jsaddleCallbacks.jsaddleSyncResult(self.syncHandler, (void *)self, [defaultText UTF8String]);
     }
     else {
         // TODO decide what if anything should go here
