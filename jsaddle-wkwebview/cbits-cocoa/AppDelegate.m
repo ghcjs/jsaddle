@@ -53,14 +53,16 @@ uint64_t global_developerExtrasEnabled = 1;
     }
     WKWebView *webView = [[WKWebView alloc] initWithFrame: [_window.contentView frame] configuration:theConfiguration];
     [_window setContentView:webView];
-    // The window now owns the webview; without this release the boot webview
-    // (and its WebContent process) outlives the window forever.
-    [webView release];
-    [theConfiguration release];
     if (jsaddleCallbacks.callWithWebView)
         jsaddleCallbacks.callWithWebView((void *)webView, _handler);
     if (jsaddleCallbacks.callIO)
         jsaddleCallbacks.callIO(global_willFinishLaunchingWithOptions);
+    // Balance the allocs above: -setContentView: retained the webview, so the
+    // window is its sole owner from here.  Without these releases the boot
+    // webview — and its WebContent renderer process — outlives the window
+    // forever.  After the callbacks, so nothing reads webView post-release.
+    [webView release];
+    [theConfiguration release];
     // Listen to URL events
     NSAppleEventManager *manager = [NSAppleEventManager sharedAppleEventManager];
     [manager

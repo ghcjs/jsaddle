@@ -11,14 +11,13 @@ module Language.Javascript.JSaddle.WKWebView.Internal
 
 import Control.Monad (void, join, unless)
 import Control.Concurrent (forkIO, forkOS)
-import Control.Exception (SomeException, handle)
+import Control.Exception (IOException, handle)
 import Control.Concurrent.MVar
-       (MVar, modifyMVar_, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar,
-        withMVar)
+       (MVar, modifyMVar, modifyMVar_, newEmptyMVar, newMVar, putMVar, readMVar,
+        takeMVar, tryPutMVar, withMVar)
 
 import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef')
 
-import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
 
 import Data.Monoid ((<>))
@@ -77,11 +76,19 @@ contextInvalidators = unsafePerformIO (newMVar [])
 -- @removeJSaddleHandler@ in cbits/WKWebView-cbits.m.  Without it the callback
 -- closures, and through them the context's entire object graph, are pinned for
 -- the life of the process.
+--
+-- Call it once per webview: the registry entries are claimed under the lock, so
+-- a second concurrent call for the SAME webview finds nothing and returns while
+-- the first is still running (it would not wait for that in-flight send).
 jsaddleWebViewInvalidate :: WKWebView -> IO ()
-jsaddleWebViewInvalidate (WKWebView ptr) =
-    modifyMVar_ contextInvalidators $ \invs -> do
-        sequence_ [ inv | (p, inv) <- invs, p == ptr ]
-        return (filter ((/= ptr) . fst) invs)
+jsaddleWebViewInvalidate (WKWebView ptr) = do
+    -- CLAIM under the lock, RUN outside it.  An invalidator blocks until this
+    -- context's in-flight send finishes; holding the registry across that would
+    -- stall every other webview's invalidation — and every new context's
+    -- registration, which 'jsaddleMain'' does on the same MVar during startup.
+    invs <- modifyMVar contextInvalidators $ \invs ->
+        return (filter ((/= ptr) . fst) invs, [ inv | (p, inv) <- invs, p == ptr ])
+    sequence_ invs
 
 foreign export ccall jsaddleStart :: StablePtr (IO ()) -> IO ()
 foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString -> IO ()
@@ -210,10 +217,16 @@ jsaddleMain' f webView@(WKWebView ptr) loadHtml = do
     -- once even if the context is invalidated while it is still being set up.
     detachRef <- newIORef Nothing
     modifyMVar_ contextInvalidators $ return .
-        ((ptr, modifyMVar_ aliveVar $ \_ -> do
-                   mbDetach <- atomicModifyIORef' detachRef (\d -> (Nothing, d))
-                   sequence_ mbDetach
-                   return False) :)
+        ((ptr, do
+             modifyMVar_ aliveVar $ \_ -> do
+                 mbDetach <- atomicModifyIORef' detachRef (\d -> (Nothing, d))
+                 sequence_ mbDetach
+                 return False
+             -- Release the startup thread below if the page never signalled
+             -- ready (invalidated mid-load): nothing else will ever fill this,
+             -- and it is holding an OS thread and this context's closures.  It
+             -- wakes, hits the now-closed gate and exits.
+             void $ tryPutMVar ready ()) :)
     -- An invalidated context must FAIL its send, not silently drop it.
     -- 'runJavaScriptWithSerializer' holds the shared 'wkWebViewBatchLock'
     -- across @sendBatch@ AND the @takeResult@ that waits for that batch's
@@ -271,10 +284,6 @@ jsaddleMain' f webView@(WKWebView ptr) loadHtml = do
         freeStablePtr resultHandler
         freeStablePtr syncResultHandler
         readIORef selfRef >>= mapM_ freeStablePtr
-        -- Traced because the detach is asynchronous: this line is the only
-        -- evidence of WHEN (or whether) a context actually became collectable.
-        hPutStrLn stderr $ "jsaddle-wkwebview: context detached from webview "
-                           <> show ptr <> ", stable pointers freed"
     writeIORef selfRef (Just onDetached)
     -- Arm the detach for the invalidator — or, if invalidation already happened
     -- (it found nothing to detach), detach right here.
@@ -285,8 +294,9 @@ jsaddleMain' f webView@(WKWebView ptr) loadHtml = do
     loadHtml
     -- If the context is invalidated before the page signals ready, the gate
     -- throws here; that just means this window died during startup, so swallow
-    -- it rather than letting forkOS report an unhandled exception.
-    void . forkOS . handle (\(_ :: SomeException) -> return ()) $ do
+    -- it rather than letting forkOS report an unhandled exception.  Only that
+    -- 'IOException' — anything else is a real failure and belongs on stderr.
+    void . forkOS . handle (\(_ :: IOException) -> return ()) $ do
         takeMVar ready
         withWebView $ useAsCString (toStrict jsaddleJs) (evaluateJavaScript webView)
         void (forkIO start)
