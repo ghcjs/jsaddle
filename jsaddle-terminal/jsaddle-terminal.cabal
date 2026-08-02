@@ -14,8 +14,9 @@ description:
   and RS-prefixed lines on stdin (injected via tmux send-keys -H) — and the
   UI renders in an iframe hosted by the IDE.  No sockets are opened on the
   app's machine, so it works over ssh-reached tmux servers too.  When nobody
-  answers, it falls back to jsaddle-warp on a free port and prints a
-  clickable URL.
+  answers the handshake there is nothing to tunnel to, so the runner reports
+  that on stderr and stops (an earlier version fell back to serving the app
+  over jsaddle-warp; that has been removed).
 build-type:         Simple
 
 flag demo

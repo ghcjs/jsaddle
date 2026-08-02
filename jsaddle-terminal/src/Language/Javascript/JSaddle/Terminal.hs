@@ -127,10 +127,11 @@ withRawMode act = do
                   (eNABLE_LINE_INPUT .|. eNABLE_ECHO_INPUT .|. eNABLE_PROCESSED_INPUT))
                  .|. eNABLE_VIRTUAL_TERMINAL_INPUT
       rawOut = outSaved .|. eNABLE_VIRTUAL_TERMINAL_PROCESSING
-  bracket_
-    (setConsoleMode hIn rawIn >> setConsoleMode hOut rawOut)
-    (setConsoleMode hIn inSaved >> setConsoleMode hOut outSaved)
-    act
+  -- One bracket per handle, nested: with both mode changes in a single acquire
+  -- action, a failure setting the OUTPUT mode would skip the release action
+  -- altogether and leave the console stuck in raw INPUT mode.
+  bracket_ (setConsoleMode hIn rawIn) (setConsoleMode hIn inSaved) $
+    bracket_ (setConsoleMode hOut rawOut) (setConsoleMode hOut outSaved) act
 
 -- | A per-run identifier for the HELLO payload (see 'handshake').
 getRunPid :: IO Integer
