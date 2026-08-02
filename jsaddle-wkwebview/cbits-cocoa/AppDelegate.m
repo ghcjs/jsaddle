@@ -53,6 +53,10 @@ uint64_t global_developerExtrasEnabled = 1;
     }
     WKWebView *webView = [[WKWebView alloc] initWithFrame: [_window.contentView frame] configuration:theConfiguration];
     [_window setContentView:webView];
+    // The window now owns the webview; without this release the boot webview
+    // (and its WebContent process) outlives the window forever.
+    [webView release];
+    [theConfiguration release];
     if (jsaddleCallbacks.callWithWebView)
         jsaddleCallbacks.callWithWebView((void *)webView, _handler);
     if (jsaddleCallbacks.callIO)
