@@ -160,7 +160,16 @@ runJavaScriptWithSerializer :: Maybe (MVar ()) -> (Batch -> IO ()) -> JSM () -> 
 runJavaScriptWithSerializer mSerializer sendBatch entryPoint = do
     contextId' <- randomIO
     startTime' <- getCurrentTime
-    recvMVar <- newEmptyMVar
+    -- Results QUEUE, not a single-slot MVar.  A delivery must never block: the
+    -- transports fork a thread per incoming batch of results, so any delivery
+    -- with no batch thread waiting for it (a context whose pump has gone, or
+    -- more results than batches sent) left that thread blocked in 'putMVar'
+    -- FOREVER.  With a busy page that is a runaway: ~5000 blocked threads per
+    -- second, half a million threads and 12GB of RSS in one measured session
+    -- (72GB in a longer one).  A TChan makes the deliverer's side non-blocking,
+    -- so those threads finish and can be collected; 'takeResult' still skips
+    -- results for earlier batches exactly as before.
+    recvChan <- newTChanIO
     lastAsyncBatch <- newEmptyMVar
     commandChan <- newTChanIO
     callbacks <- newTVarIO M.empty
@@ -197,7 +206,7 @@ runJavaScriptWithSerializer mSerializer sendBatch entryPoint = do
         processResults syncCallbacks = \case
             (ProtocolError err) -> error $ "Protocol error : " <> T.unpack err
             (Callback n br (JSValueReceived fNumber) f this a) -> do
-                putMVar recvMVar (n, br)
+                atomically $ writeTChan recvChan (n, br)
                 f' <- runReaderT (unJSM $ wrapJSVal f) ctx
                 this' <- runReaderT  (unJSM $ wrapJSVal this) ctx
                 args <- runReaderT (unJSM $ mapM wrapJSVal a) ctx
@@ -212,7 +221,7 @@ runJavaScriptWithSerializer mSerializer sendBatch entryPoint = do
                 putStrLn $ "Error : Unexpected Duplicate. syncCallbacks=" <> show syncCallbacks <>
                     " nBatch=" <> show nBatch <> " nExpected=" <> show nExpected
                 void $ doSendCommand ctx Sync
-            BatchResults n br -> putMVar recvMVar (n, br)
+            BatchResults n br -> atomically $ writeTChan recvChan (n, br)
         asyncResults :: Results -> IO ()
         asyncResults results =
             void . forkIO $ processResults False results
@@ -235,7 +244,7 @@ runJavaScriptWithSerializer mSerializer sendBatch entryPoint = do
                 logInfo (\x -> "Sync " <> x <> show (length cmds, last cmds))
                 _ <- tryTakeMVar lastAsyncBatch
                 putMVar lastAsyncBatch batch
-                withSerializer (sendBatch batch >> takeResult recvMVar nBatch) >>= \case
+                withSerializer (sendBatch batch >> takeResult recvChan nBatch) >>= \case
                     (n, _) | n /= nBatch -> error $ "Unexpected jsaddle results (expected batch " <> show nBatch <> ", got batch " <> show n <> ")"
                     (_, Success callbacksToFree results)
                            | length results /= length resultMVars -> error "Unexpected number of jsaddle results"
@@ -257,9 +266,9 @@ runJavaScriptWithSerializer mSerializer sendBatch entryPoint = do
     numberForeverFromM_ !n f = do
       _ <- f n
       numberForeverFromM_ (succ n) f
-    takeResult recvMVar nBatch =
-        takeMVar recvMVar >>= \case
-            (n, _) | n < nBatch -> takeResult recvMVar nBatch
+    takeResult recvChan nBatch =
+        atomically (readTChan recvChan) >>= \case
+            (n, _) | n < nBatch -> takeResult recvChan nBatch
             r -> return r
     readBatch :: Int -> TChan (Either AsyncCommand (Command, MVar Result)) -> IO (Batch, [MVar Result])
     readBatch nBatch chan = do
