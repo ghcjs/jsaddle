@@ -3,8 +3,11 @@
 #import <WebKit/WebKit.h>
 
 // The Haskell callbacks come through the registered jsaddleCallbacks table
-// (see cbits/WKWebView-callbacks.h; the table is defined in
-// WKWebView-cbits.m, #included into this translation unit before this file).
+// (see cbits/WKWebView-callbacks.h for why they are not extern symbols).  The
+// table itself is defined in WKWebView-cbits.m, which the composite Cocoa
+// translation unit #includes before this file; the header is included here
+// anyway (it is #pragma once) so this file does not depend on that order.
+#include "../cbits/WKWebView-callbacks.h"
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 @property (nonatomic, assign) IBOutlet NSWindow *window;
