@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface, OverloadedStrings #-}
+{-# LANGUAGE ForeignFunctionInterface, OverloadedStrings, ScopedTypeVariables #-}
 module Language.Javascript.JSaddle.WKWebView.Internal
     ( jsaddleMain
     , jsaddleMainHTMLWithBaseURL
@@ -6,13 +6,19 @@ module Language.Javascript.JSaddle.WKWebView.Internal
     , WKWebView(..)
     , mainBundleResourcePath
     , registerJSaddleCallbacks
+    , jsaddleWebViewInvalidate
     ) where
 
 import Control.Monad (void, join, unless)
 import Control.Concurrent (forkIO, forkOS)
+import Control.Exception (SomeException, handle)
 import Control.Concurrent.MVar
-       (MVar, modifyMVar_, newEmptyMVar, newMVar, putMVar, takeMVar)
+       (MVar, modifyMVar_, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar,
+        withMVar)
 
+import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef')
+
+import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
 
 import Data.Monoid ((<>))
@@ -26,9 +32,11 @@ import Data.Text.Encoding (encodeUtf8)
 import Foreign.C.String (CString)
 import Foreign.C.Types (CBool(..), CInt(..))
 import Foreign.Ptr (Ptr, FunPtr, nullPtr)
-import Foreign.StablePtr (StablePtr, newStablePtr, deRefStablePtr)
+import Foreign.StablePtr
+       (StablePtr, newStablePtr, deRefStablePtr, freeStablePtr)
 
-import Language.Javascript.JSaddle (Results, Batch, JSM)
+import Language.Javascript.JSaddle (Results, JSM)
+import Language.Javascript.JSaddle.Types (Batch(..))
 import Language.Javascript.JSaddle.Run (runJavaScriptWithSerializer)
 import Language.Javascript.JSaddle.Run.Files (initState, runBatch, ghcjsHelpers)
 
@@ -46,6 +54,34 @@ newtype JSaddleHandler = JSaddleHandler (Ptr JSaddleHandler)
 {-# NOINLINE wkWebViewBatchLock #-}
 wkWebViewBatchLock :: MVar ()
 wkWebViewBatchLock = unsafePerformIO (newMVar ())
+
+-- | Per-context invalidators, keyed by the raw webview pointer each context
+-- sends its batches to.  'jsaddleWebViewInvalidate' runs (and drops) a
+-- webview's entries so the host application can safely release the webview:
+-- until then jsaddle's threads keep calling 'evaluateJavaScript' with the
+-- stored pointer, and releasing the webview under them is a use-after-free.
+{-# NOINLINE contextInvalidators #-}
+contextInvalidators :: MVar [(Ptr WKWebView, IO ())]
+contextInvalidators = unsafePerformIO (newMVar [])
+
+-- | Invalidate every jsaddle context attached to @webView@: no jsaddle thread
+-- will touch the webview pointer after this returns, so the host may release
+-- the webview (and let its WebContent renderer process exit).  Blocks until
+-- any in-flight batch send has completed.  The contexts' Haskell threads are
+-- not stopped — their subsequent sends throw instead (a dropped send would
+-- leave jsaddle's batch thread waiting for a reply forever while holding
+-- 'wkWebViewBatchLock', deadlocking every other window; see 'jsaddleMain'').
+--
+-- Also detaches each context's ObjC handler and frees the stable pointers it
+-- holds, which is what makes an invalidated context COLLECTABLE — see
+-- @removeJSaddleHandler@ in cbits/WKWebView-cbits.m.  Without it the callback
+-- closures, and through them the context's entire object graph, are pinned for
+-- the life of the process.
+jsaddleWebViewInvalidate :: WKWebView -> IO ()
+jsaddleWebViewInvalidate (WKWebView ptr) =
+    modifyMVar_ contextInvalidators $ \invs -> do
+        sequence_ [ inv | (p, inv) <- invs, p == ptr ]
+        return (filter ((/= ptr) . fst) invs)
 
 foreign export ccall jsaddleStart :: StablePtr (IO ()) -> IO ()
 foreign export ccall jsaddleResult :: StablePtr (Results -> IO ()) -> CString -> IO ()
@@ -116,7 +152,8 @@ registerJSaddleCallbacks = modifyMVar_ callbacksRegistered $ \done -> do
         c_jsaddleWkSetCallbacks start result sync io cstr cstrb webv cint
     return True
 
-foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> StablePtr (Results -> IO Batch) -> IO ()
+foreign import ccall addJSaddleHandler :: WKWebView -> StablePtr (IO ()) -> StablePtr (Results -> IO ()) -> StablePtr (Results -> IO Batch) -> IO JSaddleHandler
+foreign import ccall removeJSaddleHandler :: WKWebView -> JSaddleHandler -> StablePtr (IO ()) -> IO ()
 foreign import ccall loadHTMLStringWithBaseURL :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall loadBundleFile :: WKWebView -> CString -> CString -> IO ()
 foreign import ccall evaluateJavaScript :: WKWebView -> CString -> IO ()
@@ -155,23 +192,104 @@ jsaddleMainFile url allowing f webView =
                 loadBundleFile webView u a
 
 jsaddleMain' :: JSM () -> WKWebView -> IO () -> IO ()
-jsaddleMain' f webView loadHtml = do
+jsaddleMain' f webView@(WKWebView ptr) loadHtml = do
     registerJSaddleCallbacks
     ready <- newEmptyMVar
 
+    -- Every use of the raw webview pointer goes through this gate.  An MVar
+    -- (not an IORef) so 'jsaddleWebViewInvalidate' SYNCHRONIZES with an
+    -- in-flight send: invalidation blocks until the send's evaluateJavaScript
+    -- call — which copies the pointer into a main-queue block, retaining it —
+    -- has returned, and no later send can start.  After that the host can
+    -- release the webview with no thread left to dereference it.
+    aliveVar <- newMVar True
+    -- This context's pending detach (see @removeJSaddleHandler@), from the
+    -- moment 'addJSaddleHandler' has installed something to detach until
+    -- invalidation runs it.  Taken and written under @aliveVar@ — by the
+    -- invalidator below and by the install site — so the detach happens exactly
+    -- once even if the context is invalidated while it is still being set up.
+    detachRef <- newIORef Nothing
+    modifyMVar_ contextInvalidators $ return .
+        ((ptr, modifyMVar_ aliveVar $ \_ -> do
+                   mbDetach <- atomicModifyIORef' detachRef (\d -> (Nothing, d))
+                   sequence_ mbDetach
+                   return False) :)
+    -- An invalidated context must FAIL its send, not silently drop it.
+    -- 'runJavaScriptWithSerializer' holds the shared 'wkWebViewBatchLock'
+    -- across @sendBatch@ AND the @takeResult@ that waits for that batch's
+    -- reply: a dropped batch leaves its batch thread waiting for a reply that
+    -- can never arrive, holding the lock every OTHER window needs — so one
+    -- invalidated context deadlocks the whole process (in ghci mode: every
+    -- later @:main@ hangs on its first round trip, CPU idle).  Throwing
+    -- unwinds out of 'withMVar', releasing both MVars, and kills only the dead
+    -- context's own batch pump.
+    let withWebView act = withMVar aliveVar $ \alive ->
+            if alive then act
+            else ioError (userError "jsaddle-wkwebview: context invalidated \
+                                    \(webview released) — batch dropped")
+
     (processResult, syncResult, start) <- runJavaScriptWithSerializer (Just wkWebViewBatchLock) (\batch ->
-        useAsCString (toStrict $ "runJSaddleBatch(" <> encode batch <> ");") $
-            evaluateJavaScript webView)
+        withWebView $
+            useAsCString (toStrict $ "runJSaddleBatch(" <> encode batch <> ");") $
+                evaluateJavaScript webView)
         f
 
+    -- INBOUND must be gated too, or invalidating a context leaks threads without
+    -- bound.  The webview keeps its script-message handler until the host
+    -- releases it, and a page whose JS is still running keeps posting results;
+    -- 'runJavaScriptWithSerializer' forks a @processResults@ thread per delivery,
+    -- and with this context's batch pump gone (killed by the send gate above)
+    -- every one of them blocks forever on the pump's MVar.  Measured before this
+    -- gate: ~5000 blocked threads PER SECOND, 500k threads and 12GB RSS in one
+    -- session (and 72GB in a longer one).  A dead context simply drops what
+    -- arrives: nothing is listening for it anyway.
+    --
+    -- The flag is only READ here (not held across the handler): holding it would
+    -- deadlock the sync path, whose 'readMVar lastAsyncBatch' can wait on the
+    -- batch thread — which needs this same MVar to send.
+    let ifAlive :: a -> IO a -> IO a
+        ifAlive dflt act = readMVar aliveVar >>= \alive ->
+            if alive then act else return dflt
     startHandler <- newStablePtr (putMVar ready ())
-    resultHandler <- newStablePtr processResult
-    syncResultHandler <- newStablePtr syncResult
-    addJSaddleHandler webView startHandler resultHandler syncResultHandler
+    resultHandler <- newStablePtr (\results -> ifAlive () (processResult results))
+    -- An empty batch is what a context with nothing to say returns.
+    syncResultHandler <- newStablePtr
+        (\results -> ifAlive (Batch [] False 0) (syncResult results))
+    handler <- addJSaddleHandler webView startHandler resultHandler syncResultHandler
+    -- Freeing the three stable pointers above is what lets an invalidated
+    -- context be collected: each pins its closure, and those closures capture
+    -- the whole 'JSContextRef' — for a reflex application, the entire live
+    -- network.  Held for the life of the process (as they were), every instance
+    -- a ghci session ever ran stays reachable: ~30MB of live heap per reload.
+    -- Only safe once the ObjC handler can no longer dereference them, so it is
+    -- @removeJSaddleHandler@ that runs this, after detaching (asynchronously, on
+    -- the main queue).  @selfRef@ lets the callback free its own stable pointer
+    -- too; it is written before any detach can be requested below.
+    selfRef <- newIORef Nothing
+    onDetached <- newStablePtr $ do
+        freeStablePtr startHandler
+        freeStablePtr resultHandler
+        freeStablePtr syncResultHandler
+        readIORef selfRef >>= mapM_ freeStablePtr
+        -- Traced because the detach is asynchronous: this line is the only
+        -- evidence of WHEN (or whether) a context actually became collectable.
+        hPutStrLn stderr $ "jsaddle-wkwebview: context detached from webview "
+                           <> show ptr <> ", stable pointers freed"
+    writeIORef selfRef (Just onDetached)
+    -- Arm the detach for the invalidator — or, if invalidation already happened
+    -- (it found nothing to detach), detach right here.
+    let detach = removeJSaddleHandler webView handler onDetached
+    modifyMVar_ aliveVar $ \alive -> do
+        if alive then writeIORef detachRef (Just detach) else detach
+        return alive
     loadHtml
-    void . forkOS $ do
+    -- If the context is invalidated before the page signals ready, the gate
+    -- throws here; that just means this window died during startup, so swallow
+    -- it rather than letting forkOS report an unhandled exception.
+    void . forkOS . handle (\(_ :: SomeException) -> return ()) $ do
         takeMVar ready
-        useAsCString (toStrict jsaddleJs) (evaluateJavaScript webView) >> void (forkIO start)
+        withWebView $ useAsCString (toStrict jsaddleJs) (evaluateJavaScript webView)
+        void (forkIO start)
 
 jsaddleStart :: StablePtr (IO ()) -> IO ()
 jsaddleStart ptrHandler = join (deRefStablePtr ptrHandler)

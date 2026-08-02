@@ -3,6 +3,7 @@ module Language.Javascript.JSaddle.WKWebView
     , jsaddleMainHTMLWithBaseURL
     , jsaddleMainFile
     , WKWebView(..)
+    , jsaddleWebViewInvalidate
     , run
     , run'
     , runWithAppConfig
@@ -23,7 +24,8 @@ import Data.Word
 import Foreign.Marshal.Utils (fromBool)
 import Language.Javascript.JSaddle.WKWebView.Internal
        (jsaddleMain, jsaddleMainHTMLWithBaseURL, jsaddleMainFile, WKWebView(..),
-        mainBundleResourcePath, registerJSaddleCallbacks)
+        mainBundleResourcePath, registerJSaddleCallbacks,
+        jsaddleWebViewInvalidate)
 import System.Environment (getProgName)
 import Foreign.C.String (CString, withCString)
 import Foreign.C.Types (CBool, CInt)
