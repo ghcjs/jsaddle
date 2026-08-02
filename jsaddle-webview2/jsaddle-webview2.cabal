@@ -31,7 +31,7 @@ library
     ghc-options: -ferror-spans -Wall
     build-depends:
         base <5,
-        aeson >=0.8.0.2 && <2.3,
+        aeson >=0.8.0.2 && <2.4,
         bytestring >=0.10.6.0 && <0.13,
         data-default,
         jsaddle >=0.9.9.0 && <0.10,
