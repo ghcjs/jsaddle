@@ -169,7 +169,8 @@ getRunPid :: IO Integer
 getRunPid = toInteger <$> getProcessID
 #endif
 
--- | The tunnel session, inside the raw-termios bracket.
+-- | The tunnel session, inside the 'withRawMode' bracket (termios on POSIX,
+-- console mode on Windows).
 tunnel :: Config -> JSM () -> IO Outcome
 tunnel cfg jsm = do
   wlock <- newMVar ()
