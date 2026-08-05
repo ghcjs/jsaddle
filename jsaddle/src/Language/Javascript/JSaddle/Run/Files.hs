@@ -22,14 +22,19 @@ import Prelude ()
 import Prelude.Compat
 
 import Data.ByteString.Lazy (ByteString)
+import Data.Maybe (fromMaybe)
 
-indexHtml :: ByteString
-indexHtml =
+indexHtml :: Maybe ByteString -> ByteString
+indexHtml head_ =
     "<!DOCTYPE html>\n\
     \<html>\n\
-    \<head>\n\
-    \<title>JSaddle</title>\n\
-    \</head>\n\
+    \<head>\n"
+  <>
+    fromMaybe
+      "<title>JSaddle</title>\n"
+      head_
+  <>
+    "</head>\n\
     \<body>\n\
     \</body>\n\
     \<script src=\"/jsaddle.js\"></script>\n\
