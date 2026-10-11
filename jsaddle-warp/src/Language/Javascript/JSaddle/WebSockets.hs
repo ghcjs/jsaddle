@@ -71,6 +71,7 @@ import Foreign.Store (readStore, lookupStore, writeStore, Store(..))
 import Language.Javascript.JSaddle (askJSM)
 import Control.Monad.IO.Class (MonadIO(..))
 
+import Language.Javascript.JSaddle.WebSockets.BatchSender (withBatchSender)
 import Language.Javascript.JSaddle.WebSockets.Compat (getTextMessageByteString)
 import qualified Data.Text.Encoding as T (decodeUtf8)
 
@@ -83,8 +84,8 @@ jsaddleOr opts entryPoint otherApp = do
             conn <- acceptRequest pending_conn
             initMsg <- receiveDataMessage conn
             case getTextMessageByteString initMsg of
-                Just "" -> do
-                    rec (processResult, processSyncResult, start) <- runJavaScript (sendTextData conn . encode) $ do
+                Just "" -> withBatchSender (sendTextData conn . encode) $ \publishBatch -> do
+                    rec (processResult, processSyncResult, start) <- runJavaScript publishBatch $ do
                             syncKey <- T.pack . show . contextId <$> askJSM
                             liftIO $ atomicModifyIORef' syncHandlers (\m -> (M.insert syncKey processSyncResult m, ()))
                             liftIO $ atomicModifyIORef' asyncHandlers (\m -> (M.insert syncKey processResult m, ()))
