@@ -56,8 +56,10 @@ library
             Language.Javascript.JSaddle.WebSockets
         other-modules:
             Language.Javascript.JSaddle.WebSockets.Compat
+            Language.Javascript.JSaddle.WebSockets.BatchSender
         build-depends:
             aeson >=0.8.0.2 && <2.3,
+            async >=2.2 && <2.3,
             bytestring >=0.10.6.0 && <0.13,
             containers >=0.5.6.2 && <0.9,
             foreign-store >=0.2 && <0.3,
@@ -149,4 +151,22 @@ test-suite spec
     , warp
     , websockets
   other-modules:
+  default-language: Haskell2010
+
+test-suite batch-sender
+  if impl(ghcjs -any) || arch(javascript)
+    buildable: False
+
+  type: exitcode-stdio-1.0
+  main-is: BatchSenderSpec.hs
+  other-modules:
+      Language.Javascript.JSaddle.WebSockets.BatchSender
+  hs-source-dirs: tests src
+  ghc-options: -Wall -threaded
+  build-depends:
+      base
+    , async >=2.2 && <2.3
+    , hspec == 2.*
+    , jsaddle
+    , stm
   default-language: Haskell2010
