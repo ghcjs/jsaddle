@@ -1,4 +1,4 @@
-{-# LANGUAGE ForeignFunctionInterface, OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE ForeignFunctionInterface, LambdaCase, OverloadedStrings, ScopedTypeVariables #-}
 module Language.Javascript.JSaddle.WKWebView.Internal
     ( jsaddleMain
     , jsaddleMainHTMLWithBaseURL
@@ -10,11 +10,11 @@ module Language.Javascript.JSaddle.WKWebView.Internal
     ) where
 
 import Control.Monad (void, join, unless)
-import Control.Concurrent (forkIO, forkOS)
-import Control.Exception (IOException, handle)
+import Control.Concurrent (forkIO, forkOS, threadDelay)
+import Control.Exception (IOException, finally, handle, mask)
 import Control.Concurrent.MVar
        (MVar, modifyMVar, modifyMVar_, newEmptyMVar, newMVar, putMVar, readMVar,
-        takeMVar, tryPutMVar, withMVar)
+        takeMVar, tryPutMVar, tryTakeMVar, withMVar)
 
 import Data.IORef (newIORef, readIORef, writeIORef, atomicModifyIORef')
 
@@ -54,6 +54,39 @@ newtype JSaddleHandler = JSaddleHandler (Ptr JSaddleHandler)
 wkWebViewBatchLock :: MVar ()
 wkWebViewBatchLock = unsafePerformIO (newMVar ())
 
+-- | Run an invalidation while holding 'wkWebViewBatchLock', so it cannot
+-- land in the middle of one of this context's round trips.
+--
+-- 'runJavaScriptWithSerializer' holds the lock from a batch's send until its
+-- REPLY arrives.  Closing the gate only waits for the send (the 'aliveVar'
+-- section around @evaluateJavaScript@); if it then closed while that batch's
+-- reply was still on its way, the reply would be dropped — the inbound gate
+-- discards it and the handler is detached — and the batch thread would wait
+-- for it forever, STILL HOLDING THE LOCK.  Every other webview in the process
+-- then hangs on its next round trip.  (Seen in a multi-window app closing one
+-- window at a time: the remaining windows froze for 26s, 85s, or until
+-- restart — whenever the GC got round to noticing the orphaned wait.)  Taking
+-- the lock first means any round trip already under way finishes before the
+-- gate closes, and none can start until it has.
+--
+-- Bounded: a round trip that never completes (a wedged page) would otherwise
+-- block the invalidation forever.  After ~5s it closes the gate without the
+-- lock, as before.  Polled with 'tryTakeMVar' rather than 'timeout' around
+-- 'takeMVar': the timeout's exception can arrive just after the take has
+-- succeeded and lose the lock for good.
+--
+-- Must not run on the main thread: the reply this waits for is delivered
+-- there.
+withBatchLockBounded :: IO () -> IO ()
+withBatchLockBounded act = go (50 :: Int)
+  where
+    go n = mask $ \restore ->
+        tryTakeMVar wkWebViewBatchLock >>= \case
+            Just () -> restore act `finally` putMVar wkWebViewBatchLock ()
+            Nothing
+                | n <= 0    -> restore act
+                | otherwise -> restore (threadDelay 100000) >> go (n - 1)
+
 -- | Per-context invalidators, keyed by the raw webview pointer each context
 -- sends its batches to.  'jsaddleWebViewInvalidate' runs (and drops) a
 -- webview's entries so the host application can safely release the webview:
@@ -66,10 +99,13 @@ contextInvalidators = unsafePerformIO (newMVar [])
 -- | Invalidate every jsaddle context attached to @webView@: no jsaddle thread
 -- will touch the webview pointer after this returns, so the host may release
 -- the webview (and let its WebContent renderer process exit).  Blocks until
--- any in-flight batch send has completed.  The contexts' Haskell threads are
--- not stopped — their subsequent sends throw instead (a dropped send would
--- leave jsaddle's batch thread waiting for a reply forever while holding
--- 'wkWebViewBatchLock', deadlocking every other window; see 'jsaddleMain'').
+-- any batch round trip already under way — in ANY context, since they share
+-- 'wkWebViewBatchLock' — has had its reply (bounded; see
+-- 'withBatchLockBounded'), so call it OFF the main thread, where those replies
+-- are delivered.  The contexts' Haskell threads are not stopped — their
+-- subsequent sends throw instead (a dropped send would leave jsaddle's batch
+-- thread waiting for a reply forever while holding 'wkWebViewBatchLock',
+-- deadlocking every other window; see 'jsaddleMain'').
 --
 -- Also detaches each context's ObjC handler and frees the stable pointers it
 -- holds, which is what makes an invalidated context COLLECTABLE — see
@@ -218,10 +254,15 @@ jsaddleMain' f webView@(WKWebView ptr) loadHtml = do
     detachRef <- newIORef Nothing
     modifyMVar_ contextInvalidators $ return .
         ((ptr, do
-             modifyMVar_ aliveVar $ \_ -> do
-                 mbDetach <- atomicModifyIORef' detachRef (\d -> (Nothing, d))
-                 sequence_ mbDetach
-                 return False
+             -- Close the gate and detach while holding 'wkWebViewBatchLock'
+             -- (see 'withBatchLockBounded').  Same order as a batch round
+             -- trip — the lock, then 'aliveVar' inside the send — so this
+             -- cannot invert against one.
+             withBatchLockBounded $
+                 modifyMVar_ aliveVar $ \_ -> do
+                     mbDetach <- atomicModifyIORef' detachRef (\d -> (Nothing, d))
+                     sequence_ mbDetach
+                     return False
              -- Release the startup thread below if the page never signalled
              -- ready (invalidated mid-load): nothing else will ever fill this,
              -- and it is holding an OS thread and this context's closures.  It
