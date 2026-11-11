@@ -1,6 +1,6 @@
 cabal-version: 3.0
 name: jsaddle-wkwebview
-version: 0.9.9.3
+version: 0.9.10.0
 build-type: Simple
 license: MIT
 license-file: LICENSE
@@ -65,7 +65,7 @@ library
             aeson >=0.8.0.2 && <2.4,
             bytestring >=0.10.6.0 && <0.13,
             directory,
-            jsaddle >= 0.9.9.0 && <0.10,
+            jsaddle >= 0.9.10.0 && <0.10,
             text,
             data-default,
             containers
