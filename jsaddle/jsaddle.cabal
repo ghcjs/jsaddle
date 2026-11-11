@@ -1,9 +1,10 @@
 name: jsaddle
-version: 0.9.9.4
+version: 0.9.10.0
 cabal-version: >=1.10
 build-type: Simple
 license: MIT
 license-file: LICENSE
+extra-source-files: ChangeLog.md
 maintainer: Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
 synopsis: Interface for JavaScript that works with GHCJS and GHC
 description:
@@ -32,7 +33,7 @@ library
 
     if impl(ghcjs -any) || arch(javascript)
         build-depends:
-            ghcjs-base -any
+            ghcjs-base >=0.8.1.0
         -- GHC includes GHC.JS.Prim in base
         if impl(ghcjs -any)
             build-depends:
@@ -70,6 +71,7 @@ library
             GHCJS.Concurrent
             GHCJS.Foreign
             GHCJS.Foreign.Internal
+            GHCJS.Int53
             GHCJS.Internal.Types
             GHCJS.Marshal
             GHCJS.Marshal.Internal
@@ -101,6 +103,7 @@ library
         Language.Javascript.JSaddle.Evaluate
         Language.Javascript.JSaddle.Exception
         Language.Javascript.JSaddle.Helper
+        Language.Javascript.JSaddle.Int53
         Language.Javascript.JSaddle.Marshal.String
         Language.Javascript.JSaddle.Monad
         Language.Javascript.JSaddle.Object

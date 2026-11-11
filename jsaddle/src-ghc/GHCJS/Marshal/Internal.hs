@@ -280,3 +280,56 @@ toJSVal_pure = return . pToJSVal
 
 packJSS :: String -> JSString
 packJSS = textToStr . T.pack
+
+-- -----------------------------------------------------------------------------
+-- Instances for the JSVal newtypes, matching the ones ghcjs-base (>= 0.8.1)
+-- defines for the JavaScript backend.
+
+instance PToJSVal OI.Object where
+  pToJSVal (OI.Object v) = v
+  {-# INLINE pToJSVal #-}
+
+-- | Unchecked: wraps any value.
+instance PFromJSVal OI.Object where
+  pFromJSVal = OI.Object
+  {-# INLINE pFromJSVal #-}
+
+instance ToJSVal OI.Object where
+  toJSVal (OI.Object v) = return v
+  {-# INLINE toJSVal #-}
+
+-- | 'Nothing' for @null@ and @undefined@ (as for the jsaddle-dom types);
+-- 'fromJSValUnchecked' wraps any value.
+instance FromJSVal OI.Object where
+  fromJSVal v = nullOrUndefined v >>= \case
+    True -> return Nothing
+    False -> return (Just (OI.Object v))
+  {-# INLINE fromJSVal #-}
+  fromJSValUnchecked = return . OI.Object
+  {-# INLINE fromJSValUnchecked #-}
+
+instance PToJSVal (AI.SomeJSArray m) where
+  pToJSVal (AI.SomeJSArray v) = v
+  {-# INLINE pToJSVal #-}
+
+-- | Unchecked: wraps any value.
+instance PFromJSVal (AI.SomeJSArray m) where
+  pFromJSVal = AI.SomeJSArray
+  {-# INLINE pFromJSVal #-}
+
+instance ToJSVal (AI.SomeJSArray m) where
+  toJSVal (AI.SomeJSArray v) = return v
+  {-# INLINE toJSVal #-}
+
+-- | 'Nothing' for @null@ and @undefined@; 'fromJSValUnchecked' wraps any
+-- value (no @Array.isArray@ check, like the other JSVal newtypes).
+instance FromJSVal (AI.SomeJSArray m) where
+  fromJSVal v = nullOrUndefined v >>= \case
+    True -> return Nothing
+    False -> return (Just (AI.SomeJSArray v))
+  {-# INLINE fromJSVal #-}
+  fromJSValUnchecked = return . AI.SomeJSArray
+  {-# INLINE fromJSValUnchecked #-}
+
+nullOrUndefined :: JSVal -> JSM Bool
+nullOrUndefined v = (||) <$> ghcjsPure (F.isNull v) <*> ghcjsPure (F.isUndefined v)

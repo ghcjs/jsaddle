@@ -315,8 +315,8 @@ valToObject value = Object <$> toJSVal value
 instance MakeObject JSVal where
     makeObject = return . Object
 
-instance ToJSVal Object where
-    toJSVal (Object r) = return r
+-- ToJSVal / FromJSVal Object are defined with the classes: in GHCJS.Marshal.Internal
+-- (jsaddle's src-ghc for native GHC, ghcjs-base >= 0.8.1 for the JS backend).
 
 -- | Convert to a JavaScript value (just an alias for 'toJSVal')
 val :: ToJSVal value
