@@ -4,13 +4,14 @@ version: 0.1.0.0
 build-type: Simple
 license: MIT
 license-file: LICENSE
+extra-doc-files: ChangeLog.md README.md
 maintainer: Hamish Mackenzie <Hamish.K.Mackenzie@googlemail.com>
 synopsis: Interface for JavaScript that works with GHCJS and GHC
 description:
     jsaddle backend for Windows: hosts the app in a native Win32 window
     containing a Microsoft Edge WebView2 control.  The Windows sibling of
     jsaddle-wkwebview (macOS/iOS) and jsaddle-webkitgtk (Linux).
-    .
+
     Building needs WebView2.h from the Microsoft.Web.WebView2 NuGet package
     on the include path (see the README); nothing from the SDK is needed at
     link time.  Running needs the WebView2 runtime (preinstalled on Windows
@@ -21,6 +22,7 @@ author: Hamish Mackenzie
 source-repository head
     type: git
     location: https://github.com/ghcjs/jsaddle
+    subdir: jsaddle-webview2
 
 library
     exposed-modules:
@@ -33,9 +35,9 @@ library
         base <5,
         aeson >=0.8.0.2 && <2.4,
         bytestring >=0.10.6.0 && <0.13,
-        data-default,
+        data-default >=0.7 && <0.9,
         jsaddle >=0.9.9.0 && <0.10,
-        text
+        text >=1.2.1.3 && <1.3 || >=2.0 && <2.2
     c-sources: cbits/WebView2Shim.c
     extra-libraries: ole32, user32
     if !os(windows)
